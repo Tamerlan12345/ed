@@ -1,8 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
@@ -24,7 +24,7 @@ exports.handler = async (event) => {
         if (error) throw error;
         return { statusCode: 200, body: JSON.stringify({ message: 'Результат сохранен' }) };
     } catch (error) {
-        console.error("Сбой в saveTestResult:", error);
+        console.error("Crash in saveTestResult:", error);
         return { statusCode: 500, body: JSON.stringify({ error: 'Не удалось сохранить результат.' }) };
     }
 };
