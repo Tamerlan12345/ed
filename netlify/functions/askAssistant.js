@@ -50,12 +50,21 @@ exports.handler = async (event) => {
         if (courseError || !courseData) throw new Error('Документ для этого курса не найден.');
 
         const fileContent = await getFileContentFromGoogleDrive(courseData.doc_id);
-        const prompt = `Задание: Ты — дружелюбный AI-ассистент. Ответь на вопрос сотрудника, используя ТОЛЬКО текст документа ниже. Если ответа в тексте нет, скажи: "К сожалению, в предоставленных материалах я не нашел ответа на этот вопрос." ВОПРОС: "${question}" ТЕКСТ ДОКУМЕНТА: --- ${fileContent} ---`;
+        const prompt = `
+            Задание: Ты — дружелюбный AI-ассистент. Ответь на вопрос сотрудника, используя ТОЛЬКО текст документа ниже.
+            Если ответа в тексте нет, скажи: "К сожалению, в предоставленных материалах я не нашел ответа на этот вопрос."
+            ВОПРОС: "${question}"
+            ТЕКСТ ДОКУМЕНТА:
+            ---
+            ${fileContent.replace(/`/g, "'")}
+            ---
+        `;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         
         return { statusCode: 200, body: JSON.stringify({ answer: response.text() }) };
     } catch (error) {
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        console.error("Сбой в askAssistant:", error);
+        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
 };
