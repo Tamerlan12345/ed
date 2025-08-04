@@ -1,8 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import fetch from 'node-fetch'; // <-- ГЛАВНОЕ ИЗМЕНЕНИЕ
-import pdf from 'pdf-parse';
-import mammoth from 'mammoth';
+const { createClient } = require('@supabase/supabase-js');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const fetch = require('node-fetch');
+const pdf = require('pdf-parse');
+const mammoth = require('mammoth');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -46,7 +46,7 @@ async function generateCourseFromAI(fileContent) {
     return JSON.parse(jsonString);
 }
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
     try {
         const token = event.headers.authorization.split(' ')[1];
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
