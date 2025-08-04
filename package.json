@@ -1,7 +1,6 @@
 {
   "name": "ai-platform-final",
   "version": "1.0.0",
-  "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.1.3",
     "@supabase/supabase-js": "^2.43.5",
