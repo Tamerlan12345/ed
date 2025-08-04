@@ -1,34 +1,39 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import gaxios from 'gaxios';
+import fetch from 'node-fetch'; // <-- ГЛАВНОЕ ИЗМЕНЕНИЕ
 import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-const GOOGLE_API_KEY = process.env.GOOGLE_SHEETS_API_KEY; 
+const GOOGLE_API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
 
 async function getFileContentFromGoogleDrive(fileId) {
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType&key=${GOOGLE_API_KEY}`;
-    const metaResponse = await gaxios.request({ url: metaUrl });
-    const mimeType = metaResponse.data.mimeType;
+    const metaResponse = await fetch(metaUrl);
+    if (!metaResponse.ok) throw new Error(`Google API Error (metadata): ${await metaResponse.text()}`);
+    const metaData = await metaResponse.json();
+    const mimeType = metaData.mimeType;
 
     let textContent = '';
-
     switch (mimeType) {
         case 'application/vnd.google-apps.document':
         case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
             const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain&key=${GOOGLE_API_KEY}`;
-            textContent = (await gaxios.request({ url: exportUrl, responseType: 'text' })).data;
+            const exportResponse = await fetch(exportUrl);
+            if (!exportResponse.ok) throw new Error(`Google API Error (export): ${await exportResponse.text()}`);
+            textContent = await exportResponse.text();
             break;
         case 'application/pdf':
             const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${GOOGLE_API_KEY}`;
-            const response = await gaxios.request({ url: downloadUrl, responseType: 'arraybuffer' });
-            textContent = (await pdf(response.data)).text;
+            const downloadResponse = await fetch(downloadUrl);
+            if (!downloadResponse.ok) throw new Error(`Google API Error (download): ${await downloadResponse.text()}`);
+            const pdfBuffer = await downloadResponse.arrayBuffer();
+            textContent = (await pdf(Buffer.from(pdfBuffer))).text;
             break;
         default:
-            throw new Error(`Unsupported file type: ${mimeType}. Поддерживаются только Google Docs, PDF и .docx.`);
+            throw new Error(`Unsupported file type: ${mimeType}.`);
     }
     return textContent;
 }
@@ -37,7 +42,7 @@ async function generateCourseFromAI(fileContent) {
     const prompt = `Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа. Требования к результату: 1.  Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке). 2.  После всех уроков создай 5 тестовых вопросов по всему материалу. 3.  Верни результат СТРОГО в формате JSON. Структура JSON: { "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ], "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ] } ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ: --- ${fileContent} ---`;
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
     return JSON.parse(jsonString);
 }
 
@@ -52,7 +57,7 @@ export const handler = async (event) => {
 
         const { data: courseData, error: courseError } = await supabase.from('courses').select('doc_id, content_html, questions').eq('course_id', course_id).single();
         if (courseError || !courseData) throw new Error('Курс не найден.');
-        
+
         if (courseData.content_html && courseData.questions && force_regenerate !== 'true') {
             return { statusCode: 200, body: JSON.stringify({ summary: courseData.content_html, questions: courseData.questions }) };
         }
