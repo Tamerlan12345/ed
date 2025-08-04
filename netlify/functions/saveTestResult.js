@@ -24,6 +24,7 @@ exports.handler = async (event) => {
         if (error) throw error;
         return { statusCode: 200, body: JSON.stringify({ message: 'Результат сохранен' }) };
     } catch (error) {
+        console.error("Сбой в saveTestResult:", error);
         return { statusCode: 500, body: JSON.stringify({ error: 'Не удалось сохранить результат.' }) };
     }
 };
