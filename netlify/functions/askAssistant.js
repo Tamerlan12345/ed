@@ -1,8 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const fetch = require('node-fetch');
-const mammoth = require('mammoth');
-const pdf = require('pdf-parse');
+import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import fetch from 'node-fetch';
+import mammoth from 'mammoth';
+import pdf from 'pdf-parse';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -37,7 +37,7 @@ async function getFileContentFromGoogleDrive(fileId) {
     return textContent;
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
     try {
         const token = event.headers.authorization.split(' ')[1];
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -50,21 +50,13 @@ exports.handler = async (event) => {
         if (courseError || !courseData) throw new Error('Документ для этого курса не найден.');
 
         const fileContent = await getFileContentFromGoogleDrive(courseData.doc_id);
-        const prompt = `
-            Задание: Ты — дружелюбный AI-ассистент. Ответь на вопрос сотрудника, используя ТОЛЬКО текст документа ниже.
-            Если ответа в тексте нет, скажи: "К сожалению, в предоставленных материалах я не нашел ответа на этот вопрос."
-            ВОПРОС: "${question}"
-            ТЕКСТ ДОКУМЕНТА:
-            ---
-            ${fileContent.replace(/`/g, "'")}
-            ---
-        `;
+        const prompt = `Задание: Ты — дружелюбный AI-ассистент. Ответь на вопрос сотрудника, используя ТОЛЬКО текст документа ниже. Если ответа в тексте нет, скажи: "К сожалению, в предоставленных материалах я не нашел ответа на этот вопрос." ВОПРОС: "${question}" ТЕКСТ ДОКУМЕНТА: --- ${fileContent.replace(/`/g, "'")} ---`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         
         return { statusCode: 200, body: JSON.stringify({ answer: response.text() }) };
     } catch (error) {
-        console.error("Сбой в askAssistant:", error);
+        console.error("Crash in askAssistant:", error);
         return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
 };
