@@ -1,8 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const fetch = require('node-fetch');
-const pdf = require('pdf-parse');
-const mammoth = require('mammoth');
+import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import fetch from 'node-fetch';
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -39,29 +39,14 @@ async function getFileContentFromGoogleDrive(fileId) {
 }
 
 async function generateCourseFromAI(fileContent) {
-    const prompt = `
-        Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа.
-        Требования к результату:
-        1. Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке).
-        2. После всех уроков создай 5 тестовых вопросов по всему материалу.
-        3. Верни результат СТРОГО в формате JSON.
-        Структура JSON:
-        {
-          "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ],
-          "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ]
-        }
-        ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ:
-        ---
-        ${fileContent.replace(/`/g, "'")}
-        ---
-    `;
+    const prompt = `Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа. Требования к результату: 1. Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке). 2. После всех уроков создай 5 тестовых вопросов по всему материалу. 3. Верни результат СТРОГО в формате JSON. Структура JSON: { "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ], "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ] } ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ: --- ${fileContent.replace(/`/g, "'")} ---`;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
     return JSON.parse(jsonString);
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
     try {
         const token = event.headers.authorization.split(' ')[1];
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -85,7 +70,7 @@ exports.handler = async (event) => {
 
         return { statusCode: 200, body: JSON.stringify(newContent) };
     } catch (error) {
-        console.error("Сбой в getCourseContent:", error);
+        console.error("Crash in getCourseContent:", error);
         return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
 };
