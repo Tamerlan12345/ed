@@ -1,8 +1,8 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   try {
     const token = event.headers.authorization.split(' ')[1];
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
