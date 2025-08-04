@@ -39,7 +39,22 @@ async function getFileContentFromGoogleDrive(fileId) {
 }
 
 async function generateCourseFromAI(fileContent) {
-    const prompt = `Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа. Требования к результату: 1.  Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке). 2.  После всех уроков создай 5 тестовых вопросов по всему материалу. 3.  Верни результат СТРОГО в формате JSON. Структура JSON: { "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ], "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ] } ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ: --- ${fileContent} ---`;
+    const prompt = `
+        Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа.
+        Требования к результату:
+        1. Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке).
+        2. После всех уроков создай 5 тестовых вопросов по всему материалу.
+        3. Верни результат СТРОГО в формате JSON.
+        Структура JSON:
+        {
+          "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ],
+          "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ]
+        }
+        ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ:
+        ---
+        ${fileContent.replace(/`/g, "'")}
+        ---
+    `;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
@@ -70,6 +85,7 @@ exports.handler = async (event) => {
 
         return { statusCode: 200, body: JSON.stringify(newContent) };
     } catch (error) {
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        console.error("Сбой в getCourseContent:", error);
+        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
 };
