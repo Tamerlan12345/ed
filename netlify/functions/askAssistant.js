@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import gaxios from 'gaxios';
-import pdf from 'pdf-parse';
+import fetch from 'node-fetch'; // <-- ГЛАВНОЕ ИЗМЕНЕНИЕ
 import mammoth from 'mammoth';
+import pdf from 'pdf-parse';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -11,19 +11,25 @@ const GOOGLE_API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
 
 async function getFileContentFromGoogleDrive(fileId) {
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType&key=${GOOGLE_API_KEY}`;
-    const metaResponse = await gaxios.request({ url: metaUrl });
-    const mimeType = metaResponse.data.mimeType;
+    const metaResponse = await fetch(metaUrl);
+    if (!metaResponse.ok) throw new Error(`Google API Error (metadata): ${await metaResponse.text()}`);
+    const metaData = await metaResponse.json();
+    const mimeType = metaData.mimeType;
     let textContent = '';
     switch (mimeType) {
         case 'application/vnd.google-apps.document':
         case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
             const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain&key=${GOOGLE_API_KEY}`;
-            textContent = (await gaxios.request({ url: exportUrl, responseType: 'text' })).data;
+            const exportResponse = await fetch(exportUrl);
+            if (!exportResponse.ok) throw new Error(`Google API Error (export): ${await exportResponse.text()}`);
+            textContent = await exportResponse.text();
             break;
         case 'application/pdf':
             const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${GOOGLE_API_KEY}`;
-            const response = await gaxios.request({ url: downloadUrl, responseType: 'arraybuffer' });
-            textContent = (await pdf(response.data)).text;
+            const downloadResponse = await fetch(downloadUrl);
+            if (!downloadResponse.ok) throw new Error(`Google API Error (download): ${await downloadResponse.text()}`);
+            const pdfBuffer = await downloadResponse.arrayBuffer();
+            textContent = (await pdf(Buffer.from(pdfBuffer))).text;
             break;
         default:
             throw new Error(`Unsupported file type: ${mimeType}.`);
