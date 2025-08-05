@@ -7,6 +7,7 @@ const mammoth = require('mammoth');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const GOOGLE_API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
 
 async function getFileContentFromGitHub(fileName) {
     const user = process.env.GITHUB_USER;
@@ -24,19 +25,19 @@ async function getFileContentFromGitHub(fileName) {
 }
 
 async function generateCourseFromAI(textContent) {
-    // НОВАЯ ЛОГИКА: Формируем команду в виде JSON-объекта
-    const command = {
-        role: "AI-наставник",
-        task: "Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе предоставленного текста. Объясняй материал немного по-разному, но СТРОГО в рамках текста.",
-        output_format: {
-            summary: [ { title: "Заголовок урока", html_content: "<p>HTML-текст урока...</p>" } ],
-            questions: [ { question: "Текст вопроса", options: ["A", "B", "C"], correct_option_index: 0 } ]
-        },
-        source_text: textContent
-    };
-    // Превращаем команду в однострочный текст
-    const prompt = JSON.stringify(command);
-
+    const promptParts = [
+        'Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа.',
+        'Требования к результату:',
+        '1. Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке).',
+        '2. После всех уроков создай 5 тестовых вопросов по всему материалу.',
+        '3. Верни результат СТРОГО в формате JSON.',
+        'Структура JSON: { "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ], "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ] }',
+        'ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ:',
+        '---',
+        textContent,
+        '---'
+    ];
+    const prompt = promptParts.join('\n');
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
@@ -62,4 +63,11 @@ exports.handler = async (event) => {
         const fileContent = await getFileContentFromGitHub(courseData.doc_id);
         const newContent = await generateCourseFromAI(fileContent);
 
-        const { error: updateError } = await supabase.from('courses').update({ content_html: newContent.summary, questions: newContent.questions, last_updated: new Date().toISOString() }).eq('course_
+        const { error: updateError } = await supabase.from('courses').update({ content_html: newContent.summary, questions: newContent.questions, last_updated: new Date().toISOString() }).eq('course_id', course_id);
+        if (updateError) throw updateError;
+
+        return { statusCode: 200, body: JSON.stringify(newContent) };
+    } catch (error) {
+        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
+    }
+};
