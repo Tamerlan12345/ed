@@ -15,12 +15,12 @@ async function getFileContentFromGitHub(fileName) {
     const fileUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/course_materials/${fileName}`;
     
     const response = await fetch(fileUrl);
-    if (!response.ok) throw new Error(`Не удалось скачать файл с GitHub. Статус: ${response.statusText}`);
+    if (!response.ok) throw new Error(`Не удалось скачать файл с GitHub: ${response.statusText}`);
     const fileBuffer = Buffer.from(await response.arrayBuffer());
 
     if (fileName.toLowerCase().endsWith('.pdf')) return (await pdf(fileBuffer)).text;
     if (fileName.toLowerCase().endsWith('.docx')) return (await mammoth.extractRawText({ buffer: fileBuffer })).value;
-    throw new Error('Поддерживаются только .pdf и .docx файлы.');
+    throw new Error('Поддерживаются только .pdf и .docx.');
 }
 
 exports.handler = async (event) => {
@@ -37,22 +37,22 @@ exports.handler = async (event) => {
 
         const fileContent = await getFileContentFromGitHub(courseData.doc_id);
         
-        const promptParts = [
-            'Задание: Ты — дружелюбный AI-ассистент. Ответь на вопрос сотрудника, используя ТОЛЬКО текст документа ниже.',
-            'Если ответа в тексте нет, скажи: "К сожалению, в предоставленных материалах я не нашел ответа на этот вопрос."',
-            `ВОПРОС: "${question}"`,
-            'ТЕКСТ ДОКУМЕНТА:',
-            '---',
-            fileContent,
-            '---'
-        ];
-        const prompt = promptParts.join('\n');
-
+        // НОВАЯ ЛОГИКА: Формируем команду в виде JSON-объекта
+        const command = {
+            role: "AI-ассистент, эксперт по страховым продуктам",
+            task: "Ответь на вопрос сотрудника, используя только предоставленный исходный текст.",
+            rules: "Если ответа в тексте нет, вежливо сообщи об этом.",
+            question: question,
+            source_text: fileContent
+        };
+        // Превращаем команду в однострочный текст
+        const prompt = JSON.stringify(command);
+        
         const result = await model.generateContent(prompt);
         const response = await result.response;
         
         return { statusCode: 200, body: JSON.stringify({ answer: response.text() }) };
     } catch (error) {
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
 };
