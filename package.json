@@ -1,5 +1,5 @@
 {
-  "name": "ai-platform-stable",
+  "name": "ai-platform-final",
   "version": "1.0.0",
   "type": "commonjs",
   "dependencies": {
@@ -7,6 +7,6 @@
     "@supabase/supabase-js": "^2.43.5",
     "mammoth": "^1.7.2",
     "node-fetch": "^3.3.2",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "1.1.1"
   }
 }
