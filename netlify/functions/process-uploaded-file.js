@@ -19,7 +19,7 @@ exports.handler = async (event) => {
         // Get public URL for the file from Supabase Storage
         const { data: urlData, error: urlError } = supabase
             .storage
-            .from('course-files')
+            .from('1')
             .getPublicUrl(path);
 
         if (urlError) {
