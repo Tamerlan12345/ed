@@ -10,51 +10,48 @@
         h1, h2, h3 { color: #005A9C; }
         .hidden { display: none; }
         input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-size: 16px; }
-        button { background-color: #005A9C; color: white; cursor: pointer; border: none; }
+        button { background-color: #005A9C; color: white; cursor: pointer; border: none; font-weight: bold; }
         button:hover { background-color: #00AEEF; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         textarea { height: 150px; resize: vertical; }
-        .status { padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .status { padding: 15px; border-radius: 8px; margin: 10px 0; text-align: center; }
         .error { color: #dc3545; background-color: #fdeeee; }
         .success { color: #28a745; background-color: #eaf7ec; }
+        .info { color: #005A9C; background-color: #e9f7fe; }
     </style>
 </head>
 <body>
-
     <div id="login-view">
         <h1>Вход для администратора</h1>
-        <input type="email" id="admin-email" placeholder="Email" required>
-        <input type="password" id="admin-password" placeholder="Пароль" required>
+        <input type="email" id="admin-email" value="admin@cic.kz">
+        <input type="password" id="admin-password" placeholder="Пароль">
         <button id="login-btn">Войти</button>
-        <div id="login-status" class="status hidden"></div>
     </div>
 
     <div id="panel-view" class="hidden">
         <h1>Панель управления курсами</h1>
-        <select id="course-selector"><option value="">-- Выберите курс для редактирования --</option></select>
+        <div id="status-box" class="status hidden"></div>
+        <select id="course-selector"><option value="">-- Создать новый курс --</option></select>
+        <button id="load-course-btn">Загрузить выбранный курс</button>
         <hr>
-        <h2>Создать новый / Редактировать существующий курс</h2>
+        <h2>Данные курса</h2>
         <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
         <input type="text" id="course-title" placeholder="Название курса">
         
         <h3>Шаг 1: Загрузите файл (PDF/DOCX) для извлечения текста</h3>
         <input type="file" id="file-uploader" accept=".pdf,.docx">
-        <button id="process-file-btn">Извлечь текст из файла</button>
-        <textarea id="source-text" placeholder="Здесь появится извлеченный текст..."></textarea>
+        <button id="process-file-btn">Извлечь и сохранить текст</button>
         
         <h3>Шаг 2: Сгенерируйте контент</h3>
         <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
-        <button id="generate-btn">Сгенерировать черновик</button>
+        <button id="generate-btn">Сгенерировать черновик по тексту</button>
         
         <h3>Шаг 3: Проверьте и отредактируйте</h3>
         <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML..."></textarea>
         <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON..."></textarea>
 
         <h3>Шаг 4: Сохранение и публикация</h3>
-        <button id="save-draft-btn">Сохранить как черновик</button>
-        <button id="publish-btn" style="background-color: #28a745;">Опубликовать</button>
-        
-        <div id="panel-status" class="status hidden"></div>
+        <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
     </div>
 
 <script>
@@ -65,58 +62,117 @@
 
     const loginView = document.getElementById('login-view');
     const panelView = document.getElementById('panel-view');
-    // ... (остальные DOM элементы)
+    const statusBox = document.getElementById('status-box');
     
-    // ПРОСТАЯ ДЕМОНСТРАЦИЯ ЛОГИКИ. 
-    // В реальном проекте эту логику нужно будет доработать для лучшего UX.
-    
-    // Вход
+    function showStatus(message, type = 'info') {
+        statusBox.textContent = message;
+        statusBox.className = `status ${type}`;
+    }
+
     document.getElementById('login-btn').addEventListener('click', async () => {
         const email = document.getElementById('admin-email').value;
         const password = document.getElementById('admin-password').value;
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error || data.user.email.toLowerCase() !== 'admin@cic.kz') {
-            document.getElementById('login-status').textContent = 'Ошибка: доступ только для администратора.';
-            document.getElementById('login-status').className = 'status error';
+           showStatus('Ошибка: доступ только для администратора.', 'error');
         } else {
             adminToken = data.session.access_token;
             loginView.classList.add('hidden');
             panelView.classList.remove('hidden');
-            // Здесь можно добавить функцию загрузки списка курсов в <select>
         }
     });
-
-    // Обработка файла
+    
     document.getElementById('process-file-btn').addEventListener('click', async () => {
         const file = document.getElementById('file-uploader').files[0];
-        const courseId = document.getElementById('course-id').value;
-        if (!file || !courseId) {
-            alert('Укажите ID курса и выберите файл.');
+        const courseId = document.getElementById('course-id').value.trim();
+        const title = document.getElementById('course-title').value.trim();
+
+        if (!file || !courseId || !title) {
+            showStatus('Укажите ID, название курса и выберите файл.', 'error');
             return;
         }
 
+        showStatus('Извлекаю текст из файла...', 'info');
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async () => {
             const base64File = reader.result.split(',')[1];
             
-            const response = await fetch('/.netlify/functions/admin-process-file', {
+            const response = await fetch('/.netlify/functions/admin-handler', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${adminToken}` },
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    action: 'process_file',
                     course_id: courseId,
-                    title: document.getElementById('course-title').value,
+                    title: title,
                     file_name: file.name,
                     file_data: base64File
                 })
             });
             const data = await response.json();
-            document.getElementById('source-text').value = data.extractedText || `Ошибка: ${data.error}`;
+            if(response.ok) {
+                showStatus('Текст успешно извлечен и сохранен как черновик.', 'success');
+            } else {
+                showStatus(`Ошибка: ${data.error}`, 'error');
+            }
         };
     });
-    
-    // ... (аналогичные обработчики для кнопок "Сгенерировать" и "Опубликовать")
 
+    document.getElementById('generate-btn').addEventListener('click', async () => {
+        const courseId = document.getElementById('course-id').value.trim();
+        if (!courseId) {
+            showStatus('Укажите ID курса.', 'error');
+            return;
+        }
+        showStatus('Идет генерация контента AI... Это может занять до 30 секунд.', 'info');
+        
+        const response = await fetch('/.netlify/functions/admin-handler', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'generate_content',
+                course_id: courseId,
+                custom_prompt: document.getElementById('custom-prompt').value
+            })
+        });
+
+        const data = await response.json();
+        if(response.ok) {
+            showStatus('Черновик успешно сгенерирован.', 'success');
+            document.getElementById('generated-html').value = JSON.stringify(data.summary, null, 2);
+            document.getElementById('generated-questions').value = JSON.stringify(data.questions, null, 2);
+        } else {
+            showStatus(`Ошибка: ${data.error}`, 'error');
+        }
+    });
+
+    document.getElementById('publish-btn').addEventListener('click', async () => {
+        const courseId = document.getElementById('course-id').value.trim();
+        if (!courseId) {
+            showStatus('Укажите ID курса.', 'error');
+            return;
+        }
+        showStatus('Публикую курс...', 'info');
+
+        const response = await fetch('/.netlify/functions/admin-handler', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'publish_course',
+                course_id: courseId,
+                content_html: JSON.parse(document.getElementById('generated-html').value),
+                questions: JSON.parse(document.getElementById('generated-questions').value),
+                admin_prompt: document.getElementById('custom-prompt').value
+            })
+        });
+
+        const data = await response.json();
+        if(response.ok) {
+            showStatus(data.message, 'success');
+        } else {
+            showStatus(`Ошибка: ${data.error}`, 'error');
+        }
+    });
 </script>
 </body>
 </html>
