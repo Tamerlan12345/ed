@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ-панель</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f4f7f6; }
+        h1, h2, h3 { color: #005A9C; }
+        .hidden { display: none; }
+        input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-size: 16px; }
+        button { background-color: #005A9C; color: white; cursor: pointer; border: none; }
+        button:hover { background-color: #00AEEF; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        textarea { height: 150px; resize: vertical; }
+        .status { padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .error { color: #dc3545; background-color: #fdeeee; }
+        .success { color: #28a745; background-color: #eaf7ec; }
+    </style>
+</head>
+<body>
+
+    <div id="login-view">
+        <h1>Вход для администратора</h1>
+        <input type="email" id="admin-email" placeholder="Email" required>
+        <input type="password" id="admin-password" placeholder="Пароль" required>
+        <button id="login-btn">Войти</button>
+        <div id="login-status" class="status hidden"></div>
+    </div>
+
+    <div id="panel-view" class="hidden">
+        <h1>Панель управления курсами</h1>
+        <select id="course-selector"><option value="">-- Выберите курс для редактирования --</option></select>
+        <hr>
+        <h2>Создать новый / Редактировать существующий курс</h2>
+        <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
+        <input type="text" id="course-title" placeholder="Название курса">
+        
+        <h3>Шаг 1: Загрузите файл (PDF/DOCX) для извлечения текста</h3>
+        <input type="file" id="file-uploader" accept=".pdf,.docx">
+        <button id="process-file-btn">Извлечь текст из файла</button>
+        <textarea id="source-text" placeholder="Здесь появится извлеченный текст..."></textarea>
+        
+        <h3>Шаг 2: Сгенерируйте контент</h3>
+        <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
+        <button id="generate-btn">Сгенерировать черновик</button>
+        
+        <h3>Шаг 3: Проверьте и отредактируйте</h3>
+        <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML..."></textarea>
+        <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON..."></textarea>
+
+        <h3>Шаг 4: Сохранение и публикация</h3>
+        <button id="save-draft-btn">Сохранить как черновик</button>
+        <button id="publish-btn" style="background-color: #28a745;">Опубликовать</button>
+        
+        <div id="panel-status" class="status hidden"></div>
+    </div>
+
+<script>
+    const SUPABASE_URL = 'https://wnsdlibhrlmgyszbyxat.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2RsaWJocmxtZ3lzemJ5eGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE0MjgsImV4cCI6MjA2OTg1NzQyOH0.Sgz-50dHj8M599sIjTRYs0kMP7b6kX2BJ-Gc-trMUQ4';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let adminToken = null;
+
+    const loginView = document.getElementById('login-view');
+    const panelView = document.getElementById('panel-view');
+    // ... (остальные DOM элементы)
+    
+    // ПРОСТАЯ ДЕМОНСТРАЦИЯ ЛОГИКИ. 
+    // В реальном проекте эту логику нужно будет доработать для лучшего UX.
+    
+    // Вход
+    document.getElementById('login-btn').addEventListener('click', async () => {
+        const email = document.getElementById('admin-email').value;
+        const password = document.getElementById('admin-password').value;
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error || data.user.email.toLowerCase() !== 'admin@cic.kz') {
+            document.getElementById('login-status').textContent = 'Ошибка: доступ только для администратора.';
+            document.getElementById('login-status').className = 'status error';
+        } else {
+            adminToken = data.session.access_token;
+            loginView.classList.add('hidden');
+            panelView.classList.remove('hidden');
+            // Здесь можно добавить функцию загрузки списка курсов в <select>
+        }
+    });
+
+    // Обработка файла
+    document.getElementById('process-file-btn').addEventListener('click', async () => {
+        const file = document.getElementById('file-uploader').files[0];
+        const courseId = document.getElementById('course-id').value;
+        if (!file || !courseId) {
+            alert('Укажите ID курса и выберите файл.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64File = reader.result.split(',')[1];
+            
+            const response = await fetch('/.netlify/functions/admin-process-file', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}` },
+                body: JSON.stringify({
+                    course_id: courseId,
+                    title: document.getElementById('course-title').value,
+                    file_name: file.name,
+                    file_data: base64File
+                })
+            });
+            const data = await response.json();
+            document.getElementById('source-text').value = data.extractedText || `Ошибка: ${data.error}`;
+        };
+    });
+    
+    // ... (аналогичные обработчики для кнопок "Сгенерировать" и "Опубликовать")
+
+</script>
+</body>
+</html>
