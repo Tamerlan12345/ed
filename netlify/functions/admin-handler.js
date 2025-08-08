@@ -5,9 +5,7 @@ const mammoth = require('mammoth');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-// --- ОБРАБОТЧИКИ ДЕЙСТВИЙ ---
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 async function processFile(payload) {
     const { course_id, title, file_name, file_data } = payload;
@@ -38,19 +36,13 @@ async function generateContent(payload) {
     const { data: courseData, error } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
     if (error || !courseData) throw new Error('Исходный текст не найден.');
 
-    // Безопасное формирование промпта через массив строк
-    const promptParts = [
-        'Задание: Ты — AI-наставник. Создай подробный план обучения из 3-5 уроков на основе текста.',
-        'Требования: Для каждого урока создай "title" и "html_content". После уроков создай 5 тестовых вопросов.',
-        'Верни результат СТРОГО в формате JSON: { "summary": [], "questions": [] }',
-        'ИСХОДНЫЙ ТЕКСТ:',
-        '---',
-        courseData.source_text,
-        '---'
-    ];
+    const defaultCommand = {
+        task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.",
+        output_format: { summary: [{ title: "string", html_content: "string" }], questions: [{ question: "string", options: ["string"], correct_option_index: 0 }] },
+        source_text: courseData.source_text
+    };
     
-    // Если есть кастомный промпт, используем его, иначе - стандартный
-    const finalPrompt = custom_prompt ? custom_prompt + '\nИСХОДНЫЙ ТЕКСТ:\n---\n' + courseData.source_text + '\n---' : promptParts.join('\n');
+    const finalPrompt = custom_prompt ? custom_prompt + ` ИСХОДНЫЙ ТЕКСТ: ${courseData.source_text}` : JSON.stringify(defaultCommand);
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
@@ -61,18 +53,12 @@ async function generateContent(payload) {
 async function publishCourse(payload) {
     const { course_id, content_html, questions, admin_prompt } = payload;
     const { error } = await supabase.from('courses').update({
-        content_html,
-        questions,
-        admin_prompt,
-        status: 'published',
-        last_updated: new Date().toISOString()
+        content_html, questions, admin_prompt, status: 'published', last_updated: new Date().toISOString()
     }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Курс ${course_id} успешно опубликован.` };
 }
 
-
-// --- ОСНОВНОЙ ОБРАБОТЧИК ---
 exports.handler = async (event) => {
     try {
         const token = event.headers.authorization.split(' ')[1];
@@ -85,22 +71,13 @@ exports.handler = async (event) => {
         let result;
 
         switch (payload.action) {
-            case 'process_file':
-                result = await processFile(payload);
-                break;
-            case 'generate_content':
-                result = await generateContent(payload);
-                break;
-            case 'publish_course':
-                result = await publishCourse(payload);
-                break;
-            default:
-                throw new Error('Неизвестное действие.');
+            case 'process_file': result = await processFile(payload); break;
+            case 'generate_content': result = await generateContent(payload); break;
+            case 'publish_course': result = await publishCourse(payload); break;
+            default: throw new Error('Неизвестное действие.');
         }
         return { statusCode: 200, body: JSON.stringify(result) };
-
     } catch (error) {
-        console.error("Сбой в admin-handler:", error);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
+        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
