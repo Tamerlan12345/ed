@@ -31,7 +31,7 @@ exports.handler = async (event) => {
         // 3. Генерируем контент
         const result = await model.generateContent(finalPrompt);
         const response = await result.response;
-        const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
+        const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
         const generatedContent = JSON.parse(jsonString);
 
         // 4. Возвращаем черновик для проверки админом
