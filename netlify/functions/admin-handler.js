@@ -1,5 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
-const { PdfReader } = require('pdf-reader');
+const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -7,18 +7,8 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 // Новая функция для извлечения текста из PDF
 async function getTextFromPdfBuffer(buffer) {
-    return new Promise((resolve, reject) => {
-        let text = '';
-        new PdfReader().parseBuffer(buffer, (err, item) => {
-            if (err) {
-                reject(err);
-            } else if (!item) {
-                resolve(text);
-            } else if (item.text) {
-                text += item.text + ' ';
-            }
-        });
-    });
+    const data = await pdf(buffer);
+    return data.text;
 }
 
 async function processFile(payload) {
@@ -60,7 +50,7 @@ async function generateContent(payload) {
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
-    const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
+    const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(jsonString);
 }
 async function publishCourse(payload) {

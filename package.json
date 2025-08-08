@@ -7,6 +7,6 @@
     "@supabase/supabase-js": "^2.43.5",
     "mammoth": "^1.7.2",
     "node-fetch": "^3.3.2",
-    "pdf-reader": "^1.2.14"
+    "pdf-parse": "^1.1.1"
   }
 }
