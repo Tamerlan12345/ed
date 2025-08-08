@@ -38,8 +38,19 @@ async function generateContent(payload) {
     const { data: courseData, error } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
     if (error || !courseData) throw new Error('Исходный текст не найден.');
 
-    const defaultPrompt = `Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Требования: 1. Для каждого урока создай "title" (заголовок) и "html_content" (текст в HTML). 2. После всех уроков создай 5 тестовых вопросов. 3. Верни результат СТРОГО в формате JSON. Структура: { "summary": [], "questions": [] } ТЕКСТ: --- ${courseData.source_text} ---`;
-    const finalPrompt = custom_prompt ? `${custom_prompt} ИСХОДНЫЙ ТЕКСТ: --- ${courseData.source_text} ---` : defaultPrompt;
+    // Безопасное формирование промпта через массив строк
+    const promptParts = [
+        'Задание: Ты — AI-наставник. Создай подробный план обучения из 3-5 уроков на основе текста.',
+        'Требования: Для каждого урока создай "title" и "html_content". После уроков создай 5 тестовых вопросов.',
+        'Верни результат СТРОГО в формате JSON: { "summary": [], "questions": [] }',
+        'ИСХОДНЫЙ ТЕКСТ:',
+        '---',
+        courseData.source_text,
+        '---'
+    ];
+    
+    // Если есть кастомный промпт, используем его, иначе - стандартный
+    const finalPrompt = custom_prompt ? custom_prompt + '\nИСХОДНЫЙ ТЕКСТ:\n---\n' + courseData.source_text + '\n---' : promptParts.join('\n');
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
@@ -64,7 +75,6 @@ async function publishCourse(payload) {
 // --- ОСНОВНОЙ ОБРАБОТЧИК ---
 exports.handler = async (event) => {
     try {
-        // Простая проверка авторизации (можно улучшить)
         const token = event.headers.authorization.split(' ')[1];
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (authError || !user || user.email.toLowerCase() !== 'admin@cic.kz') {
@@ -90,6 +100,7 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify(result) };
 
     } catch (error) {
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        console.error("Сбой в admin-handler:", error);
+        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
 };
