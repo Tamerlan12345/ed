@@ -107,7 +107,7 @@
 
         const createData = await createResponse.json();
         if (!createResponse.ok) {
-            showStatus(`Ошибка при создании черновика: ${createData.error}`, 'error');
+            showStatus(`Ошибка при создании черновика: ${JSON.stringify(createData)}`, 'error');
             return;
         }
 
@@ -121,7 +121,7 @@
             });
 
         if (error) {
-            showStatus(`Ошибка при загрузке файла: ${error.message}`, 'error');
+            showStatus(`Ошибка при загрузке файла: ${JSON.stringify(error)}`, 'error');
         } else {
             showStatus('Файл успешно загружен. Обработка начнется в фоновом режиме.', 'success');
         }
