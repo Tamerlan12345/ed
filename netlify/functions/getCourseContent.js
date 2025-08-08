@@ -10,7 +10,6 @@ exports.handler = async (event) => {
         const { course_id } = event.queryStringParameters;
         if (!course_id) return { statusCode: 400, body: JSON.stringify({ error: 'course_id is required' }) };
 
-        // Просто читаем готовый контент из базы
         const { data, error } = await supabase
             .from('courses')
             .select('content_html, questions')
