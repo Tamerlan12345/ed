@@ -1,48 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const fetch = require('node-fetch');
-const pdf = require('pdf-parse');
-const mammoth = require('mammoth');
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-const GOOGLE_API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
-
-async function getFileContentFromGitHub(fileName) {
-    const user = process.env.GITHUB_USER;
-    const repo = process.env.GITHUB_REPO;
-    const branch = process.env.GITHUB_BRANCH;
-    const fileUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/course_materials/${fileName}`;
-    
-    const response = await fetch(fileUrl);
-    if (!response.ok) throw new Error(`Не удалось скачать файл с GitHub: ${response.statusText}`);
-    const fileBuffer = Buffer.from(await response.arrayBuffer());
-
-    if (fileName.toLowerCase().endsWith('.pdf')) return (await pdf(fileBuffer)).text;
-    if (fileName.toLowerCase().endsWith('.docx')) return (await mammoth.extractRawText({ buffer: fileBuffer })).value;
-    throw new Error('Поддерживаются только .pdf и .docx.');
-}
-
-async function generateCourseFromAI(textContent) {
-    const promptParts = [
-        'Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа.',
-        'Требования к результату:',
-        '1. Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке).',
-        '2. После всех уроков создай 5 тестовых вопросов по всему материалу.',
-        '3. Верни результат СТРОГО в формате JSON.',
-        'Структура JSON: { "summary": [ { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" } ], "questions": [ { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 } ] }',
-        'ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ:',
-        '---',
-        textContent,
-        '---'
-    ];
-    const prompt = promptParts.join('\n');
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
-    return JSON.parse(jsonString);
-}
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 exports.handler = async (event) => {
     try {
@@ -50,24 +7,24 @@ exports.handler = async (event) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (authError || !user) throw new Error('Unauthorized');
 
-        const { course_id, force_regenerate } = event.queryStringParameters;
+        const { course_id } = event.queryStringParameters;
         if (!course_id) return { statusCode: 400, body: JSON.stringify({ error: 'course_id is required' }) };
 
-        const { data: courseData, error: courseError } = await supabase.from('courses').select('doc_id, content_html, questions').eq('course_id', course_id).single();
-        if (courseError || !courseData) throw new Error('Курс не найден.');
+        // Просто читаем готовый контент из базы
+        const { data, error } = await supabase
+            .from('courses')
+            .select('content_html, questions')
+            .eq('course_id', course_id)
+            .eq('status', 'published')
+            .single();
 
-        if (courseData.content_html && courseData.questions && force_regenerate !== 'true') {
-            return { statusCode: 200, body: JSON.stringify({ summary: courseData.content_html, questions: courseData.questions }) };
-        }
+        if (error || !data) throw new Error('Опубликованный курс не найден.');
 
-        const fileContent = await getFileContentFromGitHub(courseData.doc_id);
-        const newContent = await generateCourseFromAI(fileContent);
-
-        const { error: updateError } = await supabase.from('courses').update({ content_html: newContent.summary, questions: newContent.questions, last_updated: new Date().toISOString() }).eq('course_id', course_id);
-        if (updateError) throw updateError;
-
-        return { statusCode: 200, body: JSON.stringify(newContent) };
+        return { 
+            statusCode: 200, 
+            body: JSON.stringify({ summary: data.content_html, questions: data.questions }) 
+        };
     } catch (error) {
-        return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
+        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
