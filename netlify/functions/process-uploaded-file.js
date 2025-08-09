@@ -9,12 +9,18 @@ exports.handler = async (event) => {
     try {
         const body = JSON.parse(event.body);
         console.log('Request body:', body);
-        const { path } = body;
-        const parts = path.split('/');
-        const course_id = parts[0];
+
+        // Supabase webhook payload for storage is in `record`
+        const record = body.record;
+        if (!record || !record.name) {
+            throw new Error('Invalid webhook payload. "record.name" not found.');
+        }
+
+        const path = record.name;
+        const course_id = path.split('/')[0];
 
         if (!course_id || !path) {
-            throw new Error('Invalid path in webhook payload.');
+            throw new Error('Invalid path derived from webhook payload.');
         }
         console.log(`Processing file for course_id: ${course_id}, path: ${path}`);
 

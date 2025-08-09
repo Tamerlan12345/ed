@@ -136,11 +136,12 @@
     });
 
     document.getElementById('generate-btn').addEventListener('click', async () => {
-        const courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) {
+        const originalCourseId = document.getElementById('course-id').value.trim();
+        if (!originalCourseId) {
             showStatus('Укажите ID курса.', 'error');
             return;
         }
+        const courseId = sanitizeForPath(originalCourseId);
         showStatus('Идет генерация контента AI... Это может занять до 30 секунд.', 'info');
         
         const response = await fetch('/.netlify/functions/admin-handler', {
@@ -164,11 +165,12 @@
     });
 
     document.getElementById('publish-btn').addEventListener('click', async () => {
-        const courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) {
+        const originalCourseId = document.getElementById('course-id').value.trim();
+        if (!originalCourseId) {
             showStatus('Укажите ID курса.', 'error');
             return;
         }
+        const courseId = sanitizeForPath(originalCourseId);
         showStatus('Публикую курс...', 'info');
 
         const response = await fetch('/.netlify/functions/admin-handler', {
