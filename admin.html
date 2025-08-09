@@ -118,29 +118,42 @@
             return;
         }
 
-        // Step 2: Upload file to Supabase Storage
-        const sanitizedFileName = sanitizeForPath(file.name);
-        const filePath = `${courseId}/${sanitizedFileName}`;
-        const { data, error } = await supabaseClient.storage
-            .from('1')
-            .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: true
+        // Step 2: Read file and upload via proxy function
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64File = reader.result.split(',')[1];
+            const sanitizedFileName = sanitizeForPath(file.name);
+
+            const uploadResponse = await fetch('/.netlify/functions/upload-file-proxy', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}` },
+                body: JSON.stringify({
+                    course_id: courseId,
+                    file_name: sanitizedFileName,
+                    file_data: base64File
+                })
             });
 
-        if (error) {
-            showStatus(`Ошибка при загрузке файла: ${JSON.stringify(error)}`, 'error');
-        } else {
-            showStatus('Файл успешно загружен. Обработка начнется в фоновом режиме.', 'success');
-        }
+            const uploadData = await uploadResponse.json();
+            if (uploadResponse.ok) {
+                showStatus('Файл успешно загружен. Обработка начнется в фоновом режиме.', 'success');
+            } else {
+                showStatus(`Ошибка при загрузке файла: ${JSON.stringify(uploadData)}`, 'error');
+            }
+        };
+        reader.onerror = () => {
+            showStatus('Ошибка при чтении файла.', 'error');
+        };
     });
 
     document.getElementById('generate-btn').addEventListener('click', async () => {
-        const courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) {
+        const originalCourseId = document.getElementById('course-id').value.trim();
+        if (!originalCourseId) {
             showStatus('Укажите ID курса.', 'error');
             return;
         }
+        const courseId = sanitizeForPath(originalCourseId);
         showStatus('Идет генерация контента AI... Это может занять до 30 секунд.', 'info');
         
         const response = await fetch('/.netlify/functions/admin-handler', {
@@ -164,11 +177,12 @@
     });
 
     document.getElementById('publish-btn').addEventListener('click', async () => {
-        const courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) {
+        const originalCourseId = document.getElementById('course-id').value.trim();
+        if (!originalCourseId) {
             showStatus('Укажите ID курса.', 'error');
             return;
         }
+        const courseId = sanitizeForPath(originalCourseId);
         showStatus('Публикую курс...', 'info');
 
         const response = await fetch('/.netlify/functions/admin-handler', {
