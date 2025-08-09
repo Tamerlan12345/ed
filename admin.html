@@ -69,6 +69,12 @@
         statusBox.className = `status ${type}`;
     }
 
+    function sanitizeForPath(text) {
+        const sanitized = text.replace(/[^a-zA-Z0-9-._]/g, '-');
+        const collapsed = sanitized.replace(/-+/g, '-');
+        return collapsed.replace(/^-+|-+$/g, '').toLowerCase();
+    }
+
     document.getElementById('login-btn').addEventListener('click', async () => {
         const email = document.getElementById('admin-email').value;
         const password = document.getElementById('admin-password').value;
@@ -84,15 +90,16 @@
     
     document.getElementById('process-file-btn').addEventListener('click', async () => {
         const file = document.getElementById('file-uploader').files[0];
-        const courseId = document.getElementById('course-id').value.trim();
+        const originalCourseId = document.getElementById('course-id').value.trim();
         const title = document.getElementById('course-title').value.trim();
 
-        if (!file || !courseId || !title) {
+        if (!file || !originalCourseId || !title) {
             showStatus('Укажите ID, название курса и выберите файл.', 'error');
             return;
         }
 
-        showStatus('Создаю черновик курса и загружаю файл...', 'info');
+        const courseId = sanitizeForPath(originalCourseId);
+        showStatus(`Создаю черновик курса (ID: ${courseId}) и загружаю файл...`, 'info');
 
         // Step 1: Create a draft entry in the database
         const createResponse = await fetch('/.netlify/functions/admin-handler', {
@@ -100,7 +107,7 @@
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'create_draft_course',
-                course_id: courseId,
+                course_id: courseId, // Use sanitized ID
                 title: title,
             })
         });
@@ -112,7 +119,8 @@
         }
 
         // Step 2: Upload file to Supabase Storage
-        const filePath = `${courseId}/${file.name}`;
+        const sanitizedFileName = sanitizeForPath(file.name);
+        const filePath = `${courseId}/${sanitizedFileName}`;
         const { data, error } = await supabaseClient.storage
             .from('1')
             .upload(filePath, file, {
