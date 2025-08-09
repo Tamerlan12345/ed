@@ -107,7 +107,7 @@
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'create_draft_course',
-                course_id: courseId,
+                course_id: courseId, // Use sanitized ID
                 title: title,
             })
         });
