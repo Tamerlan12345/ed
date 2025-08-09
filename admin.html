@@ -92,30 +92,39 @@
             return;
         }
 
-        showStatus('Извлекаю текст из файла...', 'info');
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const base64File = reader.result.split(',')[1];
-            
-            const response = await fetch('/.netlify/functions/admin-handler', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'process_file',
-                    course_id: courseId,
-                    title: title,
-                    file_name: file.name,
-                    file_data: base64File
-                })
+        showStatus('Создаю черновик курса и загружаю файл...', 'info');
+
+        // Step 1: Create a draft entry in the database
+        const createResponse = await fetch('/.netlify/functions/admin-handler', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'create_draft_course',
+                course_id: courseId,
+                title: title,
+            })
+        });
+
+        const createData = await createResponse.json();
+        if (!createResponse.ok) {
+            showStatus(`Ошибка при создании черновика: ${JSON.stringify(createData)}`, 'error');
+            return;
+        }
+
+        // Step 2: Upload file to Supabase Storage
+        const filePath = `${courseId}/${file.name}`;
+        const { data, error } = await supabaseClient.storage
+            .from('1')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: true
             });
-            const data = await response.json();
-            if(response.ok) {
-                showStatus('Текст успешно извлечен и сохранен как черновик.', 'success');
-            } else {
-                showStatus(`Ошибка: ${data.error}`, 'error');
-            }
-        };
+
+        if (error) {
+            showStatus(`Ошибка при загрузке файла: ${JSON.stringify(error)}`, 'error');
+        } else {
+            showStatus('Файл успешно загружен. Обработка начнется в фоновом режиме.', 'success');
+        }
     });
 
     document.getElementById('generate-btn').addEventListener('click', async () => {

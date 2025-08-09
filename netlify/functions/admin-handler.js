@@ -1,49 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
-const { PdfReader } = require('pdf-reader');
-const mammoth = require('mammoth');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 // ... (остальная инициализация AI)
 
-// Новая функция для извлечения текста из PDF
-async function getTextFromPdfBuffer(buffer) {
-    return new Promise((resolve, reject) => {
-        let text = '';
-        new PdfReader().parseBuffer(buffer, (err, item) => {
-            if (err) {
-                reject(err);
-            } else if (!item) {
-                resolve(text);
-            } else if (item.text) {
-                text += item.text + ' ';
-            }
-        });
-    });
-}
-
-async function processFile(payload) {
-    const { course_id, title, file_name, file_data } = payload;
-    const buffer = Buffer.from(file_data, 'base64');
-    let textContent = '';
-
-    if (file_name.toLowerCase().endsWith('.pdf')) {
-        textContent = await getTextFromPdfBuffer(buffer);
-    } else if (file_name.toLowerCase().endsWith('.docx')) {
-        textContent = (await mammoth.extractRawText({ buffer })).value;
-    } else {
-        throw new Error('Неподдерживаемый тип файла.');
-    }
-
-    const { error } = await supabase.from('courses').upsert({
-        course_id: course_id,
-        title: title,
-        source_text: textContent,
-        status: 'draft'
-    }, { onConflict: 'course_id' });
-
-    if (error) throw error;
-    return { extractedText: textContent.substring(0, 500) + '...' };
-}
 // ... (остальные части функции generateContent, publishCourse и handler остаются такими же, как в последней версии)
 // --- ВАЖНО: убедитесь, что весь остальной код в этом файле соответствует последней рабочей версии ---
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -60,7 +19,7 @@ async function generateContent(payload) {
     
     const result = await model.generateContent(finalPrompt);
     const response = await result.response;
-    const jsonString = response.text().replace(/```json/g, '').replace(/```g, '').trim();
+    const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(jsonString);
 }
 async function publishCourse(payload) {
@@ -77,13 +36,23 @@ exports.handler = async (event) => {
         const payload = JSON.parse(event.body);
         let result;
         switch (payload.action) {
-            case 'process_file': result = await processFile(payload); break;
+            case 'create_draft_course':
+                const { course_id, title } = payload;
+                const { error } = await supabase.from('courses').upsert({
+                    course_id: course_id,
+                    title: title,
+                    status: 'draft'
+                }, { onConflict: 'course_id' });
+                if (error) throw error;
+                result = { message: 'Draft course created successfully.' };
+                break;
             case 'generate_content': result = await generateContent(payload); break;
             case 'publish_course': result = await publishCourse(payload); break;
             default: throw new Error('Неизвестное действие.');
         }
         return { statusCode: 200, body: JSON.stringify(result) };
     } catch (error) {
+        console.error('Error in admin-handler:', JSON.stringify(error, null, 2));
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
