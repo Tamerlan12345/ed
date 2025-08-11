@@ -21,7 +21,17 @@ exports.handler = async (event) => {
             throw new Error('Опубликованный курс не найден.');
         }
 
-        const courseContent = data.content_html;
+        let courseContent = data.content_html;
+
+        // Handle case where content_html is a JSON string
+        if (typeof courseContent === 'string') {
+            try {
+                courseContent = JSON.parse(courseContent);
+            } catch (e) {
+                throw new Error('Ошибка парсинга контента курса. Контент поврежден.');
+            }
+        }
+
         let summary, questions;
 
         if (courseContent && typeof courseContent === 'object' && courseContent.summary) {
