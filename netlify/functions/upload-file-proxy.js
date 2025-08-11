@@ -7,7 +7,13 @@ exports.handler = async (event) => {
         // First, verify the user is an admin, as this function has elevated privileges.
         // We can't use the service key for this, we must use the anon key and the user's token.
         const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-        const token = event.headers.authorization.split(' ')[1];
+
+        const authHeader = event.headers.authorization;
+        if (!authHeader) {
+            throw new Error('Authorization header is missing.');
+        }
+        const token = authHeader.split(' ')[1];
+
         const { data: { user }, error: authError } = await anonSupabase.auth.getUser(token);
 
         if (authError || !user || user.email.toLowerCase() !== 'admin@cic.kz') {
