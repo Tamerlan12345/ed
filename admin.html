@@ -127,7 +127,7 @@
 
             const uploadResponse = await fetch('/.netlify/functions/upload-file-proxy', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${adminToken}` },
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     course_id: courseId,
                     file_name: sanitizedFileName,
