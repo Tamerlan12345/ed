@@ -58,20 +58,24 @@ async function generateContent(payload) {
     if (error || !courseData || !courseData.source_text) {
         return { error: 'Course source text not found or not yet processed. Please wait a moment for the file to be analyzed and try again.' };
     }
-    const command = {
-        task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.",
-        output_format: {
-            summary: [{ title: "string", html_content: "string" }],
-            questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
-        },
-        source_text: courseData.source_text
+
+    let finalPrompt;
+    const outputFormat = {
+        summary: [{ title: "string", html_content: "string" }],
+        questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
     };
 
     if (custom_prompt) {
-        command.task = custom_prompt;
+        const instruction = `Задание: ${custom_prompt}\n\nИСХОДНЫЙ ТЕКСТ:\n${courseData.source_text}\n\nОбязательно верни результат в формате JSON со следующей структурой: ${JSON.stringify(outputFormat)}`;
+        finalPrompt = instruction;
+    } else {
+        const command = {
+            task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.",
+            output_format: outputFormat,
+            source_text: courseData.source_text
+        };
+        finalPrompt = JSON.stringify(command);
     }
-
-    const finalPrompt = JSON.stringify(command);
 
     const maxRetries = 5;
     let lastError = null;
