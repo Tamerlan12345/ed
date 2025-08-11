@@ -61,7 +61,7 @@ async function generateContent(payload) {
     const defaultCommand = { task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.", output_format: { summary: [{ title: "string", html_content: "string" }], questions: [{ question: "string", options: ["string"], correct_option_index: 0 }] }, source_text: courseData.source_text };
     const finalPrompt = custom_prompt ? `${custom_prompt} ИСХОДНЫЙ ТЕКСТ: ${courseData.source_text}` : JSON.stringify(defaultCommand);
 
-    const maxRetries = 4; // Increased retries to handle longer wait times
+    const maxRetries = 5; // Increased retries to handle longer wait times
     let lastError = null;
 
     for (let i = 0; i < maxRetries; i++) {
@@ -95,12 +95,16 @@ async function generateContent(payload) {
         }
     }
 
-    // If all retries fail, throw a more informative error
+    // If all retries fail, return an informative error object
     console.error('All retries failed for content generation.');
     if (lastError.message && lastError.message.includes('429')) {
-        throw new Error('Failed to generate content due to API quota limits. Please try using a smaller document or try again later.');
+        return { error: { message: 'Failed to generate content due to API quota limits. Please try using a smaller document or try again later.', statusCode: 429 } };
     }
-    throw lastError;
+    if (lastError.message && lastError.message.includes('503')) {
+        return { error: { message: 'The content generation service is temporarily overloaded. Please try again in a few moments.', statusCode: 503 } };
+    }
+    // For any other error that broke the loop
+    return { error: { message: lastError.message, statusCode: 500 } };
 }
 
 async function publishCourse(payload) {
@@ -132,7 +136,9 @@ exports.handler = async (event) => {
             case 'generate_content':
                 result = await generateContent(payload);
                 if (result.error) {
-                    return { statusCode: 400, body: JSON.stringify({ error: result.error }) };
+                    // The error object from generateContent now contains a message and a statusCode
+                    const statusCode = result.error.statusCode || 400;
+                    return { statusCode: statusCode, body: JSON.stringify({ error: result.error.message || result.error }) };
                 }
                 break;
             case 'publish_course':
