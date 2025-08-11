@@ -107,6 +107,17 @@ exports.handler = async (event) => {
             case 'publish_course':
                 result = await publishCourse(payload);
                 break;
+            case 'get_courses_admin':
+                const { data, error } = await supabase.from('courses').select('course_id, title');
+                if (error) throw error;
+                result = data;
+                break;
+            case 'get_course_details':
+                const { course_id: details_course_id } = payload;
+                const { data: details_data, error: details_error } = await supabase.from('courses').select('*').eq('course_id', details_course_id).single();
+                if (details_error) throw details_error;
+                result = details_data;
+                break;
             default:
                 throw new Error('Unknown action.');
         }

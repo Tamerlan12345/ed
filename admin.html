@@ -78,6 +78,34 @@
         return collapsed.replace(/^-+|-+$/g, '').toLowerCase();
     }
 
+    async function loadCourses() {
+        const response = await fetch('/.netlify/functions/admin-handler', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_courses_admin' })
+        });
+        const courses = await response.json();
+        const selector = document.getElementById('course-selector');
+        selector.innerHTML = '<option value="">-- Создать новый курс --</option>';
+        courses.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.course_id;
+            option.textContent = `${course.title} (${course.course_id})`;
+            selector.appendChild(option);
+        });
+    }
+
+    function clearForm() {
+        document.getElementById('course-id').value = '';
+        document.getElementById('course-id').disabled = false;
+        document.getElementById('course-title').value = '';
+        document.getElementById('file-uploader').value = '';
+        document.getElementById('source-text').value = '';
+        document.getElementById('custom-prompt').value = '';
+        document.getElementById('generated-html').value = '';
+        document.getElementById('generated-questions').value = '';
+    }
+
     document.getElementById('login-btn').addEventListener('click', async () => {
         const email = document.getElementById('admin-email').value;
         const password = document.getElementById('admin-password').value;
@@ -88,6 +116,40 @@
             adminToken = data.session.access_token;
             loginView.classList.add('hidden');
             panelView.classList.remove('hidden');
+            await loadCourses();
+        }
+    });
+
+    document.getElementById('course-selector').addEventListener('change', (event) => {
+        if (!event.target.value) {
+            clearForm();
+        }
+    });
+
+    document.getElementById('load-course-btn').addEventListener('click', async () => {
+        const courseId = document.getElementById('course-selector').value;
+        if (!courseId) {
+            showStatus('Выберите курс для загрузки.', 'error');
+            return;
+        }
+        showStatus(`Загружаю данные для курса ${courseId}...`, 'info');
+        const response = await fetch('/.netlify/functions/admin-handler', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_course_details', course_id: courseId })
+        });
+        const course = await response.json();
+        if (response.ok) {
+            document.getElementById('course-id').value = course.course_id;
+            document.getElementById('course-id').disabled = true;
+            document.getElementById('course-title').value = course.title;
+            document.getElementById('source-text').value = course.source_text || '';
+            document.getElementById('custom-prompt').value = course.admin_prompt || '';
+            document.getElementById('generated-html').value = course.content_html ? JSON.stringify(course.content_html, null, 2) : '';
+            document.getElementById('generated-questions').value = course.questions ? JSON.stringify(course.questions, null, 2) : '';
+            showStatus(`Курс ${course.title} успешно загружен.`, 'success');
+        } else {
+            showStatus(`Ошибка при загрузке курса: ${course.error}`, 'error');
         }
     });
     
@@ -126,6 +188,8 @@
             if (response.ok) {
                 showStatus('Файл успешно обработан.', 'success');
                 document.getElementById('source-text').value = data.extractedText;
+                document.getElementById('course-id').disabled = true; // Disable after successful processing
+                await loadCourses(); // Refresh course list
             } else {
                 showStatus(`Ошибка: ${JSON.stringify(data)}`, 'error');
             }
@@ -173,23 +237,30 @@
         const courseId = sanitizeForPath(originalCourseId);
         showStatus('Публикую курс...', 'info');
 
-        const response = await fetch('/.netlify/functions/admin-handler', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'publish_course',
-                course_id: courseId,
-                content_html: JSON.parse(document.getElementById('generated-html').value),
-                questions: JSON.parse(document.getElementById('generated-questions').value),
-                admin_prompt: document.getElementById('custom-prompt').value
-            })
-        });
+        try {
+            const content_html = JSON.parse(document.getElementById('generated-html').value);
+            const questions = JSON.parse(document.getElementById('generated-questions').value);
 
-        const data = await response.json();
-        if(response.ok) {
-            showStatus(data.message, 'success');
-        } else {
-            showStatus(`Ошибка: ${data.error}`, 'error');
+            const response = await fetch('/.netlify/functions/admin-handler', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'publish_course',
+                    course_id: courseId,
+                    content_html: content_html,
+                    questions: questions,
+                    admin_prompt: document.getElementById('custom-prompt').value
+                })
+            });
+
+            const data = await response.json();
+            if(response.ok) {
+                showStatus(data.message, 'success');
+            } else {
+                showStatus(`Ошибка: ${data.error}`, 'error');
+            }
+        } catch (e) {
+            showStatus('Ошибка: Неверный формат JSON в полях HTML или вопросов.', 'error');
         }
     });
 </script>
