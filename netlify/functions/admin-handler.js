@@ -1,53 +1,38 @@
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
+const mammoth = require('mammoth');
+const pdf = require('pdf-parse');
 
 // Initialize Supabase and Gemini AI
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-// Correctly configure Cloudmersive API client
-const cloudmersiveClient = CloudmersiveConvertApiClient.ApiClient.instance;
-const Apikey = cloudmersiveClient.authentications['Apikey'];
-Apikey.apiKey = process.env.CLOUDMERSIVE_API_KEY;
-const cloudmersiveApi = new CloudmersiveConvertApiClient.ConvertDocumentApi();
-
 async function uploadAndProcessFile(payload) {
     const { course_id, title, file_name, file_data } = payload;
-
-    // 1. Decode file data
     const buffer = Buffer.from(file_data, 'base64');
-    const filePath = `${course_id}/${file_name}`;
+    let textContent = '';
 
-    // 2. Upload file to Supabase Storage using Service Key
-    const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('1')
-        .upload(filePath, buffer, {
-            contentType: 'application/octet-stream',
-            upsert: true,
-        });
-    if (uploadError) throw uploadError;
+    try {
+        if (file_name.endsWith('.docx')) {
+            const { value } = await mammoth.extractRawText({ buffer });
+            textContent = value;
+        } else if (file_name.endsWith('.pdf')) {
+            const data = await pdf(buffer);
+            textContent = data.text;
+        } else {
+            throw new Error('Unsupported file type. Please upload a .docx or .pdf file.');
+        }
 
-    // 3. Get public URL
-    const { data: urlData, error: urlError } = supabase.storage
-        .from('1')
-        .getPublicUrl(filePath);
-    if (urlError) throw urlError;
-    const publicURL = urlData.publicUrl;
+        if (!textContent) {
+            throw new Error('Could not extract text from the document. The file might be empty or corrupted.');
+        }
+    } catch (e) {
+        console.error('File parsing error:', e);
+        throw new Error(`Failed to process file: ${e.message}`);
+    }
 
-    // 4. Call Cloudmersive API
-    const cloudmersiveData = await new Promise((resolve, reject) => {
-        const opts = { 'inputFileUrl': publicURL };
-        cloudmersiveApi.convertDocumentAutodetectToTxt(opts, (error, data, response) => {
-            if (error) return reject(new Error(error.message || 'Cloudmersive API error'));
-            resolve(data);
-        });
-    });
-    const textContent = cloudmersiveData.TextResult;
-    if (!textContent) throw new Error('Could not extract text from the document.');
-
-    // 5. Upsert course data into the database
+    // Upsert course data into the database
     const { error: dbError } = await supabase
         .from('courses')
         .upsert({
@@ -56,9 +41,13 @@ async function uploadAndProcessFile(payload) {
             source_text: textContent,
             status: 'processed'
         }, { onConflict: 'course_id' });
-    if (dbError) throw dbError;
 
-    // 6. Return the extracted text to the frontend
+    if (dbError) {
+        console.error('Supabase upsert error:', dbError);
+        throw new Error('Failed to save course content to the database.');
+    }
+
+    // Return the extracted text to the frontend
     return { extractedText: textContent };
 }
 
