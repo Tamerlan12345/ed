@@ -89,8 +89,8 @@ async function generateContent(payload) {
 }
 
 async function publishCourse(payload) {
-    const { course_id, content_html, questions, admin_prompt } = payload;
-    const { error } = await supabase.from('courses').update({ content_html, questions, admin_prompt, status: 'published', last_updated: new Date().toISOString() }).eq('course_id', course_id);
+    const { course_id, content_html, questions } = payload; // admin_prompt is not saved.
+    const { error } = await supabase.from('courses').update({ content_html, questions, status: 'published', last_updated: new Date().toISOString() }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
 }
