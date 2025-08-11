@@ -107,34 +107,33 @@ async function generateContent(payload) {
     return { error: { message: lastError.message, statusCode: 500 } };
 }
 
-const axios = require('axios');
+const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
 
 async function textToSpeech(payload) {
     const { text } = payload;
     if (!text) throw new Error('No text provided for speech synthesis.');
 
-    try {
-        const response = await axios.post('https://api.cloudmersive.com/speech/speak/text/voice/basic/audio', {
-            "Format": "mp3",
-            "Text": text
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Apikey': process.env.CLOUDMERSIVE_API_KEY
-            },
-            responseType: 'arraybuffer' // Important for receiving binary file data
+    const defaultClient = CloudmersiveConvertApiClient.ApiClient.instance;
+    const Apikey = defaultClient.authentications['Apikey'];
+    Apikey.apiKey = process.env.CLOUDMERSIVE_API_KEY;
+
+    const apiInstance = new CloudmersiveConvertApiClient.SpeakApi();
+    const request = new CloudmersiveConvertApiClient.TextToSpeechRequest();
+    request.Text = text;
+    request.Format = 'mp3';
+
+    return new Promise((resolve, reject) => {
+        apiInstance.speakPost(request, (error, data, response) => {
+            if (error) {
+                console.error('Cloudmersive SDK error:', error);
+                reject(new Error('Failed to generate audio file using Cloudmersive SDK.'));
+            } else {
+                const audioBase64 = Buffer.from(data).toString('base64');
+                const audioUrl = `data:audio/mpeg;base64,${audioBase64}`;
+                resolve({ audioUrl: audioUrl });
+            }
         });
-
-        // The API returns the audio file directly, not a URL. We need to convert it to a data URI.
-        const audioBase64 = Buffer.from(response.data, 'binary').toString('base64');
-        const audioUrl = `data:audio/mpeg;base64,${audioBase64}`;
-
-        return { audioUrl: audioUrl };
-
-    } catch (error) {
-        console.error('Cloudmersive API error:', error.response ? error.response.data : error.message);
-        throw new Error('Failed to generate audio file.');
-    }
+    });
 }
 
 async function publishCourse(payload) {
