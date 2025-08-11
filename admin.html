@@ -38,11 +38,18 @@
         <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
         <input type="text" id="course-title" placeholder="Название курса">
         
-        <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
+        <h3>Шаг 1: Укажите источник контента</h3>
+        <p>Вы можете загрузить файл или указать прямую ссылку на Google Doc или PDF.</p>
+        <input type="text" id="document-url" placeholder="Ссылка на Google Doc или PDF">
+
+        <p><strong>ИЛИ</strong></p>
+
         <input type="file" id="file-uploader" accept=".pdf,.docx">
         <button id="process-file-btn">Загрузить и обработать файл</button>
 
         <h3>Извлеченный текст (Источник для AI)</h3>
+        <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
+        <button id="text-to-speech-btn">Озвучить текст</button>
         <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст..."></textarea>
         
         <h3>Шаг 2: Сгенерируйте контент</h3>
@@ -145,6 +152,7 @@
             document.getElementById('course-title').value = course.title;
             document.getElementById('source-text').value = course.source_text || '';
             document.getElementById('custom-prompt').value = course.admin_prompt || '';
+            document.getElementById('document-url').value = course.document_url || '';
 
             const contentHtmlField = course.content_html;
             let summary = '';
@@ -245,6 +253,35 @@
         }
     });
 
+    document.getElementById('text-to-speech-btn').addEventListener('click', async () => {
+        const sourceText = document.getElementById('source-text').value;
+        if (!sourceText) {
+            showStatus('Нет текста для озвучивания. Сначала извлеките текст из файла.', 'error');
+            return;
+        }
+        showStatus('Идет генерация аудио... Это может занять до 1 минуты.', 'info');
+        const audioPlayerContainer = document.getElementById('audio-player-container');
+        audioPlayerContainer.innerHTML = '';
+
+        try {
+            const response = await fetch('/.netlify/functions/admin-handler', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'text_to_speech', text: sourceText })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Не удалось сгенерировать аудио.');
+
+            const audio = new Audio(data.audioUrl);
+            audio.controls = true;
+            audioPlayerContainer.appendChild(audio);
+            audioPlayerContainer.classList.remove('hidden');
+            showStatus('Аудио успешно сгенерировано.', 'success');
+        } catch (error) {
+            showStatus(`Ошибка при генерации аудио: ${error.message}`, 'error');
+        }
+    });
+
     document.getElementById('publish-btn').addEventListener('click', async () => {
         const originalCourseId = document.getElementById('course-id').value.trim();
         if (!originalCourseId) {
@@ -257,6 +294,7 @@
         try {
             const content_html = JSON.parse(document.getElementById('generated-html').value);
             const questions = JSON.parse(document.getElementById('generated-questions').value);
+            const document_url = document.getElementById('document-url').value.trim();
 
             const response = await fetch('/.netlify/functions/admin-handler', {
                 method: 'POST',
@@ -266,7 +304,8 @@
                     course_id: courseId,
                     content_html: content_html,
                     questions: questions,
-                    admin_prompt: document.getElementById('custom-prompt').value
+                    admin_prompt: document.getElementById('custom-prompt').value,
+                    document_url: document_url
                 })
             });
 

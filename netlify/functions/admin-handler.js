@@ -107,14 +107,46 @@ async function generateContent(payload) {
     return { error: { message: lastError.message, statusCode: 500 } };
 }
 
+const axios = require('axios');
+
+async function textToSpeech(payload) {
+    const { text } = payload;
+    if (!text) throw new Error('No text provided for speech synthesis.');
+
+    try {
+        const response = await axios.post('https://api.cloudmersive.com/speech/speak/text/to-speech/post', {
+            "format": "mp3",
+            "text": text
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Apikey': process.env.CLOUDMERSIVE_API_KEY
+            }
+        });
+
+        if (response.data && response.data.AudioFileUrl) {
+            return { audioUrl: response.data.AudioFileUrl };
+        } else {
+            throw new Error('Cloudmersive API did not return an audio URL.');
+        }
+    } catch (error) {
+        console.error('Cloudmersive API error:', error.response ? error.response.data : error.message);
+        throw new Error('Failed to generate audio file.');
+    }
+}
+
 async function publishCourse(payload) {
-    const { course_id, content_html, questions } = payload;
+    const { course_id, content_html, questions, admin_prompt, document_url } = payload;
     const courseContent = {
         summary: content_html,
         questions: questions
     };
-    // The 'admin_prompt' and 'last_updated' columns do not exist in the user's schema.
-    const { error } = await supabase.from('courses').update({ content_html: courseContent, status: 'published' }).eq('course_id', course_id);
+    const { error } = await supabase.from('courses').update({
+        content_html: courseContent,
+        status: 'published',
+        admin_prompt: admin_prompt,
+        document_url: document_url
+    }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
 }
@@ -144,6 +176,9 @@ exports.handler = async (event) => {
                     const statusCode = result.error.statusCode || 400;
                     return { statusCode: statusCode, body: JSON.stringify({ error: result.error.message || result.error }) };
                 }
+                break;
+            case 'text_to_speech':
+                result = await textToSpeech(payload);
                 break;
             case 'publish_course':
                 result = await publishCourse(payload);
