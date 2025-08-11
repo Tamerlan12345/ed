@@ -12,16 +12,23 @@ exports.handler = async (event) => {
 
         const { data, error } = await supabase
             .from('courses')
-            .select('content_html, questions')
+            .select('content_html')
             .eq('course_id', course_id)
             .eq('status', 'published')
             .single();
 
-        if (error || !data) throw new Error('Опубликованный курс не найден.');
+        if (error || !data) {
+            throw new Error('Опубликованный курс не найден.');
+        }
+
+        const courseContent = data.content_html;
+        if (!courseContent || typeof courseContent !== 'object' || !courseContent.summary) {
+            throw new Error('Формат контента курса неверный. Обратитесь к администратору.');
+        }
 
         return { 
             statusCode: 200, 
-            body: JSON.stringify({ summary: data.content_html, questions: data.questions }) 
+            body: JSON.stringify({ summary: courseContent.summary, questions: courseContent.questions || [] })
         };
     } catch (error) {
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };

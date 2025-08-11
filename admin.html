@@ -145,8 +145,25 @@
             document.getElementById('course-title').value = course.title;
             document.getElementById('source-text').value = course.source_text || '';
             document.getElementById('custom-prompt').value = course.admin_prompt || '';
-            document.getElementById('generated-html').value = course.content_html ? JSON.stringify(course.content_html, null, 2) : '';
-            document.getElementById('generated-questions').value = course.questions ? JSON.stringify(course.questions, null, 2) : '';
+
+            const contentHtmlField = course.content_html;
+            let summary = '';
+            let questions = '';
+
+            if (contentHtmlField) {
+                // New format: content_html is an object with summary and questions
+                if (typeof contentHtmlField === 'object' && contentHtmlField.summary) {
+                    summary = JSON.stringify(contentHtmlField.summary, null, 2);
+                    questions = JSON.stringify(contentHtmlField.questions, null, 2);
+                } else {
+                    // Backwards compatibility: content_html is just the summary
+                    summary = JSON.stringify(contentHtmlField, null, 2);
+                }
+            }
+
+            document.getElementById('generated-html').value = summary;
+            document.getElementById('generated-questions').value = questions;
+
             showStatus(`Курс ${course.title} успешно загружен.`, 'success');
         } else {
             showStatus(`Ошибка при загрузке курса: ${JSON.stringify(course.error, null, 2)}`, 'error');
