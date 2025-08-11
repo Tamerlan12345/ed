@@ -2,10 +2,16 @@ const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
 
+// Initialize Supabase and Gemini AI
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-const cloudmersiveApiKey = process.env.CLOUDMERSIVE_API_KEY;
+
+// Correctly configure Cloudmersive API client
+const cloudmersiveClient = CloudmersiveConvertApiClient.ApiClient.instance;
+const Apikey = cloudmersiveClient.authentications['Apikey'];
+Apikey.apiKey = process.env.CLOUDMERSIVE_API_KEY;
+const cloudmersiveApi = new CloudmersiveConvertApiClient.ConvertDocumentApi();
 
 async function uploadAndProcessFile(payload) {
     const { course_id, title, file_name, file_data } = payload;
@@ -32,9 +38,8 @@ async function uploadAndProcessFile(payload) {
 
     // 4. Call Cloudmersive API
     const cloudmersiveData = await new Promise((resolve, reject) => {
-        const instance = new CloudmersiveConvertApiClient.ConvertDocumentApi();
         const opts = { 'inputFileUrl': publicURL };
-        instance.convertDocumentAutodetectToTxt(cloudmersiveApiKey, opts, (error, data, response) => {
+        cloudmersiveApi.convertDocumentAutodetectToTxt(opts, (error, data, response) => {
             if (error) return reject(new Error(error.message || 'Cloudmersive API error'));
             resolve(data);
         });
