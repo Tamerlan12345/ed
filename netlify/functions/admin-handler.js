@@ -61,7 +61,7 @@ async function generateContent(payload) {
     const defaultCommand = { task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.", output_format: { summary: [{ title: "string", html_content: "string" }], questions: [{ question: "string", options: ["string"], correct_option_index: 0 }] }, source_text: courseData.source_text };
     const finalPrompt = custom_prompt ? `${custom_prompt} ИСХОДНЫЙ ТЕКСТ: ${courseData.source_text}` : JSON.stringify(defaultCommand);
 
-    const maxRetries = 3;
+    const maxRetries = 4; // Increased retries to handle longer wait times
     let lastError = null;
 
     for (let i = 0; i < maxRetries; i++) {
@@ -73,18 +73,33 @@ async function generateContent(payload) {
             return JSON.parse(jsonString); // Success
         } catch (e) {
             lastError = e;
-            // Check for specific transient error from Google AI
-            if (e.message && e.message.includes('503')) {
-                console.warn(`Attempt ${i + 1} failed with 503 Service Unavailable. Retrying in 2 seconds...`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
+            console.error(`Attempt ${i + 1} failed. Error: ${e.message}`);
+
+            // Handle 429 Too Many Requests (Quota Exceeded)
+            if (e.message && e.message.includes('429')) {
+                const waitTime = 60 * 1000; // Wait for 60 seconds as suggested by API for minute-based quotas
+                console.warn(`Quota exceeded (429). Retrying in ${waitTime / 1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+
+            // Handle 503 Service Unavailable with exponential backoff
+            } else if (e.message && e.message.includes('503')) {
+                const waitTime = Math.pow(2, i) * 1000; // Exponential backoff: 1s, 2s, 4s, 8s
+                console.warn(`Service unavailable (503). Retrying in ${waitTime / 1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+
+            // For other errors, don't retry
             } else {
-                // Don't retry on other errors (e.g., bad request, auth issues)
+                console.error('Non-retriable error encountered. Aborting.');
                 break;
             }
         }
     }
-    // If all retries fail, throw the last captured error
+
+    // If all retries fail, throw a more informative error
     console.error('All retries failed for content generation.');
+    if (lastError.message && lastError.message.includes('429')) {
+        throw new Error('Failed to generate content due to API quota limits. Please try using a smaller document or try again later.');
+    }
     throw lastError;
 }
 
