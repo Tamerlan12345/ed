@@ -38,9 +38,12 @@
         <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
         <input type="text" id="course-title" placeholder="Название курса">
         
-        <h3>Шаг 1: Загрузите файл (PDF/DOCX) для извлечения текста</h3>
+        <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
         <input type="file" id="file-uploader" accept=".pdf,.docx">
-        <button id="process-file-btn">Извлечь и сохранить текст</button>
+        <button id="process-file-btn">Загрузить и обработать файл</button>
+
+        <h3>Извлеченный текст (Источник для AI)</h3>
+        <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст..."></textarea>
         
         <h3>Шаг 2: Сгенерируйте контент</h3>
         <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
@@ -99,47 +102,32 @@
         }
 
         const courseId = sanitizeForPath(originalCourseId);
-        showStatus(`Создаю черновик курса (ID: ${courseId}) и загружаю файл...`, 'info');
+        showStatus(`Обработка файла... Это может занять до 20 секунд.`, 'info');
 
-        // Step 1: Create a draft entry in the database
-        const createResponse = await fetch('/.netlify/functions/admin-handler', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'create_draft_course',
-                course_id: courseId, // Use sanitized ID
-                title: title,
-            })
-        });
-
-        const createData = await createResponse.json();
-        if (!createResponse.ok) {
-            showStatus(`Ошибка при создании черновика: ${JSON.stringify(createData)}`, 'error');
-            return;
-        }
-
-        // Step 2: Read file and upload via proxy function
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async () => {
             const base64File = reader.result.split(',')[1];
             const sanitizedFileName = sanitizeForPath(file.name);
 
-            const uploadResponse = await fetch('/.netlify/functions/upload-file-proxy', {
+            const response = await fetch('/.netlify/functions/admin-handler', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    action: 'upload_and_process',
                     course_id: courseId,
+                    title: title,
                     file_name: sanitizedFileName,
                     file_data: base64File
                 })
             });
 
-            const uploadData = await uploadResponse.json();
-            if (uploadResponse.ok) {
-                showStatus('Файл успешно загружен. Обработка начнется в фоновом режиме.', 'success');
+            const data = await response.json();
+            if (response.ok) {
+                showStatus('Файл успешно обработан.', 'success');
+                document.getElementById('source-text').value = data.extractedText;
             } else {
-                showStatus(`Ошибка при загрузке файла: ${JSON.stringify(uploadData)}`, 'error');
+                showStatus(`Ошибка: ${JSON.stringify(data)}`, 'error');
             }
         };
         reader.onerror = () => {
