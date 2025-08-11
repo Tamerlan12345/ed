@@ -5,12 +5,12 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const cloudmersiveApiKey = process.env.CLOUDMERSIVE_API_KEY;
 
 exports.handler = async (event) => {
-    // Log the entire incoming event to see its structure.
+    console.log('--- New Request to process-uploaded-file ---');
     console.log('Received event:', JSON.stringify(event, null, 2));
 
     try {
         const body = JSON.parse(event.body);
-        console.log('Request body successfully parsed:', body);
+        console.log('Request body successfully parsed.');
 
         const record = body.record;
         if (!record || !record.name) {
@@ -25,7 +25,6 @@ exports.handler = async (event) => {
         }
         console.log(`Processing file for course_id: ${course_id}, path: ${path}`);
 
-        // Get public URL for the file from Supabase Storage
         console.log('Getting public URL from Supabase...');
         const { data: urlData, error: urlError } = supabase
             .storage
@@ -40,42 +39,40 @@ exports.handler = async (event) => {
         const publicURL = urlData.publicUrl;
         console.log('Got public URL:', publicURL);
 
-        // Call Cloudmersive API to extract text
         console.log('Calling Cloudmersive API...');
         const data = await new Promise((resolve, reject) => {
             const instance = new CloudmersiveConvertApiClient.ConvertDocumentApi();
-            const opts = {
-                'inputFileUrl': publicURL
-            };
+            const opts = { 'inputFileUrl': publicURL };
             instance.convertDocumentAutodetectToTxt(cloudmersiveApiKey, opts, (error, data, response) => {
                 if (error) {
                     console.error('Cloudmersive API error:', error);
                     return reject(new Error(error.message || 'Cloudmersive API error'));
                 }
-                console.log('Cloudmersive API success.');
                 resolve(data);
             });
         });
+        console.log('Cloudmersive API call successful.');
 
         const textContent = data.TextResult;
 
         if (!textContent) {
+             console.log('Cloudmersive returned empty text content.');
             throw new Error('Could not extract text from the document.');
         }
-        console.log(`Extracted text length: ${textContent.length}`);
+        console.log(`SUCCESS: Extracted text. Length: ${textContent.length}. Preview: "${textContent.substring(0, 100)}..."`);
 
-        // Update the course in the database
         console.log('Updating course in Supabase...');
-        const { error: updateError } = await supabase
+        const { data: updateData, error: updateError } = await supabase
             .from('courses')
             .update({ source_text: textContent, status: 'processed' })
-            .eq('course_id', course_id);
+            .eq('course_id', course_id)
+            .select(); // Ask Supabase to return the updated row
 
         if (updateError) {
             console.error('Supabase update error:', updateError);
             throw updateError;
         }
-        console.log('Course updated successfully.');
+        console.log('SUCCESS: Supabase database updated.', JSON.stringify(updateData, null, 2));
 
         return {
             statusCode: 200,
