@@ -5,15 +5,16 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const cloudmersiveApiKey = process.env.CLOUDMERSIVE_API_KEY;
 
 exports.handler = async (event) => {
-    console.log('Received request to process-uploaded-file');
+    // Log the entire incoming event to see its structure.
+    console.log('Received event:', JSON.stringify(event, null, 2));
+
     try {
         const body = JSON.parse(event.body);
-        console.log('Request body:', body);
+        console.log('Request body successfully parsed:', body);
 
-        // Supabase webhook payload for storage is in `record`
         const record = body.record;
         if (!record || !record.name) {
-            throw new Error('Invalid webhook payload. "record.name" not found.');
+            throw new Error('Invalid webhook payload. "record.name" not found in the body.');
         }
 
         const path = record.name;
@@ -82,7 +83,10 @@ exports.handler = async (event) => {
         };
 
     } catch (error) {
-        console.error('Error in process-uploaded-file:', JSON.stringify(error, null, 2));
+        console.error('--- DETAILED ERROR ---');
+        console.error('Error Message:', error.message);
+        console.error('Error Stack:', error.stack);
+        console.error('Full Error Object:', JSON.stringify(error, null, 2));
         return {
             statusCode: 500,
             body: JSON.stringify({ error: error.message || 'An unknown error occurred.' })
