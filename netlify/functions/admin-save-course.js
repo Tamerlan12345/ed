@@ -11,14 +11,16 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: 'Необходимы все поля для сохранения.' }) };
         }
 
+        const courseContent = {
+            summary: content_html,
+            questions: questions
+        };
+
         const { data, error } = await supabase
             .from('courses')
             .update({
-                content_html: content_html,
-                questions: questions,
+                content_html: courseContent,
                 status: status, // 'draft' или 'published'
-                admin_prompt: admin_prompt,
-                last_updated: new Date().toISOString()
             })
             .eq('course_id', course_id);
 
