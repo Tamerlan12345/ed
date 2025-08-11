@@ -38,12 +38,7 @@
         <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
         <input type="text" id="course-title" placeholder="Название курса">
         
-        <h3>Шаг 1: Укажите источник контента</h3>
-        <p>Вы можете загрузить файл или указать прямую ссылку на Google Doc или PDF.</p>
-        <input type="text" id="document-url" placeholder="Ссылка на Google Doc или PDF">
-
-        <p><strong>ИЛИ</strong></p>
-
+        <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
         <input type="file" id="file-uploader" accept=".pdf,.docx">
         <button id="process-file-btn">Загрузить и обработать файл</button>
 
@@ -152,7 +147,6 @@
             document.getElementById('course-title').value = course.title;
             document.getElementById('source-text').value = course.source_text || '';
             document.getElementById('custom-prompt').value = course.admin_prompt || '';
-            document.getElementById('document-url').value = course.document_url || '';
 
             const contentHtmlField = course.content_html;
             let summary = '';
@@ -294,7 +288,6 @@
         try {
             const content_html = JSON.parse(document.getElementById('generated-html').value);
             const questions = JSON.parse(document.getElementById('generated-questions').value);
-            const document_url = document.getElementById('document-url').value.trim();
 
             const response = await fetch('/.netlify/functions/admin-handler', {
                 method: 'POST',
@@ -304,8 +297,7 @@
                     course_id: courseId,
                     content_html: content_html,
                     questions: questions,
-                    admin_prompt: document.getElementById('custom-prompt').value,
-                    document_url: document_url
+                    admin_prompt: document.getElementById('custom-prompt').value
                 })
             });
 
