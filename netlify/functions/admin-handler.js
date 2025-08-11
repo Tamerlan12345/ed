@@ -107,33 +107,36 @@ async function generateContent(payload) {
     return { error: { message: lastError.message, statusCode: 500 } };
 }
 
-const CloudmersiveConvertApiClient = require('cloudmersive-convert-api-client');
+const axios = require('axios');
 
 async function textToSpeech(payload) {
     const { text } = payload;
     if (!text) throw new Error('No text provided for speech synthesis.');
+    if (!process.env.VOICERSS_API_KEY) throw new Error('VoiceRSS API key is not configured.');
 
-    const defaultClient = CloudmersiveConvertApiClient.ApiClient.instance;
-    const Apikey = defaultClient.authentications['Apikey'];
-    Apikey.apiKey = process.env.CLOUDMERSIVE_API_KEY;
-
-    const apiInstance = new CloudmersiveConvertApiClient.SpeakApi();
-    const request = new CloudmersiveConvertApiClient.TextToSpeechRequest();
-    request.Text = text;
-    request.Format = 'mp3';
-
-    return new Promise((resolve, reject) => {
-        apiInstance.speakPost(request, (error, data, response) => {
-            if (error) {
-                console.error('Cloudmersive SDK error:', error);
-                reject(new Error('Failed to generate audio file using Cloudmersive SDK.'));
-            } else {
-                const audioBase64 = Buffer.from(data).toString('base64');
-                const audioUrl = `data:audio/mpeg;base64,${audioBase64}`;
-                resolve({ audioUrl: audioUrl });
+    try {
+        const response = await axios.get('http://api.voicerss.org/', {
+            params: {
+                key: process.env.VOICERSS_API_KEY,
+                src: text,
+                hl: 'ru-ru', // Russian language
+                c: 'MP3',   // MP3 format
+                f: '16khz_16bit_stereo', // Good quality
+                b64: true   // Base64 output
             }
         });
-    });
+
+        if (response.data.startsWith('ERROR')) {
+            throw new Error(`VoiceRSS API Error: ${response.data}`);
+        }
+
+        // The response is already a Base64 Data URI when b64=true
+        return { audioUrl: response.data };
+
+    } catch (error) {
+        console.error('VoiceRSS API error:', error.message);
+        throw new Error('Failed to generate audio file.');
+    }
 }
 
 async function publishCourse(payload) {
