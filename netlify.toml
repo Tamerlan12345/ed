@@ -7,6 +7,3 @@
 
 [functions."*"]
   node_version = 18
-
-[functions."admin-handler"]
-  timeout = 30
