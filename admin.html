@@ -149,7 +149,7 @@
             document.getElementById('generated-questions').value = course.questions ? JSON.stringify(course.questions, null, 2) : '';
             showStatus(`Курс ${course.title} успешно загружен.`, 'success');
         } else {
-            showStatus(`Ошибка при загрузке курса: ${course.error}`, 'error');
+            showStatus(`Ошибка при загрузке курса: ${JSON.stringify(course.error, null, 2)}`, 'error');
         }
     });
     
@@ -224,7 +224,7 @@
             document.getElementById('generated-html').value = JSON.stringify(data.summary, null, 2);
             document.getElementById('generated-questions').value = JSON.stringify(data.questions, null, 2);
         } else {
-            showStatus(`Ошибка: ${data.error}`, 'error');
+            showStatus(`Ошибка: ${JSON.stringify(data.error, null, 2)}`, 'error');
         }
     });
 
@@ -257,7 +257,7 @@
             if(response.ok) {
                 showStatus(data.message, 'success');
             } else {
-                showStatus(`Ошибка: ${data.error}`, 'error');
+                showStatus(`Ошибка: ${JSON.stringify(data.error, null, 2)}`, 'error');
             }
         } catch (e) {
             showStatus('Ошибка: Неверный формат JSON в полях HTML или вопросов.', 'error');
