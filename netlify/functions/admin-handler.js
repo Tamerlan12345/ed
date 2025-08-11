@@ -109,8 +109,12 @@ async function generateContent(payload) {
 
 async function publishCourse(payload) {
     const { course_id, content_html, questions } = payload;
+    const courseContent = {
+        summary: content_html,
+        questions: questions
+    };
     // The 'admin_prompt' and 'last_updated' columns do not exist in the user's schema.
-    const { error } = await supabase.from('courses').update({ content_html, questions, status: 'published' }).eq('course_id', course_id);
+    const { error } = await supabase.from('courses').update({ content_html: courseContent, status: 'published' }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
 }
