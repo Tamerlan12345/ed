@@ -136,17 +136,13 @@ async function textToSpeech(payload) {
 }
 
 async function publishCourse(payload) {
-    const { course_id, content_html, questions, admin_prompt, document_url } = payload;
+    const { course_id, content_html, questions } = payload;
     const courseContent = {
         summary: content_html,
         questions: questions
     };
-    const { error } = await supabase.from('courses').update({
-        content_html: courseContent,
-        status: 'published',
-        admin_prompt: admin_prompt,
-        document_url: document_url
-    }).eq('course_id', course_id);
+    // The 'admin_prompt' and 'last_updated' columns do not exist in the user's schema.
+    const { error } = await supabase.from('courses').update({ content_html: courseContent, status: 'published' }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
 }
@@ -177,11 +173,11 @@ exports.handler = async (event) => {
                     return { statusCode: statusCode, body: JSON.stringify({ error: result.error.message || result.error }) };
                 }
                 break;
-            case 'text_to_speech':
-                result = await textToSpeech(payload);
-                break;
             case 'publish_course':
                 result = await publishCourse(payload);
+                break;
+            case 'text_to_speech':
+                result = await textToSpeech(payload);
                 break;
             case 'get_courses_admin':
                 const { data, error } = await supabase.from('courses').select('course_id, title');
