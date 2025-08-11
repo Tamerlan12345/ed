@@ -159,6 +159,11 @@ exports.handler = async (event) => {
                 throw new Error('Unknown action.');
         }
 
+        // Defensive check to prevent empty responses
+        if (result === undefined) {
+            throw new Error(`Server Error: Result is undefined for action '${payload.action}'. This indicates a logic error in the handler.`);
+        }
+
         return { statusCode: 200, body: JSON.stringify(result) };
     } catch (error) {
         console.error('Error in admin-handler:', error); // Log the full error object
