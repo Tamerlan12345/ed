@@ -6,19 +6,26 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 async function generateContent(payload) {
-    const { course_id, custom_prompt } = payload;
-    const { data: courseData, error } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
-    if (error || !courseData) {
-        throw new Error('Course source text not found.');
-    }
+    try {
+        const { course_id, custom_prompt } = payload;
+        const { data: courseData, error } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
 
-    const defaultCommand = { task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.", output_format: { summary: [{ title: "string", html_content: "string" }], questions: [{ question: "string", options: ["string"], correct_option_index: 0 }] }, source_text: courseData.source_text };
-    const finalPrompt = custom_prompt ? `${custom_prompt} ИСХОДНЫЙ ТЕКСТ: ${courseData.source_text}` : JSON.stringify(defaultCommand);
-    
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonString);
+        if (error || !courseData || !courseData.source_text) {
+            return { error: 'Course source text not found or not yet processed. Please wait a moment for the file to be analyzed and try again.' };
+        }
+
+        const defaultCommand = { task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.", output_format: { summary: [{ title: "string", html_content: "string" }], questions: [{ question: "string", options: ["string"], correct_option_index: 0 }] }, source_text: courseData.source_text };
+        const finalPrompt = custom_prompt ? `${custom_prompt} ИСХОДНЫЙ ТЕКСТ: ${courseData.source_text}` : JSON.stringify(defaultCommand);
+
+        const result = await model.generateContent(finalPrompt);
+        const response = await result.response;
+        const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(jsonString);
+
+    } catch (e) {
+        console.error("Error inside generateContent:", e);
+        return { error: e.message };
+    }
 }
 
 async function publishCourse(payload) {
@@ -56,6 +63,9 @@ exports.handler = async (event) => {
                 break;
             case 'generate_content':
                 result = await generateContent(payload);
+                if (result.error) {
+                    return { statusCode: 400, body: JSON.stringify({ error: result.error }) };
+                }
                 break;
             case 'publish_course':
                 result = await publishCourse(payload);
