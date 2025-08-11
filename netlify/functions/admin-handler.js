@@ -6,7 +6,7 @@ const pdf = require('pdf-parse');
 // Initialize Supabase and Gemini AI
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 async function uploadAndProcessFile(payload) {
     const { course_id, title, file_name, file_data } = payload;
@@ -61,10 +61,31 @@ async function generateContent(payload) {
     const defaultCommand = { task: "Создай пошаговый план обучения из 3-5 уроков и 5 тестов по тексту.", output_format: { summary: [{ title: "string", html_content: "string" }], questions: [{ question: "string", options: ["string"], correct_option_index: 0 }] }, source_text: courseData.source_text };
     const finalPrompt = custom_prompt ? `${custom_prompt} ИСХОДНЫЙ ТЕКСТ: ${courseData.source_text}` : JSON.stringify(defaultCommand);
 
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonString);
+    const maxRetries = 3;
+    let lastError = null;
+
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            console.log(`Generating content, attempt ${i + 1}`);
+            const result = await model.generateContent(finalPrompt);
+            const response = await result.response;
+            const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(jsonString); // Success
+        } catch (e) {
+            lastError = e;
+            // Check for specific transient error from Google AI
+            if (e.message && e.message.includes('503')) {
+                console.warn(`Attempt ${i + 1} failed with 503 Service Unavailable. Retrying in 2 seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
+                // Don't retry on other errors (e.g., bad request, auth issues)
+                break;
+            }
+        }
+    }
+    // If all retries fail, throw the last captured error
+    console.error('All retries failed for content generation.');
+    throw lastError;
 }
 
 async function publishCourse(payload) {
