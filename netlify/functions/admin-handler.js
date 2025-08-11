@@ -140,6 +140,13 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify(result) };
     } catch (error) {
         console.error('Error in admin-handler:', JSON.stringify(error, null, 2));
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        // Provide more detailed error messages to the client for easier debugging
+        const errorMessage = {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+        };
+        return { statusCode: 500, body: JSON.stringify({ error: errorMessage }) };
     }
 };
