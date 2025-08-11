@@ -81,6 +81,7 @@
     }
 
     async function loadCourses() {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
         const response = await fetch('/.netlify/functions/admin-handler', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
@@ -129,6 +130,7 @@
     });
 
     document.getElementById('load-course-btn').addEventListener('click', async () => {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
         const courseId = document.getElementById('course-selector').value;
         if (!courseId) {
             showStatus('Выберите курс для загрузки.', 'error');
@@ -173,6 +175,7 @@
     });
     
     document.getElementById('process-file-btn').addEventListener('click', async () => {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
         const file = document.getElementById('file-uploader').files[0];
         const originalCourseId = document.getElementById('course-id').value.trim();
         const title = document.getElementById('course-title').value.trim();
@@ -219,6 +222,7 @@
     });
 
     document.getElementById('generate-btn').addEventListener('click', async () => {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
         const originalCourseId = document.getElementById('course-id').value.trim();
         if (!originalCourseId) {
             showStatus('Укажите ID курса.', 'error');
@@ -248,6 +252,7 @@
     });
 
     document.getElementById('text-to-speech-btn').addEventListener('click', async () => {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
         const sourceText = document.getElementById('source-text').value;
         if (!sourceText) {
             showStatus('Нет текста для озвучивания. Сначала извлеките текст из файла.', 'error');
@@ -277,6 +282,7 @@
     });
 
     document.getElementById('publish-btn').addEventListener('click', async () => {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
         const originalCourseId = document.getElementById('course-id').value.trim();
         if (!originalCourseId) {
             showStatus('Укажите ID курса.', 'error');

@@ -15,23 +15,22 @@ async function textToSpeech(text) {
     }
 
     try {
-        const response = await axios.post('https://api.cloudmersive.com/speech/speak/text/to-speech/post', {
-            "format": "mp3",
-            "text": text
+        const response = await axios.post('https://api.cloudmersive.com/speech/speak/text/voice/basic/audio', {
+            "Format": "mp3",
+            "Text": text
         }, {
             headers: {
                 'Content-Type': 'application/json',
                 'Apikey': process.env.CLOUDMERSIVE_API_KEY
-            }
+            },
+            responseType: 'arraybuffer'
         });
 
-        if (response.data && response.data.AudioFileUrl) {
-            return { audioUrl: response.data.AudioFileUrl };
-        } else {
-            // Log the actual response from Cloudmersive for debugging
-            console.error('Cloudmersive API did not return an audio URL. Response:', response.data);
-            throw new Error('Cloudmersive API did not return an audio URL.');
-        }
+        const audioBase64 = Buffer.from(response.data, 'binary').toString('base64');
+        const audioUrl = `data:audio/mpeg;base64,${audioBase64}`;
+
+        return { audioUrl: audioUrl };
+
     } catch (error) {
         console.error('Cloudmersive API error:', error.response ? error.response.data : error.message);
         throw new Error('Failed to generate audio file from Cloudmersive API.');
