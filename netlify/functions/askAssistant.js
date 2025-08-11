@@ -32,8 +32,22 @@ exports.handler = async (event) => {
         
         const result = await model.generateContent(prompt);
         const response = await result.response;
+        const answer = response.text();
+
+        const { error: insertError } = await supabase
+            .from('user_questions')
+            .insert({
+                course_id: course_id,
+                user_id: user.id,
+                question: question,
+                answer: answer
+            });
+
+        if (insertError) {
+            console.error('Failed to save user question:', insertError);
+        }
         
-        return { statusCode: 200, body: JSON.stringify({ answer: response.text() }) };
+        return { statusCode: 200, body: JSON.stringify({ answer: answer }) };
     } catch (error) {
         return { statusCode: 500, body: JSON.stringify({ error: error.message, stack: error.stack }) };
     }
