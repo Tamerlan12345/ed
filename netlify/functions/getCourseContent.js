@@ -22,13 +22,25 @@ exports.handler = async (event) => {
         }
 
         const courseContent = data.content_html;
-        if (!courseContent || typeof courseContent !== 'object' || !courseContent.summary) {
-            throw new Error('Формат контента курса неверный. Обратитесь к администратору.');
+        let summary, questions;
+
+        if (courseContent && typeof courseContent === 'object' && courseContent.summary) {
+            // New format: { summary: ..., questions: ... }
+            summary = courseContent.summary;
+            questions = courseContent.questions || [];
+        } else {
+            // Old format (content is just the summary array) or null
+            summary = courseContent;
+            questions = []; // No questions available in old format
+        }
+
+        if (!summary) {
+            return { statusCode: 404, body: JSON.stringify({ error: 'Контент для данного курса не найден.' }) };
         }
 
         return { 
             statusCode: 200, 
-            body: JSON.stringify({ summary: courseContent.summary, questions: courseContent.questions || [] })
+            body: JSON.stringify({ summary, questions })
         };
     } catch (error) {
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
