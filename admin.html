@@ -148,17 +148,18 @@
             document.getElementById('course-id').disabled = true;
             document.getElementById('course-title').value = course.title;
             document.getElementById('source-text').value = course.source_text || '';
-            document.getElementById('custom-prompt').value = course.admin_prompt || '';
 
             const contentHtmlField = course.content_html;
             let summary = '';
             let questions = '';
+            let adminPrompt = '';
 
             if (contentHtmlField) {
-                // New format: content_html is an object with summary and questions
+                // New format: content_html is an object with summary, questions, and optional admin_prompt
                 if (typeof contentHtmlField === 'object' && contentHtmlField.summary) {
                     summary = JSON.stringify(contentHtmlField.summary, null, 2);
-                    questions = JSON.stringify(contentHtmlField.questions, null, 2);
+                    questions = JSON.stringify(contentHtmlField.questions || [], null, 2);
+                    adminPrompt = contentHtmlField.admin_prompt || '';
                 } else {
                     // Backwards compatibility: content_html is just the summary
                     summary = JSON.stringify(contentHtmlField, null, 2);
@@ -167,6 +168,7 @@
 
             document.getElementById('generated-html').value = summary;
             document.getElementById('generated-questions').value = questions;
+            document.getElementById('custom-prompt').value = adminPrompt;
 
             showStatus(`Курс ${course.title} успешно загружен.`, 'success');
         } else {

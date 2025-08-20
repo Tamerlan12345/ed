@@ -86,27 +86,34 @@ async function generateContent(payload) {
             const result = await model.generateContent(finalPrompt);
             const response = await result.response;
             const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(jsonString); // Success
+
+            // Try to parse the JSON. If it fails, the catch block will trigger a retry.
+            const parsedJson = JSON.parse(jsonString);
+            return parsedJson; // Success
+
         } catch (e) {
             lastError = e;
             console.error(`Attempt ${i + 1} failed. Error: ${e.message}`);
 
-            // Handle 429 Too Many Requests (Quota Exceeded)
+            // If this is the last attempt, break the loop and report the error.
+            if (i === maxRetries - 1) {
+                console.error('All retries failed for content generation.');
+                break;
+            }
+
+            // Handle specific API errors with backoff, or retry immediately for parsing errors
             if (e.message && e.message.includes('429')) {
-                const waitTime = 60 * 1000; // Wait for 60 seconds as suggested by API for minute-based quotas
+                const waitTime = 60 * 1000;
                 console.warn(`Quota exceeded (429). Retrying in ${waitTime / 1000} seconds...`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
-
-            // Handle 503 Service Unavailable with exponential backoff
             } else if (e.message && e.message.includes('503')) {
-                const waitTime = Math.pow(2, i) * 1000; // Exponential backoff: 1s, 2s, 4s, 8s
+                const waitTime = Math.pow(2, i) * 1000;
                 console.warn(`Service unavailable (503). Retrying in ${waitTime / 1000} seconds...`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
-
-            // For other errors, don't retry
             } else {
-                console.error('Non-retriable error encountered. Aborting.');
-                break;
+                // For other errors (like JSON parsing), wait a short moment before retrying
+                console.warn('An error occurred. Retrying in 2 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
     }
@@ -156,13 +163,16 @@ async function textToSpeech(payload) {
 }
 
 async function publishCourse(payload) {
-    const { course_id, content_html, questions } = payload;
+    const { course_id, content_html, questions, admin_prompt } = payload;
     const courseContent = {
         summary: content_html,
-        questions: questions
+        questions: questions,
+        admin_prompt: admin_prompt || '' // Save the prompt, default to empty string
     };
-    // The 'admin_prompt' and 'last_updated' columns do not exist in the user's schema.
-    const { error } = await supabase.from('courses').update({ content_html: courseContent, status: 'published' }).eq('course_id', course_id);
+    const { error } = await supabase.from('courses').update({
+        content_html: courseContent,
+        status: 'published'
+    }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
 }
