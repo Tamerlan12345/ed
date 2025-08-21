@@ -75,7 +75,7 @@ exports.handler = async (event) => {
         // Initialize the Google Generative AI client
         if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not configured.');
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro-latest' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
         // Create the summarization prompt
         const summarizationPrompt = `Ты — AI-ассистент. Сделай краткий пересказ предоставленного текста. Пересказ должен быть строго в рамках документа и занимать примерно 5 минут при чтении (около 750 слов). ИСХОДНЫЙ ТЕКСТ: \n---\n${courseData.source_text}\n---`;
