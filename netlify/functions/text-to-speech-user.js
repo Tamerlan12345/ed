@@ -6,29 +6,41 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 async function textToSpeech(text) {
     if (!text) throw new Error('No text provided for speech synthesis.');
-    if (!process.env.VOICERSS_API_KEY) throw new Error('VoiceRSS API key is not configured.');
+    if (!process.env.SPEECHIFY_API_KEY) throw new Error('Speechify API key is not configured.');
+    const speechifyApiKey = process.env.SPEECHIFY_API_KEY;
 
     try {
-        const response = await axios.get('http://api.voicerss.org/', {
-            params: {
-                key: process.env.VOICERSS_API_KEY,
-                src: text,
-                hl: 'ru-ru',
-                c: 'MP3',
-                f: '16khz_16bit_stereo',
-                b64: true
+        const response = await axios.post('https://api.sws.speechify.com/v1/audio/speech', {
+            input: text,
+            voice_id: 'mikhail', // Selected Russian voice
+            language: 'ru-RU',
+            model: 'simba-multilingual',
+            audio_format: 'mp3'
+        }, {
+            headers: {
+                'Authorization': `Bearer ${speechifyApiKey}`,
+                'Content-Type': 'application/json'
             }
         });
 
-        if (response.data.startsWith('ERROR')) {
-            throw new Error(`VoiceRSS API Error: ${response.data}`);
+        if (response.data && response.data.audio_data) {
+            // The old API returned a base64 string which was likely used in a data URI.
+            // Prepending the data URI scheme to match the expected format.
+            return { audioUrl: `data:audio/mp3;base64,${response.data.audio_data}` };
+        } else {
+            // Log the actual response for debugging if audio_data is missing
+            console.error('Speechify API response did not contain audio_data:', response.data);
+            throw new Error('Speechify API did not return audio data.');
         }
 
-        return { audioUrl: response.data };
-
     } catch (error) {
-        console.error('VoiceRSS API error:', error.message);
-        throw new Error('Failed to generate audio file.');
+        // Log more detailed error information if available
+        if (error.response) {
+            console.error('Speechify API error response:', error.response.status, error.response.data);
+        } else {
+            console.error('Speechify API request error:', error.message);
+        }
+        throw new Error('Failed to generate audio file from Speechify.');
     }
 }
 
