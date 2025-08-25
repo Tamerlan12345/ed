@@ -18,6 +18,13 @@
         .error { color: #dc3545; background-color: #fdeeee; }
         .success { color: #28a745; background-color: #eaf7ec; }
         .info { color: #005A9C; background-color: #e9f7fe; }
+        .tabs button { width: auto; padding: 10px 20px; margin-right: 10px; background-color: #e0e0e0; color: #333; }
+        .tabs button.active { background-color: #005A9C; color: white; }
+        #results-view { margin-top: 20px; }
+        #results-filters { display: flex; gap: 10px; margin-bottom: 10px; }
+        #results-table { width: 100%; border-collapse: collapse; }
+        #results-table th, #results-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        #results-table th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
@@ -29,34 +36,66 @@
     </div>
 
     <div id="panel-view" class="hidden">
-        <h1>Панель управления курсами</h1>
-        <div id="status-box" class="status hidden"></div>
-        <select id="course-selector"><option value="">-- Создать новый курс --</option></select>
-        <button id="load-course-btn">Загрузить выбранный курс</button>
+        <h1>Панель управления</h1>
+        <div class="tabs">
+            <button id="courses-tab-btn" class="active">Управление курсами</button>
+            <button id="results-tab-btn">Результаты тестов</button>
+        </div>
         <hr>
-        <h2>Данные курса</h2>
-        <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
-        <input type="text" id="course-title" placeholder="Название курса">
-        
-        <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
-        <input type="file" id="file-uploader" accept=".pdf,.docx">
-        <button id="process-file-btn">Загрузить и обработать файл</button>
 
-        <h3>Извлеченный текст (Источник для AI)</h3>
-        <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
-        <button id="text-to-speech-btn">Озвучить текст</button>
-        <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст..."></textarea>
-        
-        <h3>Шаг 2: Сгенерируйте контент</h3>
-        <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
-        <button id="generate-btn">Сгенерировать черновик по тексту</button>
-        
-        <h3>Шаг 3: Проверьте и отредактируйте</h3>
-        <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML..."></textarea>
-        <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON..."></textarea>
+        <div id="courses-view">
+            <h2>Панель управления курсами</h2>
+            <div id="status-box" class="status hidden"></div>
+            <select id="course-selector"><option value="">-- Создать новый курс --</option></select>
+            <button id="load-course-btn">Загрузить выбранный курс</button>
+            <hr>
+            <h2>Данные курса</h2>
+            <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
+            <input type="text" id="course-title" placeholder="Название курса">
 
-        <h3>Шаг 4: Сохранение и публикация</h3>
-        <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
+            <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
+            <input type="file" id="file-uploader" accept=".pdf,.docx">
+            <button id="process-file-btn">Загрузить и обработать файл</button>
+
+            <h3>Извлеченный текст (Источник для AI)</h3>
+            <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
+            <button id="text-to-speech-btn">Озвучить текст</button>
+            <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст..."></textarea>
+
+            <h3>Шаг 2: Сгенерируйте контент</h3>
+            <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
+            <button id="generate-btn">Сгенерировать черновик по тексту</button>
+
+            <h3>Шаг 3: Проверьте и отредактируйте</h3>
+            <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML..."></textarea>
+            <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON..."></textarea>
+
+            <h3>Шаг 4: Сохранение и публикация</h3>
+            <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
+        </div>
+
+        <div id="results-view" class="hidden">
+            <h2>Результаты тестов пользователей</h2>
+            <div id="results-filters">
+                <input type="text" id="filter-user" placeholder="Email пользователя...">
+                <input type="date" id="filter-date">
+                <select id="filter-course"><option value="">Все курсы</option></select>
+                <button id="apply-filters-btn">Применить</button>
+            </div>
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>Пользователь</th>
+                        <th>Курс</th>
+                        <th>Результат (%)</th>
+                        <th>Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Сюда будут добавляться строки с результатами -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
 <script>
@@ -68,6 +107,56 @@
     const loginView = document.getElementById('login-view');
     const panelView = document.getElementById('panel-view');
     const statusBox = document.getElementById('status-box');
+    const coursesView = document.getElementById('courses-view');
+    const resultsView = document.getElementById('results-view');
+    const coursesTabBtn = document.getElementById('courses-tab-btn');
+    const resultsTabBtn = document.getElementById('results-tab-btn');
+    const filterCourseSelector = document.getElementById('filter-course');
+
+    coursesTabBtn.addEventListener('click', () => {
+        coursesView.classList.remove('hidden');
+        resultsView.classList.add('hidden');
+        coursesTabBtn.classList.add('active');
+        resultsTabBtn.classList.remove('active');
+    });
+
+    resultsTabBtn.addEventListener('click', () => {
+        coursesView.classList.add('hidden');
+        resultsView.classList.remove('hidden');
+        coursesTabBtn.classList.remove('active');
+        resultsTabBtn.classList.add('active');
+        loadResults();
+    });
+
+    async function loadResults() {
+        if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
+
+        const user_email = document.getElementById('filter-user').value;
+        const date = document.getElementById('filter-date').value;
+        const course_id = document.getElementById('filter-course').value;
+
+        try {
+            const response = await fetch('/.netlify/functions/getTestResults', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_email, date, course_id })
+            });
+            const results = await response.json();
+            const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ''; // Clear existing results
+            results.forEach(result => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = result.user_email;
+                row.insertCell(1).textContent = result.course_id;
+                row.insertCell(2).textContent = result.percentage;
+                row.insertCell(3).textContent = new Date(result.completed_at).toLocaleString();
+            });
+        } catch (error) {
+            showStatus('Ошибка при загрузке результатов.', 'error');
+        }
+    }
+
+    document.getElementById('apply-filters-btn').addEventListener('click', loadResults);
     
     function showStatus(message, type = 'info') {
         statusBox.textContent = message;
@@ -88,13 +177,22 @@
             body: JSON.stringify({ action: 'get_courses_admin' })
         });
         const courses = await response.json();
-        const selector = document.getElementById('course-selector');
-        selector.innerHTML = '<option value="">-- Создать новый курс --</option>';
+        const courseSelector = document.getElementById('course-selector');
+        const filterCourseSelector = document.getElementById('filter-course');
+
+        courseSelector.innerHTML = '<option value="">-- Создать новый курс --</option>';
+        filterCourseSelector.innerHTML = '<option value="">Все курсы</option>';
+
         courses.forEach(course => {
-            const option = document.createElement('option');
-            option.value = course.course_id;
-            option.textContent = `${course.title} (${course.course_id})`;
-            selector.appendChild(option);
+            const option1 = document.createElement('option');
+            option1.value = course.course_id;
+            option1.textContent = `${course.title} (${course.course_id})`;
+            courseSelector.appendChild(option1);
+
+            const option2 = document.createElement('option');
+            option2.value = course.course_id;
+            option2.textContent = `${course.title} (${course.course_id})`;
+            filterCourseSelector.appendChild(option2);
         });
     }
 
