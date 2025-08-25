@@ -29,10 +29,32 @@ exports.handler = async (event) => {
             '---'
         ];
         const prompt = promptParts.join('\n');
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const answer = response.text();
+
+        let answer = '';
+        const maxRetries = 3;
+        let lastError = null;
+
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const result = await model.generateContent(prompt);
+                const response = await result.response;
+                answer = response.text();
+                break; // Success, exit loop
+            } catch (error) {
+                lastError = error;
+                console.error(`askAssistant: Attempt ${i + 1} failed. Error: ${error.message}`);
+                if (i < maxRetries - 1) {
+                    const waitTime = Math.pow(2, i) * 1000 + Math.random() * 1000; // Exponential backoff with jitter
+                    console.log(`askAssistant: Retrying in ${Math.round(waitTime / 1000)}s...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
+            }
+        }
+
+        if (!answer) {
+            console.error('askAssistant: All retries failed.');
+            throw new Error(`Не удалось получить ответ от AI-ассистента после ${maxRetries} попыток. ${lastError ? lastError.message : ''}`);
+        }
 
         const { error: insertError } = await supabase
             .from('user_questions')
