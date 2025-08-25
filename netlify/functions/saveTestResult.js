@@ -29,18 +29,49 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields in request body.' }) };
         }
 
-        const { error: upsertError } = await supabase.from('user_progress').upsert({
+        // Step 1: Check if a record already exists
+        const { data: existingRecord, error: selectError } = await supabase
+            .from('user_progress')
+            .select('id')
+            .eq('user_email', user.email)
+            .eq('course_id', course_id)
+            .maybeSingle();
+
+        if (selectError) {
+            console.error('Supabase select error:', selectError);
+            throw selectError;
+        }
+
+        const recordPayload = {
             user_email: user.email,
             course_id: course_id,
             score: score,
             total_questions: total_questions,
             percentage: percentage,
             completed_at: new Date().toISOString(),
-        }, { onConflict: 'user_email, course_id' });
+        };
 
-        if (upsertError) {
-            console.error('Supabase upsert error:', upsertError);
-            throw upsertError;
+        if (existingRecord) {
+            // Step 2a: Update existing record
+            const { error: updateError } = await supabase
+                .from('user_progress')
+                .update(recordPayload)
+                .eq('id', existingRecord.id);
+
+            if (updateError) {
+                console.error('Supabase update error:', updateError);
+                throw updateError;
+            }
+        } else {
+            // Step 2b: Insert new record
+            const { error: insertError } = await supabase
+                .from('user_progress')
+                .insert(recordPayload);
+
+            if (insertError) {
+                console.error('Supabase insert error:', insertError);
+                throw insertError;
+            }
         }
 
         return { statusCode: 200, body: JSON.stringify({ message: 'Результат успешно сохранен' }) };
