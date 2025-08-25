@@ -6,10 +6,7 @@
     <title>AI-Платформа Обучения | Centras Insurance</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
-        #product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}
-        .slide { display: none; } .slide.active { display: block; }
-        .slide-navigation { display: flex; justify-content: space-between; margin-top: 20px; }
-        #test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:8px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
+        :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:900px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"],input[type="password"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:8px;transition:border-color .3s,box-shadow .3s}input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,166,0.2)}button,.btn{background:linear-gradient(45deg,var(--secondary-color),var(--primary-color));border:none;color:#fff;padding:12px 25px;cursor:pointer;text-transform:uppercase;transition:all .3s ease;box-shadow:0 2px 5px rgba(0,0,0,0.1);border-radius:8px;font-weight:700;letter-spacing:.5px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,174,239,0.3)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}.menu-item{padding:20px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:8px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -204,75 +201,8 @@
         }
     }
     
-    let currentSlideIndex = 0;
     // Остальной код остается без изменений
-    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions;
-
-        renderSlides();
-
-        const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } };
-
-        const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => startTest(currentCourse.id);
-
-        const navigationContainer = document.createElement('div');
-        navigationContainer.className = 'slide-navigation';
-        navigationContainer.innerHTML = `
-            <button id="prev-slide-btn">Назад</button>
-            <span id="slide-counter"></span>
-            <button id="next-slide-btn">Вперед</button>
-        `;
-
-        productContent.appendChild(listenBtn);
-        productContent.appendChild(startTestBtn);
-        productContent.appendChild(navigationContainer);
-
-        document.getElementById('prev-slide-btn').addEventListener('click', showPrevSlide);
-        document.getElementById('next-slide-btn').addEventListener('click', showNextSlide);
-
-        updateSlideView();
-
-        } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
-
-    function renderSlides() {
-        productContent.innerHTML = ''; // Clear previous content
-        if (Array.isArray(currentCourse.summary)) {
-            currentCourse.summary.forEach((slide, index) => {
-                const slideDiv = document.createElement('div');
-                slideDiv.className = 'slide';
-                slideDiv.dataset.index = index;
-                slideDiv.innerHTML = `<h3>${slide.title}</h3>${slide.html_content}`;
-                productContent.appendChild(slideDiv);
-            });
-        } else {
-            productContent.innerHTML = currentCourse.summary;
-        }
-    }
-
-    function updateSlideView() {
-        const slides = document.querySelectorAll('.slide');
-        slides.forEach((slide, index) => {
-            slide.classList.toggle('active', index === currentSlideIndex);
-        });
-        document.getElementById('slide-counter').textContent = `Слайд ${currentSlideIndex + 1} из ${slides.length}`;
-        document.getElementById('prev-slide-btn').disabled = currentSlideIndex === 0;
-        document.getElementById('next-slide-btn').disabled = currentSlideIndex === slides.length - 1;
-    }
-
-    function showPrevSlide() {
-        if (currentSlideIndex > 0) {
-            currentSlideIndex--;
-            updateSlideView();
-        }
-    }
-
-    function showNextSlide() {
-        const slides = document.querySelectorAll('.slide');
-        if (currentSlideIndex < slides.length - 1) {
-            currentSlideIndex++;
-            updateSlideView();
-        }
-    }
-
+    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; if (Array.isArray(currentCourse.summary)) { productContent.innerHTML = currentCourse.summary.map(slide => `<div><h3>${slide.title}</h3>${slide.html_content}</div>`).join('<hr style="margin: 20px 0;">'); } else { productContent.innerHTML = currentCourse.summary; } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => startTest(currentCourse.id); productContent.appendChild(startTestBtn); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
     chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const url = `/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`; const data = await fetchAuthenticated(url); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
     function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
     function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } } }
