@@ -190,6 +190,26 @@ async function publishCourse(payload) {
     return { message: `Course ${course_id} successfully published.` };
 }
 
+async function deleteCourse(payload) {
+    const { course_id } = payload;
+
+    // 1. Delete related user progress
+    const { error: progressError } = await supabase.from('user_progress').delete().eq('course_id', course_id);
+    if (progressError) {
+        console.error('Error deleting user progress:', progressError);
+        throw new Error('Failed to delete user progress for the course.');
+    }
+
+    // 2. Delete the course itself
+    const { error: courseError } = await supabase.from('courses').delete().eq('course_id', course_id);
+    if (courseError) {
+        console.error('Error deleting course:', courseError);
+        throw new Error('Failed to delete the course.');
+    }
+
+    return { message: `Course ${course_id} and all related progress have been successfully deleted.` };
+}
+
 exports.handler = async (event) => {
     try {
         const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
@@ -232,6 +252,9 @@ exports.handler = async (event) => {
                 const { data: details_data, error: details_error } = await supabase.from('courses').select('*').eq('course_id', details_course_id).single();
                 if (details_error) throw details_error;
                 result = details_data;
+                break;
+            case 'delete_course':
+                result = await deleteCourse(payload);
                 break;
             default:
                 throw new Error('Unknown action.');
