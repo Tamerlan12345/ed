@@ -33,17 +33,37 @@ exports.handler = async (event) => {
         }
 
         let prompt;
+        let answer;
+
         if (action === 'evaluate') {
             const dialogueText = history.map(h => `${h.role}: ${h.text}`).join('\n');
             prompt = `${PERSONAS.evaluator}\n\nДИАЛОГ:\n${dialogueText}`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            answer = response.text();
+
+            // Save the completed simulation to the database
+            const { error: dbError } = await supabase.from('dialogue_simulations').insert({
+                user_id: user.id,
+                persona: persona,
+                dialogue_history: history,
+                evaluation: answer
+            });
+
+            if (dbError) {
+                // Log the error but don't block the user from seeing their evaluation
+                console.error('Error saving dialogue simulation to DB:', dbError);
+            }
+
         } else { // action === 'chat'
             const dialogueContext = history.map(h => `* ${h.role}: ${h.text}`).join('\n');
             prompt = `Инструкция: ${PERSONAS[persona]}\n\nИстория диалога:\n${dialogueContext}\n\nТвой следующий ответ (только текст, без роли):`;
-        }
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const answer = response.text();
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            answer = response.text();
+        }
 
         return { statusCode: 200, body: JSON.stringify({ answer }) };
 
