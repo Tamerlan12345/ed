@@ -269,20 +269,30 @@ exports.handler = async (event) => {
                 result = groups;
                 break;
             case 'create_course_group':
-                const { group_name, is_for_new_employees } = payload;
+                const { group_name, is_for_new_employees, start_date, recurrence_period } = payload;
                 const { data: newGroup, error: newGroupError } = await supabase
                     .from('course_groups')
-                    .insert({ group_name, is_for_new_employees })
+                    .insert({
+                        group_name,
+                        is_for_new_employees,
+                        start_date: start_date || null,
+                        recurrence_period: recurrence_period || null
+                    })
                     .select()
                     .single();
                 if (newGroupError) throw newGroupError;
                 result = newGroup;
                 break;
             case 'update_course_group':
-                const { group_id: update_group_id, group_name: update_group_name, is_for_new_employees: update_is_new } = payload;
+                const { group_id: update_group_id, group_name: update_group_name, is_for_new_employees: update_is_new, start_date, recurrence_period } = payload;
                 const { data: updatedGroup, error: updatedGroupError } = await supabase
                     .from('course_groups')
-                    .update({ group_name: update_group_name, is_for_new_employees: update_is_new })
+                    .update({
+                        group_name: update_group_name,
+                        is_for_new_employees: update_is_new,
+                        start_date: start_date || null,
+                        recurrence_period: recurrence_period || null
+                    })
                     .eq('id', update_group_id)
                     .select()
                     .single();

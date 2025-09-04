@@ -44,7 +44,7 @@ exports.handler = async (event) => {
                 completed_at,
                 time_spent_seconds,
                 courses ( title ),
-                user_profiles ( full_name, department )
+                user_profiles!inner ( full_name, department )
             `);
 
         const { user_email, department, course_id } = event.queryStringParameters || {};
@@ -53,6 +53,7 @@ exports.handler = async (event) => {
             query = query.ilike('user_email', `%${user_email}%`);
         }
         if (department) {
+            // This now works because of the inner join specified in the select
             query = query.ilike('user_profiles.department', `%${department}%`);
         }
         if (course_id) {

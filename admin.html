@@ -102,6 +102,22 @@
             <h2>Управление группами курсов (Блоками)</h2>
             <select id="group-selector"><option value="">-- Создать новую группу --</option></select>
             <input type="text" id="group-name" placeholder="Название новой группы">
+            <div style="display: flex; gap: 20px; margin-top: 10px; margin-bottom: 10px; align-items: center;">
+                <div style="flex: 1;">
+                    <label for="group-start-date" style="display: block; margin-bottom: 5px;">Дата начала (необязательно)</label>
+                    <input type="date" id="group-start-date" style="width: 100%;">
+                </div>
+                <div style="flex: 1;">
+                    <label for="group-recurrence" style="display: block; margin-bottom: 5px;">Периодичность</label>
+                    <select id="group-recurrence" style="width: 100%;">
+                        <option value="">Однократно</option>
+                        <option value="1">Раз в 1 месяц</option>
+                        <option value="3">Раз в 3 месяца</option>
+                        <option value="6">Раз в 6 месяцев</option>
+                        <option value="12">Раз в 12 месяцев</option>
+                    </select>
+                </div>
+            </div>
             <label><input type="checkbox" id="group-for-new-employees"> Назначать новым сотрудникам</label>
             <button id="save-group-btn">Сохранить/Создать группу</button>
             <button id="delete-group-btn" style="background-color: #dc3545;">Удалить группу</button>
@@ -654,9 +670,14 @@
 
     groupSelector.addEventListener('change', async (e) => {
         const groupId = e.target.value;
+        const startDateInput = document.getElementById('group-start-date');
+        const recurrenceInput = document.getElementById('group-recurrence');
+
         if (!groupId) {
             groupNameInput.value = '';
             newEmployeesCheckbox.checked = false;
+            startDateInput.value = '';
+            recurrenceInput.value = '';
             groupCoursesList.innerHTML = '';
             populateAllCoursesList([]);
             return;
@@ -665,6 +686,8 @@
             const groupDetails = await apiCall('get_group_details', { group_id: groupId });
             groupNameInput.value = groupDetails.group_name;
             newEmployeesCheckbox.checked = groupDetails.is_for_new_employees;
+            startDateInput.value = groupDetails.start_date ? groupDetails.start_date.split('T')[0] : '';
+            recurrenceInput.value = groupDetails.recurrence_period || '';
 
             const courseIdsInGroup = groupDetails.course_group_items.map(item => item.course_id);
             groupCoursesList.innerHTML = '';
@@ -690,7 +713,9 @@
         }
         const payload = {
             group_name: groupName,
-            is_for_new_employees: newEmployeesCheckbox.checked
+            is_for_new_employees: newEmployeesCheckbox.checked,
+            start_date: document.getElementById('group-start-date').value,
+            recurrence_period: document.getElementById('group-recurrence').value
         };
         try {
             if (groupId) {
