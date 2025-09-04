@@ -272,6 +272,7 @@
 
     async function showMainMenu() {
         console.log('[ШАГ 5] Запуск showMainMenu для загрузки курсов.');
+        stopTimeTracking(); // Ensure any running timers are stopped
         windowTitle.textContent = 'Главное Меню';
         document.getElementById('main-menu-tabs').classList.remove('hidden');
         mainMenu.classList.remove('hidden');
@@ -359,35 +360,105 @@
                 groupWrapper.innerHTML = `<h3 style="color: var(--primary-color); margin-top: 20px;">${groupName}</h3>`;
                 const courseGrid = document.createElement('div');
                 courseGrid.className = 'main-menu'; // reuse grid style
-                groupedCourses[groupName].forEach(course => courseGrid.appendChild(createCourseMenuItem(course)));
+                groupedCourses[groupName].forEach(course => courseGrid.appendChild(createCourseMenuItem(course, 'catalog')));
                 groupWrapper.appendChild(courseGrid);
                 mainMenu.appendChild(groupWrapper);
             }
         } else {
              mainMenu.className = 'main-menu'; // reset to grid
-             coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course)));
+             coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course, 'assigned')));
         }
     }
 
-    function createCourseMenuItem(course) {
+    function createCourseMenuItem(course, type) {
         const menuItem = document.createElement('div');
         menuItem.className = 'menu-item';
+        menuItem.style.display = 'flex';
+        menuItem.style.flexDirection = 'column';
+        menuItem.style.justifyContent = 'space-between';
+
+        const contentDiv = document.createElement('div');
+
         // Check progress, note that userProgress uses course.id
         const progress = userProgress[course.id];
         if (progress && progress.completed) {
              menuItem.classList.add('completed');
         }
-        menuItem.dataset.courseId = course.id;
-        menuItem.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3><p>Перейти к учебному модулю...</p>`;
-        if(progress && progress.percentage > 0 && !progress.completed) {
-            menuItem.innerHTML += `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
+        contentDiv.dataset.courseId = course.id;
+        contentDiv.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3>`;
+
+        if (type === 'assigned') {
+            contentDiv.innerHTML += `<p>Перейти к учебному модулю...</p>`;
+            if(progress && progress.percentage > 0 && !progress.completed) {
+                contentDiv.innerHTML += `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
+            }
+            contentDiv.style.cursor = 'pointer';
+            contentDiv.addEventListener('click', () => showProduct(course.id));
         }
-        menuItem.addEventListener('click', () => showProduct(course.id));
+
+        menuItem.appendChild(contentDiv);
+
+        if (type === 'catalog') {
+            const assignBtn = document.createElement('button');
+            assignBtn.textContent = 'Записаться на курс';
+            assignBtn.className = 'btn';
+            assignBtn.style.marginTop = '15px';
+            assignBtn.dataset.courseId = course.id;
+            assignBtn.onclick = async (e) => {
+                e.stopPropagation(); // Prevent click from bubbling to the menu item
+                const button = e.target;
+                const courseId = button.dataset.courseId;
+                button.disabled = true;
+                button.textContent = 'Запись...';
+                try {
+                    await fetchAuthenticated('/.netlify/functions/assign-course', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ course_id: courseId })
+                    });
+                    // Refresh the main menu to reflect the change
+                    await showMainMenu();
+                } catch (error) {
+                    console.error('Failed to self-assign course:', error);
+                    alert(`Не удалось записаться на курс: ${error.message}`);
+                    button.disabled = false;
+                    button.textContent = 'Записаться на курс';
+                }
+            };
+            menuItem.appendChild(assignBtn);
+        }
         return menuItem;
     }
     
+    // --- Time Tracking Globals ---
+    let timeTrackingInterval = null;
+    let secondsSinceLastUpdate = 0;
+
+    async function sendTimeUpdate(courseId, seconds) {
+        if (!courseId || seconds <= 0) return;
+        try {
+            await fetchAuthenticated('/.netlify/functions/update-time-spent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: courseId, seconds_spent: seconds })
+            });
+            console.log(`Successfully sent ${seconds} seconds for course ${courseId}`);
+        } catch (error) {
+            console.error('Failed to send time update:', error);
+        }
+    }
+
+    function stopTimeTracking() {
+        if (timeTrackingInterval) {
+            clearInterval(timeTrackingInterval);
+            timeTrackingInterval = null;
+            sendTimeUpdate(currentCourse.id, secondsSinceLastUpdate);
+            secondsSinceLastUpdate = 0;
+        }
+    }
+
     // Остальной код остается без изменений
-    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; document.getElementById('main-menu-tabs').classList.add('hidden'); mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; currentCourse.materials = data.materials; if (Array.isArray(currentCourse.summary)) { const nav = document.createElement('div'); nav.id = 'product-nav'; const slidesContainer = document.createElement('div'); currentCourse.summary.forEach((slide, index) => { const slideId = `slide-${index}`; nav.innerHTML += `<a href="#${slideId}">${index + 1} <span class="lock-icon">${index > 0 ? '🔒' : '✅'}</span></a>`; slidesContainer.innerHTML += `<div id="${slideId}"><h3>${slide.title}</h3>${slide.html_content}</div><hr style="margin: 20px 0;">`; }); productContent.innerHTML = ''; productContent.appendChild(nav); productContent.appendChild(slidesContainer); } else { productContent.innerHTML = currentCourse.summary; } if (currentCourse.materials && currentCourse.materials.length > 0) { const materialsDiv = document.createElement('div'); materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>'; const materialsList = document.createElement('ul'); currentCourse.materials.forEach(m => { materialsList.innerHTML += `<li><a href="${m.public_url}" target="_blank" download>${m.file_name}</a></li>`; }); materialsDiv.appendChild(materialsList); productContent.appendChild(materialsDiv); } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => startTest(currentCourse.id); productContent.appendChild(startTestBtn); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
+    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; document.getElementById('main-menu-tabs').classList.add('hidden'); mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; currentCourse.materials = data.materials; let highestUnlockedSlide = 0; if (Array.isArray(currentCourse.summary)) { const nav = document.createElement('div'); nav.id = 'product-nav'; const slidesContainer = document.createElement('div'); productContent.innerHTML = ''; productContent.appendChild(nav); productContent.appendChild(slidesContainer); const updateNavLocks = () => { nav.querySelectorAll('a').forEach((a, i) => { const lockSpan = a.querySelector('.lock-icon'); if (i <= highestUnlockedSlide) { lockSpan.textContent = '✅'; } else { lockSpan.textContent = '🔒'; } }); }; currentCourse.summary.forEach((slide, index) => { const slideId = `slide-${index}`; const slideAnchor = document.createElement('a'); slideAnchor.href = `#${slideId}`; slideAnchor.innerHTML = `${index + 1} <span class="lock-icon"></span>`; slideAnchor.addEventListener('click', (e) => { if (index > highestUnlockedSlide) { e.preventDefault(); alert('Пожалуйста, завершите предыдущие уроки, чтобы разблокировать этот.'); } }); nav.appendChild(slideAnchor); const slideDiv = document.createElement('div'); slideDiv.id = slideId; slideDiv.innerHTML = `<h3>${slide.title}</h3>${slide.html_content}<hr style="margin: 20px 0;">`; slidesContainer.appendChild(slideDiv); }); updateNavLocks(); contentArea.onscroll = () => { const scrollBottom = contentArea.scrollTop + contentArea.clientHeight; currentCourse.summary.forEach((slide, index) => { if (index > highestUnlockedSlide) return; const slideDiv = document.getElementById(`slide-${index}`); if (!slideDiv) return; const slideBottom = slideDiv.offsetTop + slideDiv.offsetHeight; if (scrollBottom >= slideBottom - 50) { if (highestUnlockedSlide < currentCourse.summary.length - 1) { highestUnlockedSlide = Math.max(highestUnlockedSlide, index + 1); updateNavLocks(); } } }); }; } else { productContent.innerHTML = currentCourse.summary; } if (currentCourse.materials && currentCourse.materials.length > 0) { const materialsDiv = document.createElement('div'); materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>'; const materialsList = document.createElement('ul'); currentCourse.materials.forEach(m => { materialsList.innerHTML += `<li><a href="${m.public_url}" target="_blank" download>${m.file_name}</a></li>`; }); materialsDiv.appendChild(materialsList); productContent.appendChild(materialsDiv); } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => { stopTimeTracking(); startTest(currentCourse.id); }; productContent.appendChild(startTestBtn); if (timeTrackingInterval) clearInterval(timeTrackingInterval); secondsSinceLastUpdate = 0; timeTrackingInterval = setInterval(() => { secondsSinceLastUpdate += 30; sendTimeUpdate(currentCourse.id, 30); }, 30000); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
     chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const url = `/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`; const data = await fetchAuthenticated(url); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
     function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
     function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } } }

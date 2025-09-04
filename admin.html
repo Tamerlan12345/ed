@@ -130,6 +130,7 @@
                         <th>Пользователь</th>
                         <th>Курс</th>
                         <th>Результат (%)</th>
+                        <th>Время (мин)</th>
                         <th>Дата</th>
                     </tr>
                 </thead>
@@ -204,7 +205,9 @@
                 row.insertCell(0).textContent = result.user_profiles?.full_name || result.user_email;
                 row.insertCell(1).textContent = result.courses.title;
                 row.insertCell(2).textContent = result.percentage;
-                row.insertCell(3).textContent = result.completed_at ? new Date(result.completed_at).toLocaleString() : 'В процессе';
+                const timeSpentMinutes = result.time_spent_seconds ? Math.round(result.time_spent_seconds / 60) : 0;
+                row.insertCell(3).textContent = timeSpentMinutes;
+                row.insertCell(4).textContent = result.completed_at ? new Date(result.completed_at).toLocaleString() : 'В процессе';
             });
         } catch (error) {
             showStatus('Ошибка при загрузке результатов.', 'error');

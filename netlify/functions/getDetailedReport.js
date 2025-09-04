@@ -7,16 +7,18 @@ function convertToCSV(data) {
     if (!data || data.length === 0) {
         return '';
     }
-    const headers = ['Full Name', 'Email', 'Department', 'Course Title', 'Progress (%)', 'Completed At'];
+    const headers = ['Full Name', 'Email', 'Department', 'Course Title', 'Progress (%)', 'Time Spent (min)', 'Completed At'];
     const csvRows = [headers.join(',')];
 
     for (const row of data) {
+        const timeSpentMinutes = row.time_spent_seconds ? Math.round(row.time_spent_seconds / 60) : 0;
         const values = [
             `"${row.user_profiles?.full_name || 'N/A'}"`,
             `"${row.user_email}"`,
             `"${row.user_profiles?.department || 'N/A'}"`,
             `"${row.courses.title}"`,
             row.percentage,
+            timeSpentMinutes,
             `"${row.completed_at ? new Date(row.completed_at).toLocaleString() : 'In Progress'}"`
         ];
         csvRows.push(values.join(','));
@@ -40,6 +42,7 @@ exports.handler = async (event) => {
                 user_email,
                 percentage,
                 completed_at,
+                time_spent_seconds,
                 courses ( title ),
                 user_profiles ( full_name, department )
             `);
