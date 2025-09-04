@@ -50,6 +50,7 @@
             <button id="groups-tab-btn">Управление группами</button>
             <button id="results-tab-btn">Отчеты и Результаты</button>
             <button id="leaderboard-tab-btn">Лидерборд</button>
+            <button id="simulator-tab-btn">Результаты Тренажера</button>
         </div>
         <hr>
 
@@ -211,6 +212,25 @@
                 </tbody>
             </table>
         </div>
+
+        <div id="simulator-results-view" class="hidden">
+            <h2>Результаты диалогового тренажера</h2>
+            <button id="refresh-sim-results-btn">Обновить</button>
+            <table id="simulator-results-table" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Дата</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Пользователь</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Сценарий</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Персонаж</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Средний балл</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Simulator results will be inserted here -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
 <script>
@@ -231,13 +251,15 @@
         document.getElementById('courses-view'),
         document.getElementById('groups-view'),
         document.getElementById('results-view'),
-        document.getElementById('leaderboard-view')
+        document.getElementById('leaderboard-view'),
+        document.getElementById('simulator-results-view')
     ];
     const allBtns = [
         document.getElementById('courses-tab-btn'),
         document.getElementById('groups-tab-btn'),
         document.getElementById('results-tab-btn'),
-        document.getElementById('leaderboard-tab-btn')
+        document.getElementById('leaderboard-tab-btn'),
+        document.getElementById('simulator-tab-btn')
     ];
     // Course UI elements
     const courseFormContainer = document.getElementById('course-form-container');
@@ -310,6 +332,7 @@
             }
             if (allViews[index].id === 'results-view') loadResults();
             if (allViews[index].id === 'leaderboard-view') loadLeaderboardSettings();
+            if (allViews[index].id === 'simulator-results-view') loadSimulatorResults();
         });
     });
 
@@ -645,6 +668,33 @@
     }
 
     document.getElementById('apply-filters-btn').addEventListener('click', loadResults);
+
+    // --- SIMULATOR RESULTS ---
+    async function loadSimulatorResults() {
+        showStatus('Загрузка результатов тренажера...', 'info');
+        try {
+            const results = await apiCall('get_simulation_results');
+            const tableBody = document.getElementById('simulator-results-table').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+            results.forEach(res => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = new Date(res.created_at).toLocaleString();
+                row.insertCell(1).textContent = res.full_name || res.user_email;
+                const scenarioCell = row.insertCell(2);
+                scenarioCell.textContent = res.scenario ? (res.scenario.substring(0, 100) + '...') : 'N/A';
+                scenarioCell.title = res.scenario;
+                row.insertCell(3).textContent = res.persona;
+                const scoreCell = row.insertCell(4);
+                scoreCell.style.textAlign = 'center';
+                scoreCell.style.fontWeight = 'bold';
+                scoreCell.textContent = res.evaluation?.average_score ? res.evaluation.average_score.toFixed(1) : 'N/A';
+            });
+            showStatus('Результаты тренажера загружены.', 'success');
+        } catch (e) { /* Handled in apiCall */ }
+    }
+
+    document.getElementById('refresh-sim-results-btn').addEventListener('click', loadSimulatorResults);
+
 
     document.getElementById('export-csv-btn').addEventListener('click', async () => {
         const userEmail = document.getElementById('filter-user').value;
