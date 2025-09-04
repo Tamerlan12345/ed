@@ -29,10 +29,10 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields in request body.' }) };
         }
 
-        // Step 1: Check if a record already exists
+        // Step 1: Check if a record already exists and get its attempt count
         const { data: existingRecord, error: selectError } = await supabase
             .from('user_progress')
-            .select('id')
+            .select('id, attempts')
             .eq('user_email', user.email)
             .eq('course_id', course_id)
             .maybeSingle();
@@ -42,20 +42,17 @@ exports.handler = async (event) => {
             throw selectError;
         }
 
-        const recordPayload = {
-            user_email: user.email,
-            course_id: course_id,
-            score: score,
-            total_questions: total_questions,
-            percentage: percentage,
-            completed_at: new Date().toISOString(),
-        };
-
         if (existingRecord) {
-            // Step 2a: Update existing record
+            // Step 2a: Update existing record and increment attempts
             const { error: updateError } = await supabase
                 .from('user_progress')
-                .update(recordPayload)
+                .update({
+                    score: score,
+                    total_questions: total_questions,
+                    percentage: percentage,
+                    completed_at: new Date().toISOString(),
+                    attempts: (existingRecord.attempts || 0) + 1
+                 })
                 .eq('id', existingRecord.id);
 
             if (updateError) {
@@ -63,10 +60,18 @@ exports.handler = async (event) => {
                 throw updateError;
             }
         } else {
-            // Step 2b: Insert new record
+            // Step 2b: Insert new record with attempts = 1
             const { error: insertError } = await supabase
                 .from('user_progress')
-                .insert(recordPayload);
+                .insert({
+                    user_email: user.email,
+                    course_id: course_id,
+                    score: score,
+                    total_questions: total_questions,
+                    percentage: percentage,
+                    completed_at: new Date().toISOString(),
+                    attempts: 1
+                });
 
             if (insertError) {
                 console.error('Supabase insert error:', insertError);

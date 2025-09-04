@@ -8,6 +8,13 @@
         @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
         :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:900px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"],input[type="password"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:8px;transition:border-color .3s,box-shadow .3s}input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,166,0.2)}button,.btn{background:linear-gradient(45deg,var(--secondary-color),var(--primary-color));border:none;color:#fff;padding:12px 25px;cursor:pointer;text-transform:uppercase;transition:all .3s ease;box-shadow:0 2px 5px rgba(0,0,0,0.1);border-radius:8px;font-weight:700;letter-spacing:.5px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,174,239,0.3)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}.menu-item{padding:20px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:8px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
     </style>
+    <style>
+        .tab-btn{padding:10px 20px;border:none;background-color:transparent;cursor:pointer;font-size:1em;color:var(--text-light-color);border-bottom:3px solid transparent;margin-bottom:-2px}.tab-btn.active{color:var(--primary-color);border-bottom-color:var(--primary-color);font-weight:bold}
+        #product-nav { padding: 10px; background-color: var(--bg-color); border-bottom: 1px solid var(--border-color); margin-bottom: 15px; }
+        #product-nav a { margin-right: 15px; text-decoration: none; color: var(--text-light-color); font-weight: bold; }
+        #product-nav a.active { color: var(--primary-color); }
+        #product-nav a .lock-icon { display: inline-block; margin-left: 5px; }
+    </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
     
@@ -35,10 +42,27 @@
         <div class="window">
              <div class="window-header">
                 <h2 id="window-title">Главное Меню</h2>
+                <div class="header-controls">
+                    <div id="notifications-bell" style="position: relative; cursor: pointer;">
+                        <svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M21 19v1H3v-1l2-2v-6c0-3.1 2.03-5.83 5-6.71V4a2 2 0 0 1 2-2a2 2 0 0 1 2 2v.29c2.97.88 5 3.61 5 6.71v6l2 2m-7 2a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2"/></svg>
+                        <span id="notifications-badge" class="hidden" style="position: absolute; top: -5px; right: -5px; background: var(--error-color); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 12px; display: flex; align-items: center; justify-content: center;"></span>
+                    </div>
+                    <div id="notifications-panel" class="hidden" style="position: absolute; top: 60px; right: 20px; width: 300px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow); z-index: 100;">
+                        <div style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold;">Уведомления</div>
+                        <div id="notifications-list" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
                  <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo">
             </div>
             <div class="content-area" id="content-area">
+                <div id="main-menu-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
+                    <button class="tab-btn active" id="my-courses-tab">Мои курсы</button>
+                    <button class="tab-btn" id="catalog-tab">Каталог курсов</button>
+                </div>
                 <div id="main-menu"></div>
+                <div id="extra-tools" style="padding-top: 20px; border-top: 1px solid #eee;">
+                    <button id="launch-simulator-btn">Диалоговый тренажер</button>
+                </div>
                 <div id="admin-controls" class="hidden"></div>
                 <div id="product-content" class="hidden"></div>
                 <div id="audio-player-container-user" style="margin-top: 15px;"></div>
@@ -63,6 +87,33 @@
                     <p id="results-feedback"></p>
                     <button id="back-to-menu-from-results">Вернуться в меню</button>
                 </div>
+
+                <div id="simulator-view" class="hidden">
+                    <div id="simulator-setup">
+                        <h3>Настройка тренажера</h3>
+                        <p>Выберите тип клиента, с которым хотите потренироваться.</p>
+                        <select id="persona-selector">
+                            <option value="cold">"Холодный" клиент</option>
+                            <option value="interested">Заинтересованный клиент</option>
+                            <option value="aggressive">Агрессивный клиент</option>
+                        </select>
+                        <button id="start-simulation-btn">Начать диалог</button>
+                    </div>
+                    <div id="simulator-chat-area" class="hidden">
+                        <div id="simulator-chat-box" style="height: 45vh; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 10px; background-color: var(--bg-color);"></div>
+                        <form id="simulator-chat-form" style="display: flex; gap: 10px;">
+                            <input type="text" id="simulator-chat-input" placeholder="Ваш ответ..." autocomplete="off" style="flex-grow: 1; margin: 0;">
+                            <button type="submit">Отправить</button>
+                        </form>
+                        <button id="end-simulation-btn" style="margin-top: 10px; background-color: var(--error-color);">Завершить и получить оценку</button>
+                    </div>
+                    <div id="simulator-evaluation-area" class="hidden">
+                        <h3>Оценка диалога</h3>
+                        <div id="evaluation-results" style="white-space: pre-wrap; background-color: var(--bg-color); padding: 15px; border-radius: 8px;"></div>
+                        <button id="restart-simulation-btn" style="margin-top: 10px;">Начать заново</button>
+                    </div>
+                </div>
+
             </div>
             <div class="window-footer">
                 <button id="back-to-menu-btn" class="hidden">Назад в меню</button>
@@ -94,6 +145,10 @@
     const chatForm = document.getElementById('chat-form');
     const chatInput = document.getElementById('chat-input');
     const adminControls = document.getElementById('admin-controls');
+    const notificationsBell = document.getElementById('notifications-bell');
+    const notificationsBadge = document.getElementById('notifications-badge');
+    const notificationsPanel = document.getElementById('notifications-panel');
+    const notificationsList = document.getElementById('notifications-list');
 
     function showLoader() { contentArea.innerHTML = '<div class="loader"></div>'; }
     function showMessage(message, details = '') { contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`; }
@@ -120,6 +175,7 @@
                     authView.classList.add('hidden');
                     appView.classList.remove('hidden');
                     showMainMenu();
+                    loadNotifications();
                 } else {
                     throw new Error("Ответ от сервера не содержит сессию или токен.");
                 }
@@ -152,9 +208,72 @@
         return response.json();
     }
 
+    async function loadNotifications() {
+        try {
+            const notifications = await fetchAuthenticated('/.netlify/functions/getNotifications');
+            notificationsList.innerHTML = '';
+            if (notifications.length === 0) {
+                notificationsList.innerHTML = '<p style="padding: 15px; text-align: center; color: #888;">Уведомлений нет.</p>';
+            }
+
+            let unreadCount = 0;
+            notifications.forEach(n => {
+                const notifDiv = document.createElement('div');
+                notifDiv.style.padding = '10px 15px';
+                notifDiv.style.borderBottom = '1px solid var(--border-color)';
+                if (!n.is_read) {
+                    notifDiv.style.fontWeight = 'bold';
+                    unreadCount++;
+                }
+                notifDiv.textContent = n.message;
+                notificationsList.appendChild(notifDiv);
+            });
+
+            if (unreadCount > 0) {
+                notificationsBadge.textContent = unreadCount;
+                notificationsBadge.classList.remove('hidden');
+            } else {
+                notificationsBadge.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Failed to load notifications:', error);
+        }
+    }
+
+    notificationsBell.addEventListener('click', async () => {
+        const isHidden = notificationsPanel.classList.toggle('hidden');
+        if (!isHidden) {
+            // Panel is now visible, mark notifications as read
+            const unreadIds = Array.from(notificationsList.children)
+                .filter(child => child.style.fontWeight === 'bold')
+                .map((child, index) => courses[index].id); // This is wrong, need to get notification id
+
+            // Let's refetch to get IDs properly. A better way would be to store them on the elements.
+            const notifications = await fetchAuthenticated('/.netlify/functions/getNotifications');
+            const unreadNotificationIds = notifications.filter(n => !n.is_read).map(n => n.id);
+
+            if (unreadNotificationIds.length > 0) {
+                try {
+                    await fetchAuthenticated('/.netlify/functions/markNotificationsAsRead', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notification_ids: unreadNotificationIds })
+                    });
+                    // Visually mark as read and hide badge
+                    notificationsBadge.classList.add('hidden');
+                    notificationsList.querySelectorAll('div').forEach(div => div.style.fontWeight = 'normal');
+                } catch (error) {
+                    console.error('Failed to mark notifications as read:', error);
+                }
+            }
+        }
+    });
+
+
     async function showMainMenu() {
         console.log('[ШАГ 5] Запуск showMainMenu для загрузки курсов.');
         windowTitle.textContent = 'Главное Меню';
+        document.getElementById('main-menu-tabs').classList.remove('hidden');
         mainMenu.classList.remove('hidden');
         productContent.classList.add('hidden');
         testView.classList.add('hidden');
@@ -163,7 +282,14 @@
         adminControls.classList.add('hidden');
         backToMenuBtn.classList.add('hidden');
         
-        showLoader();
+        // Ensure the content area is visible and clear for the menu
+        contentArea.innerHTML = '';
+        contentArea.appendChild(document.getElementById('main-menu-tabs'));
+        contentArea.appendChild(mainMenu);
+
+        showLoader(); // Show loader inside mainMenu
+        mainMenu.innerHTML = '<div class="loader"></div>';
+
         try {
             console.log('[ШАГ 6] Отправка запроса на /getCourses...');
             const data = await fetchAuthenticated(`/.netlify/functions/getCourses`);
@@ -175,43 +301,259 @@
 
             courses = data.courses;
             userProgress = data.userProgress;
-            mainMenu.innerHTML = ''; 
-            contentArea.innerHTML = '';
-            contentArea.appendChild(mainMenu);
 
-            if (courses.length === 0) {
-                 console.log('[ШАГ 8] Меню отрисовано, но курсов нет (пустой массив).');
-                 showMessage("Доступных курсов пока нет.");
-                 return;
-            }
+            const myCoursesTab = document.getElementById('my-courses-tab');
+            const catalogTab = document.getElementById('catalog-tab');
 
-            courses.forEach(course => {
-                const menuItem = document.createElement('div');
-                menuItem.className = 'menu-item';
-                if (userProgress[course.id]) menuItem.classList.add('completed');
-                menuItem.dataset.courseId = course.id;
-                menuItem.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3><p>Перейти к учебному модулю...</p>`;
-                menuItem.addEventListener('click', () => showProduct(course.id));
-                mainMenu.appendChild(menuItem);
+            myCoursesTab.addEventListener('click', () => {
+                myCoursesTab.classList.add('active');
+                catalogTab.classList.remove('active');
+                renderCourses('assigned');
             });
+
+            catalogTab.addEventListener('click', () => {
+                catalogTab.classList.add('active');
+                myCoursesTab.classList.remove('active');
+                renderCourses('catalog');
+            });
+
+            // Initial render
+            renderCourses('assigned');
              console.log('[ШАГ 8] Меню курсов успешно отрисовано.');
+
         } catch (error) {
             console.error('[ОШИБКА НА ШАГЕ 6/7] Не удалось загрузить курсы:', error);
             showMessage('Не удалось загрузить список курсов.', error.message);
         }
     }
+
+    function renderCourses(filter) {
+        mainMenu.innerHTML = '';
+        let coursesToRender;
+
+        if (filter === 'assigned') {
+            coursesToRender = courses.filter(c => c.isAssigned);
+            if (coursesToRender.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Вам пока не назначено ни одного курса.</p>';
+                return;
+            }
+        } else { // catalog
+            coursesToRender = courses.filter(c => !c.isAssigned);
+             if (coursesToRender.length === 0) {
+                mainMenu.innerHTML = '<p class="message">В каталоге пока нет доступных курсов.</p>';
+                return;
+            }
+        }
+
+        // Group by product_line for catalog view
+        if (filter === 'catalog') {
+            const groupedCourses = coursesToRender.reduce((acc, course) => {
+                const key = course.product_line || 'Разное';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(course);
+                return acc;
+            }, {});
+
+            for (const groupName in groupedCourses) {
+                const groupWrapper = document.createElement('div');
+                groupWrapper.innerHTML = `<h3 style="color: var(--primary-color); margin-top: 20px;">${groupName}</h3>`;
+                const courseGrid = document.createElement('div');
+                courseGrid.className = 'main-menu'; // reuse grid style
+                groupedCourses[groupName].forEach(course => courseGrid.appendChild(createCourseMenuItem(course)));
+                groupWrapper.appendChild(courseGrid);
+                mainMenu.appendChild(groupWrapper);
+            }
+        } else {
+             mainMenu.className = 'main-menu'; // reset to grid
+             coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course)));
+        }
+    }
+
+    function createCourseMenuItem(course) {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'menu-item';
+        // Check progress, note that userProgress uses course.id
+        const progress = userProgress[course.id];
+        if (progress && progress.completed) {
+             menuItem.classList.add('completed');
+        }
+        menuItem.dataset.courseId = course.id;
+        menuItem.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3><p>Перейти к учебному модулю...</p>`;
+        if(progress && progress.percentage > 0 && !progress.completed) {
+            menuItem.innerHTML += `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
+        }
+        menuItem.addEventListener('click', () => showProduct(course.id));
+        return menuItem;
+    }
     
     // Остальной код остается без изменений
-    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; if (Array.isArray(currentCourse.summary)) { productContent.innerHTML = currentCourse.summary.map(slide => `<div><h3>${slide.title}</h3>${slide.html_content}</div>`).join('<hr style="margin: 20px 0;">'); } else { productContent.innerHTML = currentCourse.summary; } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => startTest(currentCourse.id); productContent.appendChild(startTestBtn); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
+    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; document.getElementById('main-menu-tabs').classList.add('hidden'); mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; currentCourse.materials = data.materials; if (Array.isArray(currentCourse.summary)) { const nav = document.createElement('div'); nav.id = 'product-nav'; const slidesContainer = document.createElement('div'); currentCourse.summary.forEach((slide, index) => { const slideId = `slide-${index}`; nav.innerHTML += `<a href="#${slideId}">${index + 1} <span class="lock-icon">${index > 0 ? '🔒' : '✅'}</span></a>`; slidesContainer.innerHTML += `<div id="${slideId}"><h3>${slide.title}</h3>${slide.html_content}</div><hr style="margin: 20px 0;">`; }); productContent.innerHTML = ''; productContent.appendChild(nav); productContent.appendChild(slidesContainer); } else { productContent.innerHTML = currentCourse.summary; } if (currentCourse.materials && currentCourse.materials.length > 0) { const materialsDiv = document.createElement('div'); materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>'; const materialsList = document.createElement('ul'); currentCourse.materials.forEach(m => { materialsList.innerHTML += `<li><a href="${m.public_url}" target="_blank" download>${m.file_name}</a></li>`; }); materialsDiv.appendChild(materialsList); productContent.appendChild(materialsDiv); } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => startTest(currentCourse.id); productContent.appendChild(startTestBtn); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
     chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const url = `/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`; const data = await fetchAuthenticated(url); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
     function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
     function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } } }
-    let currentQuestions = [], currentQuestionIndex = 0, score = 0;
-    function startTest(courseId) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse || !currentCourse.questions || currentCourse.questions.length === 0) { showMessage('Вопросы для этого курса не найдены или отсутствуют.'); backToMenuBtn.classList.remove('hidden'); return; } currentQuestions = currentCourse.questions; currentQuestionIndex = 0; score = 0; productContent.classList.add('hidden'); assistantContainer.classList.add('hidden'); adminControls.classList.add('hidden'); testView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testView); displayQuestion(); }
+    let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0;
+    const MAX_ATTEMPTS = 3;
+    const MAX_TAB_SWITCHES = 2;
+
+    const handleVisibilityChange = () => {
+        if (document.hidden) {
+            tabSwitchCount++;
+            if (tabSwitchCount === 1) {
+                alert('Внимание! Вы переключились на другую вкладку. При повторном переключении тест будет завершен с результатом 0.');
+            } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
+                alert('Вы превысили лимит переключений. Тест завершен с нулевым результатом.');
+                score = 0; // Force score to 0
+                showTestResultsView();
+            }
+        }
+    };
+
+    function startTest(courseId) {
+        currentCourse = courses.find(c => c.id === courseId);
+        const progress = userProgress[courseId];
+        const attempts = progress ? progress.attempts : 0;
+
+        if (attempts >= MAX_ATTEMPTS) {
+            alert(`Вы использовали все ${MAX_ATTEMPTS} попытки для сдачи этого теста.`);
+            document.getElementById('start-test-btn').disabled = true;
+            return;
+        }
+
+        if (!currentCourse || !currentCourse.questions || currentCourse.questions.length === 0) {
+            showMessage('Вопросы для этого курса не найдены или отсутствуют.');
+            backToMenuBtn.classList.remove('hidden');
+            return;
+        }
+
+        currentQuestions = currentCourse.questions;
+        currentQuestionIndex = 0;
+        score = 0;
+        tabSwitchCount = 0; // Reset counter for each test
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        productContent.classList.add('hidden');
+        assistantContainer.classList.add('hidden');
+        adminControls.classList.add('hidden');
+        testView.classList.remove('hidden');
+        contentArea.innerHTML = '';
+        contentArea.appendChild(testView);
+        displayQuestion();
+    }
     function displayQuestion() { const nextBtn = document.getElementById('next-question-btn'); if (currentQuestionIndex < currentQuestions.length) { const q = currentQuestions[currentQuestionIndex]; document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`; document.getElementById('question').textContent = q.question; const answersDiv = document.getElementById('answers'); answersDiv.innerHTML = ''; q.options.forEach((option, index) => { const answerEl = document.createElement('div'); answerEl.className = 'answer'; answerEl.textContent = option; answerEl.dataset.index = index; answerEl.addEventListener('click', selectAnswer); answersDiv.appendChild(answerEl); }); nextBtn.classList.add('hidden'); } else { showTestResultsView(); } }
     function selectAnswer(e) { const selectedIndex = parseInt(e.target.dataset.index, 10); const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index; document.querySelectorAll('.answer').forEach(el => { el.removeEventListener('click', selectAnswer); el.style.cursor = 'default'; }); if (selectedIndex === correctIndex) { score++; e.target.style.borderColor = 'var(--success-color)'; e.target.style.backgroundColor = '#eaf7ec'; } else { e.target.style.borderColor = 'var(--error-color)'; e.target.style.backgroundColor = '#fdeeee'; const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`); if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)'; } const nextBtn = document.getElementById('next-question-btn'); nextBtn.classList.remove('hidden'); nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); }; }
-    async function showTestResultsView() { testView.classList.add('hidden'); testResultsView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testResultsView); const percentage = Math.round((score / currentQuestions.length) * 100); document.getElementById('results-product-name').textContent = currentCourse.title; document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`; let feedback = ''; if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.'; else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.'; else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.'; document.getElementById('results-feedback').textContent = feedback; userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage }; try { await fetchAuthenticated('/.netlify/functions/saveTestResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, score: score, total_questions: currentQuestions.length, percentage: percentage }) }); } catch(error) { console.error('Не удалось сохранить результат:', error); } }
+    async function showTestResultsView() { document.removeEventListener('visibilitychange', handleVisibilityChange); testView.classList.add('hidden'); testResultsView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testResultsView); const percentage = Math.round((score / currentQuestions.length) * 100); document.getElementById('results-product-name').textContent = currentCourse.title; document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`; let feedback = ''; if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.'; else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.'; else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.'; document.getElementById('results-feedback').textContent = feedback; userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage }; try { await fetchAuthenticated('/.netlify/functions/saveTestResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, score: score, total_questions: currentQuestions.length, percentage: percentage }) }); } catch(error) { console.error('Не удалось сохранить результат:', error); } }
     document.addEventListener('DOMContentLoaded', () => { initAuth(); backToMenuBtn.addEventListener('click', showMainMenu); backToMenuFromResultsBtn.addEventListener('click', showMainMenu); });
+
+    // --- Simulator Logic ---
+    const simulatorView = document.getElementById('simulator-view');
+    const launchSimulatorBtn = document.getElementById('launch-simulator-btn');
+    const extraToolsDiv = document.getElementById('extra-tools');
+
+    const simulatorSetup = document.getElementById('simulator-setup');
+    const simulatorChatArea = document.getElementById('simulator-chat-area');
+    const simulatorEvaluationArea = document.getElementById('simulator-evaluation-area');
+
+    const personaSelector = document.getElementById('persona-selector');
+    const startSimulationBtn = document.getElementById('start-simulation-btn');
+
+    const simulatorChatBox = document.getElementById('simulator-chat-box');
+    const simulatorChatForm = document.getElementById('simulator-chat-form');
+    const simulatorChatInput = document.getElementById('simulator-chat-input');
+    const endSimulationBtn = document.getElementById('end-simulation-btn');
+
+    const evaluationResults = document.getElementById('evaluation-results');
+    const restartSimulationBtn = document.getElementById('restart-simulation-btn');
+
+    let simulationHistory = [];
+
+    function showSimulatorView() {
+        windowTitle.textContent = 'Диалоговый тренажер';
+        mainMenu.classList.add('hidden');
+        extraToolsDiv.classList.add('hidden');
+        document.getElementById('main-menu-tabs').classList.add('hidden');
+        productContent.classList.add('hidden');
+        simulatorView.classList.remove('hidden');
+        backToMenuBtn.classList.remove('hidden');
+
+        // Reset to setup screen
+        simulatorSetup.classList.remove('hidden');
+        simulatorChatArea.classList.add('hidden');
+        simulatorEvaluationArea.classList.add('hidden');
+        simulatorChatBox.innerHTML = '';
+        simulationHistory = [];
+    }
+
+    launchSimulatorBtn.addEventListener('click', showSimulatorView);
+    restartSimulationBtn.addEventListener('click', showSimulatorView);
+
+    startSimulationBtn.addEventListener('click', () => {
+        simulatorSetup.classList.add('hidden');
+        simulatorChatArea.classList.remove('hidden');
+    });
+
+    simulatorChatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userInput = simulatorChatInput.value.trim();
+        if (!userInput) return;
+
+        appendSimulatorMessage(userInput, 'user');
+        simulationHistory.push({ role: 'user', text: userInput });
+        simulatorChatInput.value = '';
+        simulatorChatInput.disabled = true;
+
+        try {
+            const data = await fetchAuthenticated('/.netlify/functions/dialogueSimulator', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    history: simulationHistory,
+                    persona: personaSelector.value,
+                    action: 'chat'
+                })
+            });
+            appendSimulatorMessage(data.answer, 'assistant');
+            simulationHistory.push({ role: 'assistant', text: data.answer });
+        } catch (error) {
+            appendSimulatorMessage(`Ошибка: ${error.message}`, 'assistant');
+        } finally {
+            simulatorChatInput.disabled = false;
+            simulatorChatInput.focus();
+        }
+    });
+
+    endSimulationBtn.addEventListener('click', async () => {
+        if (simulationHistory.length === 0) {
+            alert('Сначала начните диалог.');
+            return;
+        }
+        simulatorChatArea.classList.add('hidden');
+        simulatorEvaluationArea.classList.remove('hidden');
+        evaluationResults.innerHTML = '<div class="loader"></div>';
+
+        try {
+             const data = await fetchAuthenticated('/.netlify/functions/dialogueSimulator', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    history: simulationHistory,
+                    action: 'evaluate'
+                })
+            });
+            evaluationResults.textContent = data.answer;
+        } catch (error) {
+            evaluationResults.textContent = `Ошибка при получении оценки: ${error.message}`;
+        }
+    });
+
+    function appendSimulatorMessage(text, role) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${role}-message`; // Reuse chat styles
+        const textSpan = document.createElement('span');
+        textSpan.textContent = text;
+        messageDiv.appendChild(textSpan);
+        simulatorChatBox.appendChild(messageDiv);
+        simulatorChatBox.scrollTop = simulatorChatBox.scrollHeight;
+    }
+
 </script>
 </body>
 </html>

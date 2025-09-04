@@ -48,9 +48,23 @@ exports.handler = async (event) => {
             return { statusCode: 404, body: JSON.stringify({ error: 'Контент для данного курса не найден.' }) };
         }
 
+        // Fetch course materials
+        const { data: materials, error: materialsError } = await supabase
+            .from('course_materials')
+            .select('file_name, storage_path')
+            .eq('course_id', course_id);
+
+        if (materialsError) throw materialsError;
+
+        // Get public URLs for the materials
+        const materialsWithUrls = materials.map(m => {
+            const { data: { publicUrl } } = supabase.storage.from('course-materials').getPublicUrl(m.storage_path);
+            return { file_name: m.file_name, public_url: publicUrl };
+        });
+
         return { 
             statusCode: 200, 
-            body: JSON.stringify({ summary, questions })
+            body: JSON.stringify({ summary, questions, materials: materialsWithUrls })
         };
     } catch (error) {
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };

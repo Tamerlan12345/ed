@@ -41,7 +41,8 @@
         <h1>Панель управления</h1>
         <div class="tabs">
             <button id="courses-tab-btn" class="active">Управление курсами</button>
-            <button id="results-tab-btn">Результаты тестов</button>
+            <button id="groups-tab-btn">Управление группами</button>
+            <button id="results-tab-btn">Отчеты и Результаты</button>
         </div>
         <hr>
 
@@ -55,6 +56,7 @@
             <h2>Данные курса</h2>
             <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
             <input type="text" id="course-title" placeholder="Название курса">
+            <input type="text" id="course-product-line" placeholder="Продуктовая линейка (напр. КАСКО, ОГПО ВТС)">
 
             <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
             <input type="file" id="file-uploader" accept=".pdf,.docx">
@@ -75,15 +77,52 @@
 
             <h3>Шаг 4: Сохранение и публикация</h3>
             <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
+
+            <hr>
+            <h3>Сопутствующие материалы</h3>
+            <div id="materials-list"></div>
+            <input type="file" id="material-uploader">
+            <button id="upload-material-btn">Загрузить материал</button>
+        </div>
+
+        <div id="groups-view" class="hidden">
+            <h2>Управление группами курсов (Блоками)</h2>
+            <select id="group-selector"><option value="">-- Создать новую группу --</option></select>
+            <input type="text" id="group-name" placeholder="Название новой группы">
+            <label><input type="checkbox" id="group-for-new-employees"> Назначать новым сотрудникам</label>
+            <button id="save-group-btn">Сохранить/Создать группу</button>
+            <button id="delete-group-btn" style="background-color: #dc3545;">Удалить группу</button>
+            <hr>
+            <h3>Курсы в группе</h3>
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <h4>Доступные курсы</h4>
+                    <select id="all-courses-list" multiple style="height: 200px;"></select>
+                </div>
+                <div style="display: flex; flex-direction: column; justify-content: center; gap: 10px;">
+                    <button id="add-course-to-group-btn">&gt;&gt;</button>
+                    <button id="remove-course-from-group-btn">&lt;&lt;</button>
+                </div>
+                <div style="flex: 1;">
+                    <h4>Курсы в этой группе</h4>
+                    <select id="group-courses-list" multiple style="height: 200px;"></select>
+                </div>
+            </div>
+            <button id="save-courses-in-group-btn">Сохранить состав группы</button>
+            <hr>
+            <h3>Назначить группу подразделению</h3>
+            <input type="text" id="assign-department-name" placeholder="Название подразделения">
+            <button id="assign-group-btn">Назначить</button>
         </div>
 
         <div id="results-view" class="hidden">
-            <h2>Результаты тестов пользователей</h2>
+            <h2>Отчеты по результатам тестов</h2>
             <div id="results-filters">
                 <input type="text" id="filter-user" placeholder="Email пользователя...">
-                <input type="date" id="filter-date">
+                <input type="text" id="filter-department" placeholder="Подразделение...">
                 <select id="filter-course"><option value="">Все курсы</option></select>
-                <button id="apply-filters-btn">Применить</button>
+                <button id="apply-filters-btn">Применить фильтр</button>
+                <button id="export-csv-btn" style="background-color: #218838;">Выгрузить в Excel (CSV)</button>
             </div>
             <table id="results-table">
                 <thead>
@@ -112,15 +151,26 @@
     const statusBox = document.getElementById('status-box');
     const coursesView = document.getElementById('courses-view');
     const resultsView = document.getElementById('results-view');
+    const groupsView = document.getElementById('groups-view');
+
     const coursesTabBtn = document.getElementById('courses-tab-btn');
     const resultsTabBtn = document.getElementById('results-tab-btn');
+    const groupsTabBtn = document.getElementById('groups-tab-btn');
+
     const filterCourseSelector = document.getElementById('filter-course');
 
-    coursesTabBtn.addEventListener('click', () => {
-        coursesView.classList.remove('hidden');
-        resultsView.classList.add('hidden');
-        coursesTabBtn.classList.add('active');
-        resultsTabBtn.classList.remove('active');
+    function switchTab(activeTab, activeBtn, views, btns) {
+        views.forEach(view => view.classList.add('hidden'));
+        btns.forEach(btn => btn.classList.remove('active'));
+        activeTab.classList.remove('hidden');
+        activeBtn.classList.add('active');
+    }
+
+    coursesTabBtn.addEventListener('click', () => switchTab(coursesView, coursesTabBtn, [groupsView, resultsView], [groupsTabBtn, resultsTabBtn]));
+    groupsTabBtn.addEventListener('click', () => {
+        switchTab(groupsView, groupsTabBtn, [coursesView, resultsView], [coursesTabBtn, resultsTabBtn]);
+        loadGroups();
+        loadAllCoursesForGrouping();
     });
 
     resultsTabBtn.addEventListener('click', () => {
@@ -134,25 +184,27 @@
     async function loadResults() {
         if (!adminToken) { showStatus('Ошибка: вы не авторизованы.', 'error'); return; }
 
-        const user_email = document.getElementById('filter-user').value;
-        const date = document.getElementById('filter-date').value;
-        const course_id = document.getElementById('filter-course').value;
+        const userEmail = document.getElementById('filter-user').value;
+        const department = document.getElementById('filter-department').value;
+        const courseId = document.getElementById('filter-course').value;
+
+        const params = new URLSearchParams();
+        if (userEmail) params.append('user_email', userEmail);
+        if (department) params.append('department', department);
+        if (courseId) params.append('course_id', courseId);
 
         try {
-            const response = await fetch('/.netlify/functions/getTestResults', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_email, date, course_id })
-            });
+            const response = await fetch(`/.netlify/functions/getDetailedReport?${params.toString()}`);
             const results = await response.json();
+
             const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
             tableBody.innerHTML = ''; // Clear existing results
             results.forEach(result => {
                 const row = tableBody.insertRow();
-                row.insertCell(0).textContent = result.user_email;
-                row.insertCell(1).textContent = result.course_id;
+                row.insertCell(0).textContent = result.user_profiles?.full_name || result.user_email;
+                row.insertCell(1).textContent = result.courses.title;
                 row.insertCell(2).textContent = result.percentage;
-                row.insertCell(3).textContent = new Date(result.completed_at).toLocaleString();
+                row.insertCell(3).textContent = result.completed_at ? new Date(result.completed_at).toLocaleString() : 'В процессе';
             });
         } catch (error) {
             showStatus('Ошибка при загрузке результатов.', 'error');
@@ -161,6 +213,21 @@
 
     document.getElementById('apply-filters-btn').addEventListener('click', loadResults);
     
+    document.getElementById('export-csv-btn').addEventListener('click', () => {
+        const userEmail = document.getElementById('filter-user').value;
+        const department = document.getElementById('filter-department').value;
+        const courseId = document.getElementById('filter-course').value;
+
+        const params = new URLSearchParams();
+        params.append('format', 'csv');
+        if (userEmail) params.append('user_email', userEmail);
+        if (department) params.append('department', department);
+        if (courseId) params.append('course_id', courseId);
+
+        // Open in a new tab to trigger download
+        window.open(`/.netlify/functions/getDetailedReport?${params.toString()}`);
+    });
+
     function showStatus(message, type = 'info') {
         statusBox.textContent = message;
         statusBox.className = `status ${type}`;
@@ -245,6 +312,7 @@
 
         showStatus(`Удаление курса ${courseId}...`, 'info');
         try {
+            const productLine = document.getElementById('course-product-line').value.trim();
             const response = await fetch('/.netlify/functions/admin-handler', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
@@ -282,6 +350,7 @@
             document.getElementById('course-id').value = course.course_id;
             document.getElementById('course-id').disabled = true;
             document.getElementById('course-title').value = course.title;
+            document.getElementById('course-product-line').value = course.product_line || '';
             document.getElementById('source-text').value = course.source_text || '';
 
             const contentHtmlField = course.content_html;
@@ -305,6 +374,18 @@
             document.getElementById('generated-questions').value = questions;
             document.getElementById('custom-prompt').value = adminPrompt;
 
+            // Render materials
+            const materialsList = document.getElementById('materials-list');
+            materialsList.innerHTML = '';
+            if (course.course_materials && course.course_materials.length > 0) {
+                course.course_materials.forEach(mat => {
+                    const matDiv = document.createElement('div');
+                    matDiv.innerHTML = `${mat.file_name} <button class="delete-material-btn" data-id="${mat.id}" data-path="${mat.storage_path}">Удалить</button>`;
+                    materialsList.appendChild(matDiv);
+                });
+            }
+
+
             showStatus(`Курс ${course.title} успешно загружен.`, 'success');
         } else {
             showStatus(`Ошибка при загрузке курса: ${JSON.stringify(course.error, null, 2)}`, 'error');
@@ -316,6 +397,7 @@
         const file = document.getElementById('file-uploader').files[0];
         const originalCourseId = document.getElementById('course-id').value.trim();
         const title = document.getElementById('course-title').value.trim();
+        const productLine = document.getElementById('course-product-line').value.trim();
 
         if (!file || !originalCourseId || !title) {
             showStatus('Укажите ID, название курса и выберите файл.', 'error');
@@ -338,6 +420,7 @@
                     action: 'upload_and_process',
                     course_id: courseId,
                     title: title,
+                    product_line: productLine,
                     file_name: sanitizedFileName,
                     file_data: base64File
                 })
@@ -440,7 +523,8 @@
                     course_id: courseId,
                     content_html: content_html,
                     questions: questions,
-                    admin_prompt: document.getElementById('custom-prompt').value
+                    admin_prompt: document.getElementById('custom-prompt').value,
+                    product_line: productLine
                 })
             });
 
@@ -452,6 +536,220 @@
             }
         } catch (e) {
             showStatus('Ошибка: Неверный формат JSON в полях HTML или вопросов.', 'error');
+        }
+    });
+
+    // --- Group Management Logic ---
+    const groupSelector = document.getElementById('group-selector');
+    const groupNameInput = document.getElementById('group-name');
+    const newEmployeesCheckbox = document.getElementById('group-for-new-employees');
+    const allCoursesList = document.getElementById('all-courses-list');
+    const groupCoursesList = document.getElementById('group-courses-list');
+
+    let allCoursesData = []; // Cache for all courses
+
+    async function apiCall(action, payload = {}) {
+        if (!adminToken) {
+            showStatus('Ошибка: вы не авторизованы.', 'error');
+            throw new Error('Not authorized');
+        }
+        const response = await fetch('/.netlify/functions/admin-handler', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ...payload })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            const errorMsg = data.error?.message || JSON.stringify(data.error);
+            showStatus(`Ошибка: ${errorMsg}`, 'error');
+            throw new Error(errorMsg);
+        }
+        return data;
+    }
+
+    async function loadGroups() {
+        try {
+            const groups = await apiCall('get_course_groups');
+            groupSelector.innerHTML = '<option value="">-- Создать новую группу --</option>';
+            groups.forEach(g => {
+                const option = document.createElement('option');
+                option.value = g.id;
+                option.textContent = g.group_name;
+                groupSelector.appendChild(option);
+            });
+        } catch (e) { /* error is handled in apiCall */ }
+    }
+
+    async function loadAllCoursesForGrouping() {
+        try {
+            allCoursesData = await apiCall('get_courses_admin');
+            populateAllCoursesList([]);
+        } catch (e) { /* error is handled in apiCall */ }
+    }
+
+    function populateAllCoursesList(usedCourseIds) {
+        allCoursesList.innerHTML = '';
+        allCoursesData
+            .filter(c => !usedCourseIds.includes(c.course_id))
+            .forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.course_id;
+                option.textContent = `${c.title} (${c.course_id})`;
+                allCoursesList.appendChild(option);
+            });
+    }
+
+    groupSelector.addEventListener('change', async (e) => {
+        const groupId = e.target.value;
+        if (!groupId) {
+            groupNameInput.value = '';
+            newEmployeesCheckbox.checked = false;
+            groupCoursesList.innerHTML = '';
+            populateAllCoursesList([]);
+            return;
+        }
+        try {
+            const groupDetails = await apiCall('get_group_details', { group_id: groupId });
+            groupNameInput.value = groupDetails.group_name;
+            newEmployeesCheckbox.checked = groupDetails.is_for_new_employees;
+
+            const courseIdsInGroup = groupDetails.course_group_items.map(item => item.course_id);
+            groupCoursesList.innerHTML = '';
+            allCoursesData
+                .filter(c => courseIdsInGroup.includes(c.course_id))
+                .forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.course_id;
+                    option.textContent = `${c.title} (${c.course_id})`;
+                    groupCoursesList.appendChild(option);
+                });
+
+            populateAllCoursesList(courseIdsInGroup);
+        } catch (e) { /* error is handled in apiCall */ }
+    });
+
+    document.getElementById('save-group-btn').addEventListener('click', async () => {
+        const groupId = groupSelector.value;
+        const groupName = groupNameInput.value.trim();
+        if (!groupName) {
+            showStatus('Название группы не может быть пустым.', 'error');
+            return;
+        }
+        const payload = {
+            group_name: groupName,
+            is_for_new_employees: newEmployeesCheckbox.checked
+        };
+        try {
+            if (groupId) {
+                // Update existing group
+                await apiCall('update_course_group', { ...payload, group_id: groupId });
+                showStatus('Группа успешно обновлена.', 'success');
+            } else {
+                // Create new group
+                const newGroup = await apiCall('create_course_group', payload);
+                showStatus('Группа успешно создана.', 'success');
+                // Add to selector and select it
+                const option = document.createElement('option');
+                option.value = newGroup.id;
+                option.textContent = newGroup.group_name;
+                groupSelector.appendChild(option);
+                groupSelector.value = newGroup.id;
+            }
+        } catch (e) { /* error is handled in apiCall */ }
+    });
+
+    document.getElementById('delete-group-btn').addEventListener('click', async () => {
+        const groupId = groupSelector.value;
+        if (!groupId) {
+            showStatus('Выберите группу для удаления.', 'error');
+            return;
+        }
+        if (confirm('Вы уверены, что хотите удалить эту группу?')) {
+            try {
+                await apiCall('delete_course_group', { group_id: groupId });
+                showStatus('Группа удалена.', 'success');
+                groupSelector.value = '';
+                groupSelector.dispatchEvent(new Event('change'));
+                loadGroups(); // Refresh list
+            } catch (e) { /* error is handled in apiCall */ }
+        }
+    });
+
+    document.getElementById('add-course-to-group-btn').addEventListener('click', () => {
+        Array.from(allCoursesList.selectedOptions).forEach(option => {
+            groupCoursesList.appendChild(option);
+        });
+    });
+
+    document.getElementById('remove-course-from-group-btn').addEventListener('click', () => {
+        Array.from(groupCoursesList.selectedOptions).forEach(option => {
+            allCoursesList.appendChild(option);
+        });
+    });
+
+    document.getElementById('save-courses-in-group-btn').addEventListener('click', async () => {
+        const groupId = groupSelector.value;
+        if (!groupId) {
+            showStatus('Сначала выберите или создайте группу.', 'error');
+            return;
+        }
+        const courseIds = Array.from(groupCoursesList.options).map(opt => opt.value);
+        try {
+            await apiCall('update_courses_in_group', { group_id: groupId, course_ids: courseIds });
+            showStatus('Состав группы успешно сохранен.', 'success');
+        } catch (e) { /* error is handled in apiCall */ }
+    });
+
+    document.getElementById('assign-group-btn').addEventListener('click', async () => {
+        const groupId = groupSelector.value;
+        const department = document.getElementById('assign-department-name').value.trim();
+        if (!groupId || !department) {
+            showStatus('Выберите группу и укажите название подразделения.', 'error');
+            return;
+        }
+        try {
+            await apiCall('assign_group_to_department', { group_id: groupId, department: department });
+            showStatus(`Группа успешно назначена подразделению "${department}".`, 'success');
+            document.getElementById('assign-department-name').value = '';
+        } catch (e) { /* error is handled in apiCall */ }
+    });
+
+    // --- Materials Logic ---
+    document.getElementById('upload-material-btn').addEventListener('click', async () => {
+        const courseId = document.getElementById('course-selector').value;
+        const file = document.getElementById('material-uploader').files[0];
+        if (!courseId || !file) {
+            showStatus('Сначала выберите курс и файл для загрузки.', 'error');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64File = reader.result.split(',')[1];
+            try {
+                await apiCall('upload_course_material', {
+                    course_id: courseId,
+                    file_name: file.name,
+                    file_data: base64File
+                });
+                showStatus('Материал успешно загружен.', 'success');
+                document.getElementById('load-course-btn').click(); // Refresh course details
+            } catch(e) { /* error handled in apiCall */ }
+        };
+    });
+
+    document.getElementById('materials-list').addEventListener('click', async (e) => {
+        if (e.target.classList.contains('delete-material-btn')) {
+            const materialId = e.target.dataset.id;
+            const storagePath = e.target.dataset.path;
+            if (confirm(`Удалить материал "${storagePath}"?`)) {
+                try {
+                    await apiCall('delete_course_material', { material_id: materialId, storage_path: storagePath });
+                    showStatus('Материал удален.', 'success');
+                    document.getElementById('load-course-btn').click(); // Refresh
+                } catch(e) { /* error handled in apiCall */ }
+            }
         }
     });
 </script>

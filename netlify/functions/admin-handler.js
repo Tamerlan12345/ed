@@ -9,7 +9,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 async function uploadAndProcessFile(payload) {
-    const { course_id, title, file_name, file_data } = payload;
+    const { course_id, title, product_line, file_name, file_data } = payload;
     const buffer = Buffer.from(file_data, 'base64');
     let textContent = '';
 
@@ -38,6 +38,7 @@ async function uploadAndProcessFile(payload) {
         .upsert({
             course_id: course_id,
             title: title,
+            product_line: product_line,
             source_text: textContent,
             status: 'processed'
         }, { onConflict: 'course_id' });
@@ -176,15 +177,16 @@ async function textToSpeech(payload) {
 }
 
 async function publishCourse(payload) {
-    const { course_id, content_html, questions, admin_prompt } = payload;
+    const { course_id, content_html, questions, admin_prompt, product_line } = payload;
     const courseContent = {
         summary: content_html,
         questions: questions,
-        admin_prompt: admin_prompt || '' // Save the prompt, default to empty string
+        admin_prompt: admin_prompt || ''
     };
     const { error } = await supabase.from('courses').update({
         content_html: courseContent,
-        status: 'published'
+        status: 'published',
+        product_line: product_line
     }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
@@ -249,12 +251,106 @@ exports.handler = async (event) => {
                 break;
             case 'get_course_details':
                 const { course_id: details_course_id } = payload;
-                const { data: details_data, error: details_error } = await supabase.from('courses').select('*').eq('course_id', details_course_id).single();
+                const { data: details_data, error: details_error } = await supabase
+                    .from('courses')
+                    .select('*, course_materials(*)')
+                    .eq('course_id', details_course_id)
+                    .single();
                 if (details_error) throw details_error;
                 result = details_data;
                 break;
             case 'delete_course':
                 result = await deleteCourse(payload);
+                break;
+            // --- Course Group Management ---
+            case 'get_course_groups':
+                const { data: groups, error: groupsError } = await supabase.from('course_groups').select('*');
+                if (groupsError) throw groupsError;
+                result = groups;
+                break;
+            case 'create_course_group':
+                const { group_name, is_for_new_employees } = payload;
+                const { data: newGroup, error: newGroupError } = await supabase
+                    .from('course_groups')
+                    .insert({ group_name, is_for_new_employees })
+                    .select()
+                    .single();
+                if (newGroupError) throw newGroupError;
+                result = newGroup;
+                break;
+            case 'update_course_group':
+                const { group_id: update_group_id, group_name: update_group_name, is_for_new_employees: update_is_new } = payload;
+                const { data: updatedGroup, error: updatedGroupError } = await supabase
+                    .from('course_groups')
+                    .update({ group_name: update_group_name, is_for_new_employees: update_is_new })
+                    .eq('id', update_group_id)
+                    .select()
+                    .single();
+                if (updatedGroupError) throw updatedGroupError;
+                result = updatedGroup;
+                break;
+            case 'delete_course_group':
+                const { group_id: delete_group_id } = payload;
+                // Deletion will cascade thanks to DB constraints
+                const { error: deleteGroupError } = await supabase.from('course_groups').delete().eq('id', delete_group_id);
+                if (deleteGroupError) throw deleteGroupError;
+                result = { message: `Group ${delete_group_id} deleted.` };
+                break;
+            case 'get_group_details':
+                const { group_id: details_group_id } = payload;
+                const { data: groupDetails, error: groupDetailsError } = await supabase
+                    .from('course_groups')
+                    .select('*, course_group_items(course_id)')
+                    .eq('id', details_group_id)
+                    .single();
+                if (groupDetailsError) throw groupDetailsError;
+                result = groupDetails;
+                break;
+            case 'update_courses_in_group':
+                const { group_id: update_courses_group_id, course_ids } = payload;
+                // 1. Delete existing entries for the group
+                await supabase.from('course_group_items').delete().eq('group_id', update_courses_group_id);
+                // 2. Insert new entries
+                const itemsToInsert = course_ids.map(cid => ({ group_id: update_courses_group_id, course_id: cid }));
+                const { error: updateItemsError } = await supabase.from('course_group_items').insert(itemsToInsert);
+                if (updateItemsError) throw updateItemsError;
+                result = { message: 'Courses in group updated.' };
+                break;
+            case 'assign_group_to_department':
+                const { group_id: assign_group_id, department } = payload;
+                const { error: assignError } = await supabase.from('group_assignments').insert({ group_id: assign_group_id, department });
+                if (assignError) throw assignError;
+                result = { message: `Group assigned to ${department}.` };
+                break;
+            // --- Course Materials Management ---
+            case 'upload_course_material':
+                const { course_id: material_course_id, file_name: material_file_name, file_data: material_file_data } = payload;
+                const materialBuffer = Buffer.from(material_file_data, 'base64');
+                const storagePath = `${material_course_id}/${material_file_name}`;
+
+                // Upload to Supabase Storage
+                const { error: storageError } = await supabase.storage
+                    .from('course-materials')
+                    .upload(storagePath, materialBuffer, { upsert: true });
+                if (storageError) throw storageError;
+
+                // Save metadata to our table
+                const { error: dbErrorMaterial } = await supabase.from('course_materials').upsert({
+                    course_id: material_course_id,
+                    file_name: material_file_name,
+                    storage_path: storagePath
+                }, { onConflict: 'storage_path' });
+                if (dbErrorMaterial) throw dbErrorMaterial;
+
+                result = { message: 'Материал успешно загружен.' };
+                break;
+            case 'delete_course_material':
+                const { material_id, storage_path } = payload;
+                // Delete from storage
+                await supabase.storage.from('course-materials').remove([storage_path]);
+                // Delete from our table
+                await supabase.from('course_materials').delete().eq('id', material_id);
+                result = { message: 'Материал удален.' };
                 break;
             default:
                 throw new Error('Unknown action.');
