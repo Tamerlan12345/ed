@@ -283,6 +283,12 @@ exports.handler = async (event) => {
                     if (se3) throw se3;
                     result = { message: 'Настройки лидерборда сохранены.' };
                     break;
+                // --- Simulator Results ---
+                case 'get_simulation_results':
+                    const { data: simData, error: simError } = await supabase.rpc('get_simulation_results');
+                    if (simError) throw simError;
+                    result = simData;
+                    break;
                 default:
                     throw new Error(`Unknown action: ${payload.action}`);
             }

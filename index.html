@@ -100,12 +100,18 @@
                 <div id="simulator-view" class="hidden">
                     <div id="simulator-setup">
                         <h3>Настройка тренажера</h3>
-                        <p>Выберите тип клиента, с которым хотите потренироваться.</p>
-                        <select id="persona-selector">
-                            <option value="cold">"Холодный" клиент</option>
-                            <option value="interested">Заинтересованный клиент</option>
-                            <option value="aggressive">Агрессивный клиент</option>
-                        </select>
+                        <div style="margin-bottom: 15px;">
+                            <label for="scenario-selector" style="display: block; margin-bottom: 5px; font-weight: bold;">1. Выберите сценарий:</label>
+                            <select id="scenario-selector" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid var(--border-color);"></select>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label for="persona-selector" style="display: block; margin-bottom: 5px; font-weight: bold;">2. Выберите тип клиента:</label>
+                            <select id="persona-selector" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid var(--border-color);">
+                                <option value="cold">"Холодный" клиент</option>
+                                <option value="interested">Заинтересованный клиент</option>
+                                <option value="aggressive">Агрессивный клиент</option>
+                            </select>
+                        </div>
                         <button id="start-simulation-btn">Начать диалог</button>
                     </div>
                     <div id="simulator-chat-area" class="hidden">
@@ -133,7 +139,8 @@
     const userData = { email: '', token: null };
     let courses = [];
     let currentCourse = null;
-    let userProgress = {}; 
+    let userProgress = {};
+    let simulationHistory = [];
     
     const authView = document.getElementById('auth-view');
     const appView = document.getElementById('app-view');
@@ -166,6 +173,7 @@
     const simulatorChatArea = document.getElementById('simulator-chat-area');
     const simulatorEvaluationArea = document.getElementById('simulator-evaluation-area');
     const personaSelector = document.getElementById('persona-selector');
+    const scenarioSelector = document.getElementById('scenario-selector');
     const startSimulationBtn = document.getElementById('start-simulation-btn');
     const simulatorChatBox = document.getElementById('simulator-chat-box');
     const simulatorChatForm = document.getElementById('simulator-chat-form');
@@ -693,6 +701,30 @@
     }
     document.addEventListener('DOMContentLoaded', () => { initAuth(); backToMenuBtn.addEventListener('click', showMainMenu); backToMenuFromResultsBtn.addEventListener('click', showMainMenu); });
 
+    const simulationScenarios = [
+        "Клиент хочет застраховать новый автомобиль (Hyundai Tucson) по КАСКО от всех рисков. Он впервые покупает КАСКО и хочет знать все детали: что покрывается, какие есть франшизы, от чего зависит цена.",
+        "У клиента заканчивается срок действующего полиса ОГПО ВТС. Он ищет, где можно продлить его онлайн и подешевле. Слышал, что у разных компаний могут быть разные скидки.",
+        "Клиент недавно купил квартиру в ипотеку и банк требует оформить страховку. Он не понимает, зачем это нужно и что именно нужно страховать (стены, отделку, ответственность перед соседями).",
+        "Семья (2 взрослых, 1 ребенок) летит в отпуск в Турцию на 10 дней. Им нужна туристическая страховка. Интересуются, покрывает ли она случаи, связанные с COVID-19 или другими внезапными заболеваниями.",
+        "Клиент (35 лет) думает о будущем и хочет начать копить на образование ребенка. Слышал о программах накопительного страхования, но не понимает, чем они лучше обычного банковского депозита.",
+        "Клиент попал в небольшое ДТП (другой водитель поцарапал ему дверь на парковке). Он уже подал документы, но выплата задерживается. Он звонит, чтобы узнать статус и выразить недовольство.",
+        "Клиент работает на стройке и хочет застраховать себя от травм. Ему важно знать, какие травмы покрываются и какая будет выплата в случае перелома руки.",
+        "Представитель небольшой IT-компании (20 сотрудников) хочет оформить для своих работников добровольное медицинское страхование (ДМС). Ему нужен 'социальный пакет', чтобы удерживать ценных специалистов.",
+        "Индивидуальный предприниматель занимается перевозкой товаров из Китая в Казахстан. Он хочет застраховать партию электроники на время транспортировки.",
+        "Клиент уже получил предложение по страхованию дома от другой компании ('Халык'). Он звонит, чтобы узнать, можете ли вы предложить условия лучше или дешевле."
+    ];
+
+    function populateScenarios() {
+        scenarioSelector.innerHTML = '';
+        simulationScenarios.forEach((scenario, index) => {
+            const option = document.createElement('option');
+            option.value = scenario;
+            // Truncate long scenario text for display in the dropdown
+            option.textContent = `Сценарий ${index + 1}: ${scenario.substring(0, 70)}...`;
+            scenarioSelector.appendChild(option);
+        });
+    }
+
     function showSimulatorView() {
         windowTitle.textContent = 'Диалоговый тренажер';
         document.getElementById('main-content-wrapper').classList.add('hidden');
@@ -705,6 +737,7 @@
         simulatorEvaluationArea.classList.add('hidden');
         simulatorChatBox.innerHTML = '';
         simulationHistory = [];
+        populateScenarios();
     }
 
     launchSimulatorBtn.addEventListener('click', showSimulatorView);
@@ -732,6 +765,7 @@
                 body: JSON.stringify({
                     history: simulationHistory,
                     persona: personaSelector.value,
+                    scenario: scenarioSelector.value, // Pass selected scenario
                     action: 'chat'
                 })
             });
@@ -761,25 +795,29 @@
                 body: JSON.stringify({
                     history: simulationHistory,
                     action: 'evaluate',
-                    persona: personaSelector.value
+                    persona: personaSelector.value,
+                    scenario: scenarioSelector.value // Pass scenario for saving
                 })
             });
 
             evaluationResults.innerHTML = ''; // Clear loader
 
+            const evaluationData = data.answer; // This is now a JSON object
+
             const downloadBtn = document.createElement('button');
-            downloadBtn.textContent = 'Скачать диалог';
+            downloadBtn.textContent = 'Скачать диалог и оценку';
             downloadBtn.style.marginTop = '10px';
             downloadBtn.style.marginBottom = '15px';
 
             downloadBtn.onclick = () => {
                 const dialogueText = simulationHistory.map(h => `${h.role.toUpperCase()}: ${h.text}`).join('\n');
-                const fullText = `ДИАЛОГ\n--------------------\n${dialogueText}\n\nОЦЕНКА ИИ\n--------------------\n${data.answer}`;
+                const evaluationText = JSON.stringify(evaluationData, null, 2);
+                const fullText = `СЦЕНАРИЙ: ${scenarioSelector.value}\n\nДИАЛОГ\n--------------------\n${dialogueText}\n\nОЦЕНКА ИИ\n--------------------\n${evaluationText}`;
                 const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `dialogue-${new Date().toISOString().slice(0,10)}.txt`;
+                a.download = `dialogue-evaluation-${new Date().toISOString().slice(0,10)}.txt`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -787,10 +825,36 @@
             };
             evaluationResults.appendChild(downloadBtn);
 
-            const evaluationText = document.createElement('div');
-            evaluationText.style.whiteSpace = 'pre-wrap';
-            evaluationText.textContent = data.answer;
-            evaluationResults.appendChild(evaluationText);
+            // Display formatted JSON evaluation
+            const resultsTable = document.createElement('table');
+            resultsTable.style.width = '100%';
+            resultsTable.style.borderCollapse = 'collapse';
+            resultsTable.innerHTML = `
+                <tr style="background-color: var(--bg-color);">
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Критерий</th>
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: center;">Оценка</th>
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Комментарий</th>
+                </tr>
+            `;
+            evaluationData.evaluation_criteria.forEach(item => {
+                resultsTable.innerHTML += `
+                    <tr>
+                        <td style="border: 1px solid var(--border-color); padding: 8px;">${item.criterion}</td>
+                        <td style="border: 1px solid var(--border-color); padding: 8px; text-align: center; font-weight: bold;">${item.score}/10</td>
+                        <td style="border: 1px solid var(--border-color); padding: 8px;">${item.comment}</td>
+                    </tr>
+                `;
+            });
+            evaluationResults.appendChild(resultsTable);
+
+            const summary = document.createElement('div');
+            summary.style.marginTop = '15px';
+            summary.innerHTML = `
+                <h4 style="margin-bottom: 5px;">Общая оценка: <span style="color: var(--primary-color);">${evaluationData.average_score.toFixed(1)}</span></h4>
+                <p><strong>Общий комментарий:</strong> ${evaluationData.general_comment}</p>
+            `;
+            evaluationResults.appendChild(summary);
+
 
         } catch (error) {
             evaluationResults.textContent = `Ошибка при получении оценки: ${error.message}`;
