@@ -26,14 +26,18 @@ exports.handler = async (event) => {
         // The table has default values for score, percentage, etc.
         // Using ON CONFLICT DO NOTHING prevents an error if the user is already enrolled,
         // which makes the operation idempotent and safe.
+        // Using upsert with ignoreDuplicates: true is the Supabase v2 equivalent
+        // of the old .onConflict().ignore() syntax. This will do nothing if the
+        // user is already assigned to the course.
         const { error: insertError } = await supabase
             .from('user_progress')
-            .insert({
+            .upsert({
                 user_email: user.email,
                 course_id: course_id
-            }, { returning: 'minimal' }) // Use returning 'minimal' for Supabase v2
-            .onConflict('user_email, course_id')
-            .ignore();
+            }, {
+                onConflict: 'user_email, course_id',
+                ignoreDuplicates: true
+            });
 
         if (insertError) {
             // Log the actual error on the server
