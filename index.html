@@ -55,28 +55,34 @@
                  <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo">
             </div>
             <div class="content-area" id="content-area">
-                <div id="leaderboard-container" style="margin-bottom: 25px; padding: 15px; background-color: #e9f7fe; border-radius: 8px;">
-                    <h3 style="margin-top: 0; color: var(--primary-color);">🏆 Топ Учеников Недели</h3>
-                    <div id="leaderboard-content"></div>
-                </div>
-                <div id="main-menu-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
-                    <button class="tab-btn active" id="my-courses-tab">Мои курсы</button>
-                    <button class="tab-btn" id="catalog-tab">Каталог курсов</button>
-                </div>
-                <div id="main-menu"></div>
-                <div id="extra-tools" style="padding-top: 20px; border-top: 1px solid #eee;">
-                    <button id="launch-simulator-btn">Диалоговый тренажер</button>
-                </div>
-                <div id="admin-controls" class="hidden"></div>
-                <div id="product-content" class="hidden"></div>
-                <div id="audio-player-container-user" style="margin-top: 15px;"></div>
-                <div id="assistant-container" class="hidden">
-                    <h3>AI-Ассистент</h3>
-                    <div id="chat-box"></div>
-                    <form id="chat-form">
-                        <input type="text" id="chat-input" placeholder="Задайте вопрос по материалу..." autocomplete="off">
-                        <button type="submit">Отправить</button>
-                    </form>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <div id="leaderboard-container" style="flex: 1 1 300px; min-width: 280px; padding: 15px; background-color: #e9f7fe; border-radius: 8px; align-self: flex-start;">
+                        <h3 style="margin-top: 0; color: var(--primary-color);">🏆 Топ Учеников Недели</h3>
+                        <div id="leaderboard-content"></div>
+                    </div>
+                    <div id="main-content-wrapper" style="flex: 2 1 500px;">
+                        <div id="main-menu-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
+                            <button class="tab-btn active" data-filter="assigned">Назначенные</button>
+                            <button class="tab-btn" data-filter="completed">Пройденные</button>
+                            <button class="tab-btn" data-filter="future">Будущие</button>
+                            <button class="tab-btn" data-filter="catalog">Каталог</button>
+                        </div>
+                        <div id="main-menu"></div>
+                        <div id="extra-tools" style="padding-top: 20px; border-top: 1px solid #eee;">
+                            <button id="launch-simulator-btn">Диалоговый тренажер</button>
+                        </div>
+                        <div id="admin-controls" class="hidden"></div>
+                        <div id="product-content" class="hidden"></div>
+                        <div id="audio-player-container-user" style="margin-top: 15px;"></div>
+                        <div id="assistant-container" class="hidden">
+                            <h3>AI-Ассистент</h3>
+                            <div id="chat-box"></div>
+                            <form id="chat-form">
+                                <input type="text" id="chat-input" placeholder="Задайте вопрос по материалу..." autocomplete="off">
+                                <button type="submit">Отправить</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
                 <div id="test-view" class="hidden">
                     <p id="question-counter"></p>
@@ -91,7 +97,6 @@
                     <p id="results-feedback"></p>
                     <button id="back-to-menu-from-results">Вернуться в меню</button>
                 </div>
-
                 <div id="simulator-view" class="hidden">
                     <div id="simulator-setup">
                         <h3>Настройка тренажера</h3>
@@ -117,7 +122,6 @@
                         <button id="restart-simulation-btn" style="margin-top: 10px;">Начать заново</button>
                     </div>
                 </div>
-
             </div>
             <div class="window-footer">
                 <button id="back-to-menu-btn" class="hidden">Назад в меню</button>
@@ -153,6 +157,9 @@
     const notificationsBadge = document.getElementById('notifications-badge');
     const notificationsPanel = document.getElementById('notifications-panel');
     const notificationsList = document.getElementById('notifications-list');
+    const simulatorView = document.getElementById('simulator-view');
+    const launchSimulatorBtn = document.getElementById('launch-simulator-btn');
+    const extraToolsDiv = document.getElementById('extra-tools');
 
     function showLoader() { contentArea.innerHTML = '<div class="loader"></div>'; }
     function showMessage(message, details = '') { contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`; }
@@ -247,12 +254,6 @@
     notificationsBell.addEventListener('click', async () => {
         const isHidden = notificationsPanel.classList.toggle('hidden');
         if (!isHidden) {
-            // Panel is now visible, mark notifications as read
-            const unreadIds = Array.from(notificationsList.children)
-                .filter(child => child.style.fontWeight === 'bold')
-                .map((child, index) => courses[index].id); // This is wrong, need to get notification id
-
-            // Let's refetch to get IDs properly. A better way would be to store them on the elements.
             const notifications = await fetchAuthenticated('/.netlify/functions/getNotifications');
             const unreadNotificationIds = notifications.filter(n => !n.is_read).map(n => n.id);
 
@@ -263,7 +264,6 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ notification_ids: unreadNotificationIds })
                     });
-                    // Visually mark as read and hide badge
                     notificationsBadge.classList.add('hidden');
                     notificationsList.querySelectorAll('div').forEach(div => div.style.fontWeight = 'normal');
                 } catch (error) {
@@ -272,7 +272,6 @@
             }
         }
     });
-
 
     async function loadLeaderboard() {
         const leaderboardContent = document.getElementById('leaderboard-content');
@@ -299,31 +298,24 @@
 
     async function showMainMenu() {
         console.log('[ШАГ 5] Запуск showMainMenu для загрузки курсов.');
-        stopTimeTracking(); // Ensure any running timers are stopped
+        stopTimeTracking();
         windowTitle.textContent = 'Главное Меню';
-        document.getElementById('main-menu-tabs').classList.remove('hidden');
-        mainMenu.classList.remove('hidden');
+
+        document.getElementById('leaderboard-container').classList.remove('hidden');
+        document.getElementById('main-content-wrapper').classList.remove('hidden');
+
         productContent.classList.add('hidden');
         testView.classList.add('hidden');
         testResultsView.classList.add('hidden');
         assistantContainer.classList.add('hidden');
-        adminControls.classList.add('hidden');
-        backToMenuBtn.classList.add('hidden');
+        simulatorView.classList.add('hidden');
         
-        // Ensure the content area is visible and clear for the menu
-        // We need to re-add leaderboard container as innerHTML clears it
-        contentArea.innerHTML = `
-            <div id="leaderboard-container" style="margin-bottom: 25px; padding: 15px; background-color: #e9f7fe; border-radius: 8px;">
-                <h3 style="margin-top: 0; color: var(--primary-color);">🏆 Топ Учеников Недели</h3>
-                <div id="leaderboard-content"></div>
-            </div>
-        `;
-        contentArea.appendChild(document.getElementById('main-menu-tabs'));
-        contentArea.appendChild(mainMenu);
+        mainMenu.classList.remove('hidden');
+        document.getElementById('main-menu-tabs').classList.remove('hidden');
+        extraToolsDiv.classList.remove('hidden');
+        backToMenuBtn.classList.add('hidden');
 
-        loadLeaderboard(); // Load leaderboard data
-
-        showLoader(); // Show loader inside mainMenu
+        loadLeaderboard();
         mainMenu.innerHTML = '<div class="loader"></div>';
 
         try {
@@ -338,24 +330,18 @@
             courses = data.courses;
             userProgress = data.userProgress;
 
-            const myCoursesTab = document.getElementById('my-courses-tab');
-            const catalogTab = document.getElementById('catalog-tab');
-
-            myCoursesTab.addEventListener('click', () => {
-                myCoursesTab.classList.add('active');
-                catalogTab.classList.remove('active');
-                renderCourses('assigned');
+            const tabsContainer = document.getElementById('main-menu-tabs');
+            tabsContainer.addEventListener('click', (e) => {
+                if (e.target.matches('.tab-btn')) {
+                    tabsContainer.querySelector('.active').classList.remove('active');
+                    e.target.classList.add('active');
+                    const filter = e.target.dataset.filter;
+                    renderCourses(filter);
+                }
             });
 
-            catalogTab.addEventListener('click', () => {
-                catalogTab.classList.add('active');
-                myCoursesTab.classList.remove('active');
-                renderCourses('catalog');
-            });
-
-            // Initial render
             renderCourses('assigned');
-             console.log('[ШАГ 8] Меню курсов успешно отрисовано.');
+            console.log('[ШАГ 8] Меню курсов успешно отрисовано.');
 
         } catch (error) {
             console.error('[ОШИБКА НА ШАГЕ 6/7] Не удалось загрузить курсы:', error);
@@ -366,42 +352,70 @@
     function renderCourses(filter) {
         mainMenu.innerHTML = '';
         let coursesToRender;
+        const now = new Date();
+        now.setHours(0, 0, 0, 0); // Set to start of today for date comparison
 
-        if (filter === 'assigned') {
-            coursesToRender = courses.filter(c => c.isAssigned);
-            if (coursesToRender.length === 0) {
-                mainMenu.innerHTML = '<p class="message">Вам пока не назначено ни одного курса.</p>';
-                return;
-            }
-        } else { // catalog
-            coursesToRender = courses.filter(c => !c.isAssigned);
-             if (coursesToRender.length === 0) {
-                mainMenu.innerHTML = '<p class="message">В каталоге пока нет доступных курсов.</p>';
-                return;
-            }
+        switch (filter) {
+            case 'assigned':
+                coursesToRender = courses.filter(c => {
+                    const progress = userProgress[c.id];
+                    const isCompleted = progress && progress.completed;
+                    const startDate = c.startDate ? new Date(c.startDate) : null;
+                    const isFuture = startDate && startDate > now;
+                    return c.isAssigned && !isCompleted && !isFuture;
+                });
+                if (coursesToRender.length === 0) {
+                    mainMenu.innerHTML = '<p class="message">У вас нет активных назначенных курсов.</p>';
+                }
+                break;
+            case 'completed':
+                coursesToRender = courses.filter(c => c.isAssigned && userProgress[c.id]?.completed);
+                if (coursesToRender.length === 0) {
+                    mainMenu.innerHTML = '<p class="message">Вы еще не завершили ни одного курса.</p>';
+                }
+                break;
+            case 'future':
+                coursesToRender = courses.filter(c => {
+                    const startDate = c.startDate ? new Date(c.startDate) : null;
+                    return c.isAssigned && startDate && startDate > now;
+                });
+                if (coursesToRender.length === 0) {
+                    mainMenu.innerHTML = '<p class="message">У вас нет запланированных будущих курсов.</p>';
+                }
+                break;
+            case 'catalog':
+                coursesToRender = courses.filter(c => !c.isAssigned);
+                 if (coursesToRender.length === 0) {
+                    mainMenu.innerHTML = '<p class="message">В каталоге пока нет доступных курсов.</p>';
+                }
+                break;
+            default:
+                coursesToRender = [];
         }
 
-        // Group by product_line for catalog view
-        if (filter === 'catalog') {
-            const groupedCourses = coursesToRender.reduce((acc, course) => {
-                const key = course.product_line || 'Разное';
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(course);
-                return acc;
-            }, {});
+        if (coursesToRender.length > 0) {
+            if (filter === 'catalog') {
+                const groupedCourses = coursesToRender.reduce((acc, course) => {
+                    const key = course.product_line || 'Разное';
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(course);
+                    return acc;
+                }, {});
 
-            for (const groupName in groupedCourses) {
-                const groupWrapper = document.createElement('div');
-                groupWrapper.innerHTML = `<h3 style="color: var(--primary-color); margin-top: 20px;">${groupName}</h3>`;
-                const courseGrid = document.createElement('div');
-                courseGrid.className = 'main-menu'; // reuse grid style
-                groupedCourses[groupName].forEach(course => courseGrid.appendChild(createCourseMenuItem(course, 'catalog')));
-                groupWrapper.appendChild(courseGrid);
-                mainMenu.appendChild(groupWrapper);
+                for (const groupName in groupedCourses) {
+                    const groupWrapper = document.createElement('div');
+                    groupWrapper.innerHTML = `<h3 style="color: var(--primary-color); margin-top: 20px;">${groupName}</h3>`;
+                    const courseGrid = document.createElement('div');
+                    courseGrid.className = 'main-menu';
+                    groupedCourses[groupName].forEach(course => courseGrid.appendChild(createCourseMenuItem(course, 'catalog')));
+                    groupWrapper.appendChild(courseGrid);
+                    mainMenu.appendChild(groupWrapper);
+                }
+            } else {
+                mainMenu.className = 'main-menu';
+                const type = (filter === 'future' || filter === 'completed') ? 'view' : 'assigned';
+                coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course, type)));
             }
-        } else {
-             mainMenu.className = 'main-menu'; // reset to grid
-             coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course, 'assigned')));
         }
     }
 
@@ -413,14 +427,21 @@
         menuItem.style.justifyContent = 'space-between';
 
         const contentDiv = document.createElement('div');
-
-        // Check progress, note that userProgress uses course.id
         const progress = userProgress[course.id];
         if (progress && progress.completed) {
              menuItem.classList.add('completed');
         }
         contentDiv.dataset.courseId = course.id;
         contentDiv.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3>`;
+
+        if (course.startDate) {
+            const startDate = new Date(course.startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (startDate >= today) {
+                 contentDiv.innerHTML += `<p style="color: var(--primary-color); font-weight: bold;">Начало: ${startDate.toLocaleDateString('ru-RU')}</p>`;
+            }
+        }
 
         if (type === 'assigned') {
             contentDiv.innerHTML += `<p>Перейти к учебному модулю...</p>`;
@@ -429,6 +450,9 @@
             }
             contentDiv.style.cursor = 'pointer';
             contentDiv.addEventListener('click', () => showProduct(course.id));
+        } else if (type === 'view') {
+            // A view-only type for future/completed courses that are not clickable to start
+            contentDiv.style.cursor = 'default';
         }
 
         menuItem.appendChild(contentDiv);
@@ -440,7 +464,7 @@
             assignBtn.style.marginTop = '15px';
             assignBtn.dataset.courseId = course.id;
             assignBtn.onclick = async (e) => {
-                e.stopPropagation(); // Prevent click from bubbling to the menu item
+                e.stopPropagation();
                 const button = e.target;
                 const courseId = button.dataset.courseId;
                 button.disabled = true;
@@ -451,7 +475,6 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ course_id: courseId })
                     });
-                    // Refresh the main menu to reflect the change
                     await showMainMenu();
                 } catch (error) {
                     console.error('Failed to self-assign course:', error);
@@ -465,7 +488,6 @@
         return menuItem;
     }
     
-    // --- Time Tracking Globals ---
     let timeTrackingInterval = null;
     let secondsSinceLastUpdate = 0;
 
@@ -492,11 +514,12 @@
         }
     }
 
-    // Остальной код остается без изменений
-    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; document.getElementById('main-menu-tabs').classList.add('hidden'); mainMenu.classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); testView.classList.add('hidden'); testResultsView.classList.add('hidden'); backToMenuBtn.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(productContent); contentArea.appendChild(audioPlayerContainerUser); contentArea.appendChild(assistantContainer); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; currentCourse.materials = data.materials; let highestUnlockedSlide = 0; if (Array.isArray(currentCourse.summary)) { const nav = document.createElement('div'); nav.id = 'product-nav'; const slidesContainer = document.createElement('div'); productContent.innerHTML = ''; productContent.appendChild(nav); productContent.appendChild(slidesContainer); const updateNavLocks = () => { nav.querySelectorAll('a').forEach((a, i) => { const lockSpan = a.querySelector('.lock-icon'); if (i <= highestUnlockedSlide) { lockSpan.textContent = '✅'; } else { lockSpan.textContent = '🔒'; } }); }; currentCourse.summary.forEach((slide, index) => { const slideId = `slide-${index}`; const slideAnchor = document.createElement('a'); slideAnchor.href = `#${slideId}`; slideAnchor.innerHTML = `${index + 1} <span class="lock-icon"></span>`; slideAnchor.addEventListener('click', (e) => { if (index > highestUnlockedSlide) { e.preventDefault(); alert('Пожалуйста, завершите предыдущие уроки, чтобы разблокировать этот.'); } }); nav.appendChild(slideAnchor); const slideDiv = document.createElement('div'); slideDiv.id = slideId; slideDiv.innerHTML = `<h3>${slide.title}</h3>${slide.html_content}<hr style="margin: 20px 0;">`; slidesContainer.appendChild(slideDiv); }); updateNavLocks(); contentArea.onscroll = () => { const scrollBottom = contentArea.scrollTop + contentArea.clientHeight; currentCourse.summary.forEach((slide, index) => { if (index > highestUnlockedSlide) return; const slideDiv = document.getElementById(`slide-${index}`); if (!slideDiv) return; const slideBottom = slideDiv.offsetTop + slideDiv.offsetHeight; if (scrollBottom >= slideBottom - 50) { if (highestUnlockedSlide < currentCourse.summary.length - 1) { highestUnlockedSlide = Math.max(highestUnlockedSlide, index + 1); updateNavLocks(); } } }); }; } else { productContent.innerHTML = currentCourse.summary; } if (currentCourse.materials && currentCourse.materials.length > 0) { const materialsDiv = document.createElement('div'); materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>'; const materialsList = document.createElement('ul'); currentCourse.materials.forEach(m => { materialsList.innerHTML += `<li><a href="${m.public_url}" target="_blank" download>${m.file_name}</a></li>`; }); materialsDiv.appendChild(materialsList); productContent.appendChild(materialsDiv); } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => { stopTimeTracking(); startTest(currentCourse.id); }; productContent.appendChild(startTestBtn); if (timeTrackingInterval) clearInterval(timeTrackingInterval); secondsSinceLastUpdate = 0; timeTrackingInterval = setInterval(() => { secondsSinceLastUpdate += 30; sendTimeUpdate(currentCourse.id, 30); }, 30000); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
+    async function showProduct(courseId, forceRegenerate = false) { currentCourse = courses.find(c => c.id === courseId); if (!currentCourse) return; windowTitle.textContent = currentCourse.title; document.getElementById('main-content-wrapper').classList.add('hidden'); document.getElementById('leaderboard-container').classList.add('hidden'); productContent.classList.remove('hidden'); assistantContainer.classList.remove('hidden'); backToMenuBtn.classList.remove('hidden'); productContent.innerHTML = '<div class="loader"></div>'; audioPlayerContainerUser.innerHTML = ''; const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`); if (savedChat) { chatBox.innerHTML = savedChat; } else { chatBox.innerHTML = ''; } try { const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`; const data = await fetchAuthenticated(url); currentCourse.summary = data.summary; currentCourse.questions = data.questions; currentCourse.materials = data.materials; let highestUnlockedSlide = 0; if (Array.isArray(currentCourse.summary)) { const nav = document.createElement('div'); nav.id = 'product-nav'; const slidesContainer = document.createElement('div'); productContent.innerHTML = ''; productContent.appendChild(nav); productContent.appendChild(slidesContainer); const updateNavLocks = () => { nav.querySelectorAll('a').forEach((a, i) => { const lockSpan = a.querySelector('.lock-icon'); if (i <= highestUnlockedSlide) { lockSpan.textContent = '✅'; } else { lockSpan.textContent = '🔒'; } }); }; currentCourse.summary.forEach((slide, index) => { const slideId = `slide-${index}`; const slideAnchor = document.createElement('a'); slideAnchor.href = `#${slideId}`; slideAnchor.innerHTML = `${index + 1} <span class="lock-icon"></span>`; slideAnchor.addEventListener('click', (e) => { if (index > highestUnlockedSlide) { e.preventDefault(); alert('Пожалуйста, завершите предыдущие уроки, чтобы разблокировать этот.'); } }); nav.appendChild(slideAnchor); const slideDiv = document.createElement('div'); slideDiv.id = slideId; slideDiv.innerHTML = `<h3>${slide.title}</h3>${slide.html_content}<hr style="margin: 20px 0;">`; slidesContainer.appendChild(slideDiv); }); updateNavLocks(); contentArea.onscroll = () => { const scrollBottom = contentArea.scrollTop + contentArea.clientHeight; currentCourse.summary.forEach((slide, index) => { if (index > highestUnlockedSlide) return; const slideDiv = document.getElementById(`slide-${index}`); if (!slideDiv) return; const slideBottom = slideDiv.offsetTop + slideDiv.offsetHeight; if (scrollBottom >= slideBottom - 50) { if (highestUnlockedSlide < currentCourse.summary.length - 1) { highestUnlockedSlide = Math.max(highestUnlockedSlide, index + 1); updateNavLocks(); } } }); }; } else { productContent.innerHTML = currentCourse.summary; } if (currentCourse.materials && currentCourse.materials.length > 0) { const materialsDiv = document.createElement('div'); materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>'; const materialsList = document.createElement('ul'); currentCourse.materials.forEach(m => { materialsList.innerHTML += `<li><a href="${m.public_url}" target="_blank" download>${m.file_name}</a></li>`; }); materialsDiv.appendChild(materialsList); productContent.appendChild(materialsDiv); } const listenBtn = document.createElement('button'); listenBtn.textContent = 'Озвучить саммари'; listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } }; productContent.appendChild(listenBtn); const startTestBtn = document.createElement('button'); startTestBtn.id = 'start-test-btn'; startTestBtn.textContent = 'Начать тестирование'; startTestBtn.onclick = () => { stopTimeTracking(); startTest(currentCourse.id); }; productContent.appendChild(startTestBtn); if (timeTrackingInterval) clearInterval(timeTrackingInterval); secondsSinceLastUpdate = 0; timeTrackingInterval = setInterval(() => { secondsSinceLastUpdate += 30; sendTimeUpdate(currentCourse.id, 30); }, 30000); } catch (error) { console.error('Не удалось загрузить контент курса:', error); showMessage('Ошибка при генерации контента курса.', error.message); } }
+
     chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const url = `/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`; const data = await fetchAuthenticated(url); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
-    function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
+    function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender-message}`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
     function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } } }
+
     let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0;
     const MAX_ATTEMPTS = 3;
     const MAX_TAB_SWITCHES = 2;
@@ -508,7 +531,7 @@
                 alert('Внимание! Вы переключились на другую вкладку. При повторном переключении тест будет завершен с результатом 0.');
             } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
                 alert('Вы превысили лимит переключений. Тест завершен с нулевым результатом.');
-                score = 0; // Force score to 0
+                score = 0;
                 showTestResultsView();
             }
         }
@@ -534,53 +557,28 @@
         currentQuestions = currentCourse.questions;
         currentQuestionIndex = 0;
         score = 0;
-        tabSwitchCount = 0; // Reset counter for each test
+        tabSwitchCount = 0;
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        productContent.classList.add('hidden');
-        assistantContainer.classList.add('hidden');
-        adminControls.classList.add('hidden');
+
+        document.getElementById('main-content-wrapper').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
         testView.classList.remove('hidden');
-        contentArea.innerHTML = '';
-        contentArea.appendChild(testView);
+
         displayQuestion();
     }
+
     function displayQuestion() { const nextBtn = document.getElementById('next-question-btn'); if (currentQuestionIndex < currentQuestions.length) { const q = currentQuestions[currentQuestionIndex]; document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`; document.getElementById('question').textContent = q.question; const answersDiv = document.getElementById('answers'); answersDiv.innerHTML = ''; q.options.forEach((option, index) => { const answerEl = document.createElement('div'); answerEl.className = 'answer'; answerEl.textContent = option; answerEl.dataset.index = index; answerEl.addEventListener('click', selectAnswer); answersDiv.appendChild(answerEl); }); nextBtn.classList.add('hidden'); } else { showTestResultsView(); } }
     function selectAnswer(e) { const selectedIndex = parseInt(e.target.dataset.index, 10); const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index; document.querySelectorAll('.answer').forEach(el => { el.removeEventListener('click', selectAnswer); el.style.cursor = 'default'; }); if (selectedIndex === correctIndex) { score++; e.target.style.borderColor = 'var(--success-color)'; e.target.style.backgroundColor = '#eaf7ec'; } else { e.target.style.borderColor = 'var(--error-color)'; e.target.style.backgroundColor = '#fdeeee'; const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`); if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)'; } const nextBtn = document.getElementById('next-question-btn'); nextBtn.classList.remove('hidden'); nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); }; }
     async function showTestResultsView() { document.removeEventListener('visibilitychange', handleVisibilityChange); testView.classList.add('hidden'); testResultsView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testResultsView); const percentage = Math.round((score / currentQuestions.length) * 100); document.getElementById('results-product-name').textContent = currentCourse.title; document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`; let feedback = ''; if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.'; else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.'; else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.'; document.getElementById('results-feedback').textContent = feedback; userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage }; try { await fetchAuthenticated('/.netlify/functions/saveTestResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, score: score, total_questions: currentQuestions.length, percentage: percentage }) }); } catch(error) { console.error('Не удалось сохранить результат:', error); } }
     document.addEventListener('DOMContentLoaded', () => { initAuth(); backToMenuBtn.addEventListener('click', showMainMenu); backToMenuFromResultsBtn.addEventListener('click', showMainMenu); });
 
-    // --- Simulator Logic ---
-    const simulatorView = document.getElementById('simulator-view');
-    const launchSimulatorBtn = document.getElementById('launch-simulator-btn');
-    const extraToolsDiv = document.getElementById('extra-tools');
-
-    const simulatorSetup = document.getElementById('simulator-setup');
-    const simulatorChatArea = document.getElementById('simulator-chat-area');
-    const simulatorEvaluationArea = document.getElementById('simulator-evaluation-area');
-
-    const personaSelector = document.getElementById('persona-selector');
-    const startSimulationBtn = document.getElementById('start-simulation-btn');
-
-    const simulatorChatBox = document.getElementById('simulator-chat-box');
-    const simulatorChatForm = document.getElementById('simulator-chat-form');
-    const simulatorChatInput = document.getElementById('simulator-chat-input');
-    const endSimulationBtn = document.getElementById('end-simulation-btn');
-
-    const evaluationResults = document.getElementById('evaluation-results');
-    const restartSimulationBtn = document.getElementById('restart-simulation-btn');
-
-    let simulationHistory = [];
-
     function showSimulatorView() {
         windowTitle.textContent = 'Диалоговый тренажер';
-        mainMenu.classList.add('hidden');
-        extraToolsDiv.classList.add('hidden');
-        document.getElementById('main-menu-tabs').classList.add('hidden');
-        productContent.classList.add('hidden');
+        document.getElementById('main-content-wrapper').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
         simulatorView.classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
 
-        // Reset to setup screen
         simulatorSetup.classList.remove('hidden');
         simulatorChatArea.classList.add('hidden');
         simulatorEvaluationArea.classList.add('hidden');
@@ -652,7 +650,7 @@
 
     function appendSimulatorMessage(text, role) {
         const messageDiv = document.createElement('div');
-        messageDiv.className = `chat-message ${role}-message`; // Reuse chat styles
+        messageDiv.className = `chat-message ${role-message}`;
         const textSpan = document.createElement('span');
         textSpan.textContent = text;
         messageDiv.appendChild(textSpan);
