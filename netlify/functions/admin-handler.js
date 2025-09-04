@@ -245,8 +245,12 @@ exports.handler = async (event) => {
                 result = await textToSpeech(payload);
                 break;
             case 'get_courses_admin':
-                const { data, error } = await supabase.from('courses').select('course_id, title');
-                if (error) throw error;
+                const { data, error } = await supabase.from('courses').select('*');
+                if (error) {
+                    console.error('Error fetching courses for admin:', error);
+                    throw error;
+                }
+                console.log('Courses fetched for admin:', JSON.stringify(data, null, 2));
                 result = data;
                 break;
             case 'get_course_details':
