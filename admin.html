@@ -43,8 +43,21 @@
             <button id="courses-tab-btn" class="active">Управление курсами</button>
             <button id="groups-tab-btn">Управление группами</button>
             <button id="results-tab-btn">Отчеты и Результаты</button>
+            <button id="leaderboard-tab-btn">Лидерборд</button>
         </div>
         <hr>
+
+        <div id="leaderboard-view" class="hidden">
+            <h2>Настройки Лидерборда "Топ учеников недели"</h2>
+            <p>Выберите метрики, по которым будет строиться рейтинг. Пользователи будут отсортированы по первой выбранной метрике.</p>
+            <div id="leaderboard-settings-form">
+                <label><input type="checkbox" name="metric" value="courses_completed"> Количество пройденных курсов</label><br>
+                <label><input type="checkbox" name="metric" value="time_spent"> Общее время обучения (в минутах)</label><br>
+                <label><input type="checkbox" name="metric" value="avg_score"> Средний балл по тестам</label><br>
+                <br>
+                <button id="save-leaderboard-settings-btn">Сохранить настройки</button>
+            </div>
+        </div>
 
         <div id="courses-view">
             <h2>Панель управления курсами</h2>
@@ -153,10 +166,14 @@
     const coursesView = document.getElementById('courses-view');
     const resultsView = document.getElementById('results-view');
     const groupsView = document.getElementById('groups-view');
+    const leaderboardView = document.getElementById('leaderboard-view');
+
 
     const coursesTabBtn = document.getElementById('courses-tab-btn');
     const resultsTabBtn = document.getElementById('results-tab-btn');
     const groupsTabBtn = document.getElementById('groups-tab-btn');
+    const leaderboardTabBtn = document.getElementById('leaderboard-tab-btn');
+
 
     const filterCourseSelector = document.getElementById('filter-course');
 
@@ -167,19 +184,52 @@
         activeBtn.classList.add('active');
     }
 
-    coursesTabBtn.addEventListener('click', () => switchTab(coursesView, coursesTabBtn, [groupsView, resultsView], [groupsTabBtn, resultsTabBtn]));
+    const allViews = [coursesView, resultsView, groupsView, leaderboardView];
+    const allBtns = [coursesTabBtn, resultsTabBtn, groupsTabBtn, leaderboardTabBtn];
+
+    coursesTabBtn.addEventListener('click', () => switchTab(coursesView, coursesTabBtn, allViews, allBtns));
     groupsTabBtn.addEventListener('click', () => {
-        switchTab(groupsView, groupsTabBtn, [coursesView, resultsView], [coursesTabBtn, resultsTabBtn]);
+        switchTab(groupsView, groupsTabBtn, allViews, allBtns);
         loadGroups();
         loadAllCoursesForGrouping();
     });
-
     resultsTabBtn.addEventListener('click', () => {
-        coursesView.classList.add('hidden');
-        resultsView.classList.remove('hidden');
-        coursesTabBtn.classList.remove('active');
-        resultsTabBtn.classList.add('active');
+        switchTab(resultsView, resultsTabBtn, allViews, allBtns);
         loadResults();
+    });
+    leaderboardTabBtn.addEventListener('click', () => {
+        switchTab(leaderboardView, leaderboardTabBtn, allViews, allBtns);
+        loadLeaderboardSettings();
+    });
+
+    async function loadLeaderboardSettings() {
+        showStatus('Загрузка настроек лидерборда...', 'info');
+        try {
+            const settings = await apiCall('get_leaderboard_settings');
+            // settings might be an empty object if not found, which is fine
+            const metrics = settings.metrics || { courses_completed: true, time_spent: false, avg_score: false };
+            document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = metrics[checkbox.value] || false;
+            });
+            showStatus('Настройки загружены.', 'success');
+        } catch (e) {
+            // error is handled in apiCall
+        }
+    }
+
+    document.getElementById('save-leaderboard-settings-btn').addEventListener('click', async () => {
+        const metrics = {};
+        document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(checkbox => {
+            metrics[checkbox.value] = checkbox.checked;
+        });
+
+        showStatus('Сохранение настроек...', 'info');
+        try {
+            await apiCall('save_leaderboard_settings', { metrics });
+            showStatus('Настройки успешно сохранены.', 'success');
+        } catch (e) {
+            // Error is handled in apiCall
+        }
     });
 
     async function loadResults() {

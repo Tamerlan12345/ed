@@ -55,6 +55,10 @@
                  <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo">
             </div>
             <div class="content-area" id="content-area">
+                <div id="leaderboard-container" style="margin-bottom: 25px; padding: 15px; background-color: #e9f7fe; border-radius: 8px;">
+                    <h3 style="margin-top: 0; color: var(--primary-color);">🏆 Топ Учеников Недели</h3>
+                    <div id="leaderboard-content"></div>
+                </div>
                 <div id="main-menu-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
                     <button class="tab-btn active" id="my-courses-tab">Мои курсы</button>
                     <button class="tab-btn" id="catalog-tab">Каталог курсов</button>
@@ -270,6 +274,29 @@
     });
 
 
+    async function loadLeaderboard() {
+        const leaderboardContent = document.getElementById('leaderboard-content');
+        leaderboardContent.innerHTML = '<div class="loader" style="height: 20px; width: 20px; margin: 0;"></div>';
+        try {
+            const leaderboardData = await fetchAuthenticated('/.netlify/functions/get-leaderboard');
+            if (!leaderboardData || leaderboardData.length === 0) {
+                leaderboardContent.innerHTML = '<p>На этой неделе пока нет лидеров. Станьте первым!</p>';
+                return;
+            }
+
+            let html = '<ol style="margin: 0; padding-left: 20px;">';
+            leaderboardData.forEach(user => {
+                html += `<li style="margin-bottom: 5px;"><strong>${user.full_name || 'Аноним'}</strong>: Завершено курсов: ${user.courses_completed || 0}, Время обучения: ${user.total_time_spent_minutes || 0} мин.</li>`;
+            });
+            html += '</ol>';
+            leaderboardContent.innerHTML = html;
+
+        } catch (error) {
+            console.error('Failed to load leaderboard:', error);
+            leaderboardContent.innerHTML = '<p style="color: var(--error-color);">Не удалось загрузить лидерборд.</p>';
+        }
+    }
+
     async function showMainMenu() {
         console.log('[ШАГ 5] Запуск showMainMenu для загрузки курсов.');
         stopTimeTracking(); // Ensure any running timers are stopped
@@ -284,9 +311,17 @@
         backToMenuBtn.classList.add('hidden');
         
         // Ensure the content area is visible and clear for the menu
-        contentArea.innerHTML = '';
+        // We need to re-add leaderboard container as innerHTML clears it
+        contentArea.innerHTML = `
+            <div id="leaderboard-container" style="margin-bottom: 25px; padding: 15px; background-color: #e9f7fe; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: var(--primary-color);">🏆 Топ Учеников Недели</h3>
+                <div id="leaderboard-content"></div>
+            </div>
+        `;
         contentArea.appendChild(document.getElementById('main-menu-tabs'));
         contentArea.appendChild(mainMenu);
+
+        loadLeaderboard(); // Load leaderboard data
 
         showLoader(); // Show loader inside mainMenu
         mainMenu.innerHTML = '<div class="loader"></div>';

@@ -352,6 +352,24 @@ exports.handler = async (event) => {
                 await supabase.from('course_materials').delete().eq('id', material_id);
                 result = { message: 'Материал удален.' };
                 break;
+            // --- Leaderboard Settings ---
+            case 'get_leaderboard_settings':
+                const { data: settings, error: settingsError } = await supabase
+                    .from('leaderboard_settings')
+                    .select('setting_value')
+                    .eq('setting_key', 'metrics')
+                    .single();
+                if (settingsError && settingsError.code !== 'PGRST116') throw settingsError; // Ignore 'not found'
+                result = settings ? settings.setting_value : {};
+                break;
+            case 'save_leaderboard_settings':
+                const { metrics } = payload;
+                const { error: saveError } = await supabase
+                    .from('leaderboard_settings')
+                    .upsert({ setting_key: 'metrics', setting_value: metrics });
+                if (saveError) throw saveError;
+                result = { message: 'Настройки лидерборда сохранены.' };
+                break;
             default:
                 throw new Error('Unknown action.');
         }
