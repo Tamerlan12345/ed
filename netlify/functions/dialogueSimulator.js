@@ -3,7 +3,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' }); // Using gemini-pro for better dialogue
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Using gemini-pro for better dialogue
 
 // --- Prompts for different AI personas ---
 const PERSONAS = {
