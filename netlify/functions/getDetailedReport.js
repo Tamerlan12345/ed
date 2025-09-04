@@ -36,35 +36,19 @@ exports.handler = async (event) => {
     //
 
     try {
-        let query = supabase
-            .from('user_progress')
-            .select(`
-                user_email,
-                percentage,
-                completed_at,
-                time_spent_seconds,
-                courses ( title ),
-                user_profiles!inner ( full_name, department )
-            `);
-
         const { user_email, department, course_id } = event.queryStringParameters || {};
 
-        if (user_email) {
-            query = query.ilike('user_email', `%${user_email}%`);
-        }
-        if (department) {
-            // This now works because of the inner join specified in the select
-            query = query.ilike('user_profiles.department', `%${department}%`);
-        }
-        if (course_id) {
-            query = query.eq('course_id', course_id);
-        }
-
-        const { data, error } = await query;
+        // Call the RPC function with the filter parameters.
+        // This is more robust than building a complex join in JS.
+        const { data, error } = await supabase.rpc('get_detailed_report_data', {
+            user_email_filter: user_email,
+            department_filter: department,
+            course_id_filter: course_id
+        });
 
         if (error) {
             // Log the detailed error on the server
-            console.error('Supabase query error:', error);
+            console.error('Supabase RPC error:', error);
             // Return a generic error to the client
             return { statusCode: 500, body: JSON.stringify({ error: 'Failed to fetch report data.' }) };
         }
