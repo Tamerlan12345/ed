@@ -382,6 +382,7 @@
         showStatus(`Удаление курса ${courseId}...`, 'info');
         try {
             const productLine = document.getElementById('course-product-line').value.trim();
+            const productLineValue = document.getElementById('course-product-line').value.trim();
             const response = await fetch('/.netlify/functions/admin-handler', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
@@ -593,7 +594,7 @@
                     content_html: content_html,
                     questions: questions,
                     admin_prompt: document.getElementById('custom-prompt').value,
-                    product_line: productLine
+                    product_line: productLineValue
                 })
             });
 
