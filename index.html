@@ -650,7 +650,47 @@
 
     function displayQuestion() { const nextBtn = document.getElementById('next-question-btn'); if (currentQuestionIndex < currentQuestions.length) { const q = currentQuestions[currentQuestionIndex]; document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`; document.getElementById('question').textContent = q.question; const answersDiv = document.getElementById('answers'); answersDiv.innerHTML = ''; q.options.forEach((option, index) => { const answerEl = document.createElement('div'); answerEl.className = 'answer'; answerEl.textContent = option; answerEl.dataset.index = index; answerEl.addEventListener('click', selectAnswer); answersDiv.appendChild(answerEl); }); nextBtn.classList.add('hidden'); } else { showTestResultsView(); } }
     function selectAnswer(e) { const selectedIndex = parseInt(e.target.dataset.index, 10); const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index; document.querySelectorAll('.answer').forEach(el => { el.removeEventListener('click', selectAnswer); el.style.cursor = 'default'; }); if (selectedIndex === correctIndex) { score++; e.target.style.borderColor = 'var(--success-color)'; e.target.style.backgroundColor = '#eaf7ec'; } else { e.target.style.borderColor = 'var(--error-color)'; e.target.style.backgroundColor = '#fdeeee'; const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`); if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)'; } const nextBtn = document.getElementById('next-question-btn'); nextBtn.classList.remove('hidden'); nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); }; }
-    async function showTestResultsView() { document.removeEventListener('visibilitychange', handleVisibilityChange); testView.classList.add('hidden'); testResultsView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testResultsView); const percentage = Math.round((score / currentQuestions.length) * 100); document.getElementById('results-product-name').textContent = currentCourse.title; document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`; let feedback = ''; if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.'; else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.'; else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.'; document.getElementById('results-feedback').textContent = feedback; userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage }; try { await fetchAuthenticated('/.netlify/functions/saveTestResult', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, score: score, total_questions: currentQuestions.length, percentage: percentage }) }); } catch(error) { console.error('Не удалось сохранить результат:', error); } }
+    async function showTestResultsView() {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+        // Hide other views
+        testView.classList.add('hidden');
+        document.getElementById('main-content-wrapper').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
+
+        // Show the results view
+        testResultsView.classList.remove('hidden');
+
+        const percentage = Math.round((score / currentQuestions.length) * 100);
+        document.getElementById('results-product-name').textContent = currentCourse.title;
+        document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`;
+        let feedback = '';
+        if (percentage >= 80) {
+            feedback = 'Отличный результат! Материал усвоен.';
+        } else if (percentage >= 60) {
+            feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.';
+        } else {
+            feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.';
+        }
+        document.getElementById('results-feedback').textContent = feedback;
+
+        userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage };
+
+        try {
+            await fetchAuthenticated('/.netlify/functions/saveTestResult', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    course_id: currentCourse.id,
+                    score: score,
+                    total_questions: currentQuestions.length,
+                    percentage: percentage
+                })
+            });
+        } catch(error) {
+            console.error('Не удалось сохранить результат:', error);
+        }
+    }
     document.addEventListener('DOMContentLoaded', () => { initAuth(); backToMenuBtn.addEventListener('click', showMainMenu); backToMenuFromResultsBtn.addEventListener('click', showMainMenu); });
 
     function showSimulatorView() {
