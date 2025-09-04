@@ -10,3 +10,7 @@
 
 [functions."admin-handler"]
   timeout = 60
+
+[functions.schedule]
+  # Run the send-reminders function once a day at midnight UTC
+  "send-reminders" = "0 0 * * *"
