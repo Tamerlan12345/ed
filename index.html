@@ -157,9 +157,22 @@
     const notificationsBadge = document.getElementById('notifications-badge');
     const notificationsPanel = document.getElementById('notifications-panel');
     const notificationsList = document.getElementById('notifications-list');
+
+    // --- Simulator UI Elements ---
     const simulatorView = document.getElementById('simulator-view');
     const launchSimulatorBtn = document.getElementById('launch-simulator-btn');
     const extraToolsDiv = document.getElementById('extra-tools');
+    const simulatorSetup = document.getElementById('simulator-setup');
+    const simulatorChatArea = document.getElementById('simulator-chat-area');
+    const simulatorEvaluationArea = document.getElementById('simulator-evaluation-area');
+    const personaSelector = document.getElementById('persona-selector');
+    const startSimulationBtn = document.getElementById('start-simulation-btn');
+    const simulatorChatBox = document.getElementById('simulator-chat-box');
+    const simulatorChatForm = document.getElementById('simulator-chat-form');
+    const simulatorChatInput = document.getElementById('simulator-chat-input');
+    const endSimulationBtn = document.getElementById('end-simulation-btn');
+    const evaluationResults = document.getElementById('evaluation-results');
+    const restartSimulationBtn = document.getElementById('restart-simulation-btn');
 
     function showLoader() { contentArea.innerHTML = '<div class="loader"></div>'; }
     function showMessage(message, details = '') { contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`; }
