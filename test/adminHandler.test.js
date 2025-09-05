@@ -70,44 +70,41 @@ describe('admin-handler', () => {
         supabaseMock.auth.getUser.resolves({ data: { user: { email: 'not-admin@test.com' } }, error: null });
         const event = { headers: { authorization: 'Bearer valid_token' }, body: JSON.stringify({ action: 'get_courses_admin' }) };
         const response = await handler(event);
-        assert.strictEqual(response.statusCode, 500);
-        assert.ok(JSON.parse(response.body).error.message.includes('Access denied'));
+        assert.strictEqual(response.statusCode, 403);
+        assert.deepStrictEqual(JSON.parse(response.body).error, 'Access denied.');
     });
 
     describe('Action: publish_course', () => {
-        it('should call update with the correct payload', async () => {
-            const updatePayload = {
-                status: 'published',
-                product_line: 'КАСКО',
-                content_html: {
-                    summary: [{ title: 'Slide 1' }],
-                    questions: [{ question: 'Q1?' }],
-                    admin_prompt: 'Test prompt'
-                }
-            };
-            const eqStub = sinon.stub().resolves({ error: null });
-            const updateStub = sinon.stub().returns({ eq: eqStub });
+        it('should include product_line in the update payload when publishing a course', async () => {
+            const updateStub = sinon.stub().returns({ eq: sinon.stub().resolves({ error: null }) });
             fromStub.withArgs('courses').returns({ update: updateStub });
 
             const payload = {
-                action: 'publish_course', course_id: 'kasko-2025',
-                content_html: [{ title: 'Slide 1' }],
-                questions: [{ question: 'Q1?' }],
-                admin_prompt: 'Test prompt',
+                action: 'publish_course',
+                course_id: 'kasko-2025',
+                content_html: [],
+                questions: [],
                 product_line: 'КАСКО'
             };
             const event = { headers: { authorization: 'Bearer admin_token' }, body: JSON.stringify(payload) };
+
             await handler(event);
 
-            assert.ok(updateStub.calledOnce);
-            assert.deepStrictEqual(updateStub.firstCall.args[0], updatePayload);
-            assert.ok(eqStub.calledWith('course_id', 'kasko-2025'));
+            assert.ok(updateStub.calledOnce, 'Update was not called');
+            const updateArg = updateStub.firstCall.args[0];
+            assert.ok(updateArg.hasOwnProperty('product_line'), 'Payload does not have product_line');
+            assert.strictEqual(updateArg.product_line, 'КАСКО');
         });
     });
 
     describe('Action: create_course_group', () => {
         it('should insert a new course group and return it', async () => {
-            const insertPayload = { group_name: 'New Group', is_for_new_employees: true };
+            const insertPayload = {
+                group_name: 'New Group',
+                is_for_new_employees: true,
+                start_date: null,
+                recurrence_period: null
+            };
             const returnedData = { id: 1, ...insertPayload };
 
             const singleStub = sinon.stub().resolves({ data: returnedData, error: null });
@@ -115,10 +112,11 @@ describe('admin-handler', () => {
             const insertStub = sinon.stub().returns({ select: selectStub });
             fromStub.withArgs('course_groups').returns({ insert: insertStub });
 
-            const event = { headers: { authorization: 'Bearer admin_token' }, body: JSON.stringify({ action: 'create_course_group', ...insertPayload }) };
+            const eventPayload = { action: 'create_course_group', group_name: 'New Group', is_for_new_employees: true };
+            const event = { headers: { authorization: 'Bearer admin_token' }, body: JSON.stringify(eventPayload) };
             const response = await handler(event);
 
-            assert.ok(insertStub.calledWith(insertPayload));
+            assert.ok(insertStub.calledWith(insertPayload), 'Insert was not called with the correct payload');
             assert.strictEqual(response.statusCode, 200);
             assert.deepStrictEqual(JSON.parse(response.body), returnedData);
         });

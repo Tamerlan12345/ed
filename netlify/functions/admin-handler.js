@@ -140,12 +140,18 @@ async function textToSpeech(supabase, payload) {
 }
 
 async function publishCourse(supabase, payload) {
-    const { course_id, content_html, questions, admin_prompt } = payload;
+    const { course_id, content_html, questions, admin_prompt, product_line } = payload;
     const courseContent = { summary: content_html, questions: questions, admin_prompt: admin_prompt || '' };
-    const { error } = await supabase.from('courses').update({
+    const updateData = {
         content_html: courseContent,
         status: 'published'
-    }).eq('course_id', course_id);
+    };
+
+    if (product_line) {
+        updateData.product_line = product_line;
+    }
+
+    const { error } = await supabase.from('courses').update(updateData).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
 }
