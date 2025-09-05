@@ -323,7 +323,7 @@
             showStatus('Ошибка: вы не авторизованы.', 'error');
             throw new Error('Not authorized');
         }
-        const response = await fetch('/.netlify/functions/admin-handler', {
+        const response = await fetch('/.netlify/functions/admin', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, ...payload })
