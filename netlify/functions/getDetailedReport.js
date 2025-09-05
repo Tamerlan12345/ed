@@ -28,18 +28,24 @@ function convertToCSV(data) {
 }
 
 exports.handler = async (event) => {
-    //
-    // Security check: This is a privileged function. Ensure only admins can call it.
-    // In a real app, you'd use a more robust RBAC check here.
-    // For now, we rely on the obscurity of the function URL and the admin-only frontend.
-    // A proper check would involve validating an admin JWT.
-    //
-
     try {
+        // Proper security check for an admin-only function
+        const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+        const authHeader = event.headers.authorization;
+        if (!authHeader) {
+            return { statusCode: 401, body: JSON.stringify({ error: 'Authorization header is missing.' }) };
+        }
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await anonSupabase.auth.getUser(token);
+
+        if (authError || !user || user.email.toLowerCase() !== 'admin@cic.kz') {
+            return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
+        }
+
         const { user_email, department, course_id } = event.queryStringParameters || {};
 
         // Call the RPC function with the filter parameters.
-        // This is more robust than building a complex join in JS.
+        // The main 'supabase' client uses the SERVICE_ROLE_KEY to bypass RLS for reporting.
         const { data, error } = await supabase.rpc('get_detailed_report_data', {
             user_email_filter: user_email,
             department_filter: department,

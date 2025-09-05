@@ -12,7 +12,7 @@ const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // All helper functions that interact with Supabase now accept an authenticated client
 async function uploadAndProcessFile(supabase, payload) {
-    const { course_id, title, product_line, file_name, file_data } = payload;
+    const { course_id, title, file_name, file_data } = payload;
     const buffer = Buffer.from(file_data, 'base64');
     let textContent = '';
 
@@ -40,7 +40,6 @@ async function uploadAndProcessFile(supabase, payload) {
         .upsert({
             course_id: course_id,
             title: title,
-            product_line: product_line,
             source_text: textContent,
             status: 'processed'
         }, { onConflict: 'course_id' });
@@ -97,7 +96,12 @@ async function generateContent(supabase, payload) {
             const response = await result.response;
             const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
             const parsedJson = JSON.parse(jsonString);
-            return parsedJson;
+
+            // Ensure the response has the expected structure to prevent 'undefined' on the frontend.
+            return {
+                summary: parsedJson.summary || [],
+                questions: parsedJson.questions || []
+            };
 
         } catch (e) {
             lastError = e;
@@ -136,12 +140,11 @@ async function textToSpeech(supabase, payload) {
 }
 
 async function publishCourse(supabase, payload) {
-    const { course_id, content_html, questions, admin_prompt, product_line } = payload;
+    const { course_id, content_html, questions, admin_prompt } = payload;
     const courseContent = { summary: content_html, questions: questions, admin_prompt: admin_prompt || '' };
     const { error } = await supabase.from('courses').update({
         content_html: courseContent,
-        status: 'published',
-        product_line: product_line
+        status: 'published'
     }).eq('course_id', course_id);
     if (error) throw error;
     return { message: `Course ${course_id} successfully published.` };
@@ -288,6 +291,31 @@ exports.handler = async (event) => {
                     const { data: simData, error: simError } = await supabase.rpc('get_simulation_results');
                     if (simError) throw simError;
                     result = simData;
+                    break;
+                // --- Student Management ---
+                case 'get_all_users':
+                    // This requires service role to bypass RLS and get all users.
+                    const { data: users, error: usersError } = await supabaseServiceRole
+                        .from('users')
+                        .select('id, email, raw_user_meta_data, user_profiles(full_name, department)')
+                        .eq('role', 'authenticated'); // or whatever role your users have
+                    if (usersError) throw usersError;
+                    result = users.map(u => ({
+                        id: u.id,
+                        email: u.email,
+                        full_name: u.user_profiles?.full_name || u.raw_user_meta_data?.full_name || 'N/A',
+                        department: u.user_profiles?.department || 'N/A'
+                    }));
+                    break;
+                case 'assign_course_to_user':
+                    const { user_email, course_id } = payload;
+                    if (!user_email || !course_id) throw new Error('user_email and course_id are required.');
+                    // Use service role to assign course, bypassing RLS.
+                    const { error: assignError } = await supabaseServiceRole
+                        .from('user_progress')
+                        .upsert({ user_email, course_id }, { onConflict: 'user_email, course_id', ignoreDuplicates: true });
+                    if (assignError) throw assignError;
+                    result = { message: `Course ${course_id} assigned to ${user_email}.` };
                     break;
                 default:
                     throw new Error(`Unknown action: ${payload.action}`);
