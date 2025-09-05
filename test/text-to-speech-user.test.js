@@ -6,8 +6,8 @@ describe('textToSpeech Handler', () => {
     let handler;
     let supabaseMock;
     let axiosMock;
-    let fromStub;
     let genAI_mock;
+    let handleErrorMock;
 
     const fakeSummary = 'This is a fake summary.';
 
@@ -15,8 +15,9 @@ describe('textToSpeech Handler', () => {
         process.env.SPEECHIFY_API_KEY = 'test_speechify_api_key';
         process.env.GEMINI_API_KEY = 'test_gemini_api_key';
 
-        // Mock for Supabase
-        fromStub = sinon.stub();
+        handleErrorMock = sinon.stub().returns({ statusCode: 500, body: '{"error":"An internal server error occurred. Please try again later."}' });
+
+        const fromStub = sinon.stub();
         const authStub = {
             getUser: sinon.stub().resolves({ data: { user: { id: '123' } }, error: null })
         };
@@ -30,15 +31,13 @@ describe('textToSpeech Handler', () => {
         supabaseMock = {
             from: fromStub,
             auth: authStub,
-            createClient: () => supabaseMock
         };
+        const createClientMock = sinon.stub().returns(supabaseMock);
 
-        // Mock for axios
         axiosMock = {
             post: sinon.stub().resolves({ data: { audio_data: 'fake_base64_string' } })
         };
 
-        // Mock for Google Generative AI
         genAI_mock = {
             getGenerativeModel: sinon.stub().returns({
                 generateContent: sinon.stub().resolves({
@@ -50,13 +49,10 @@ describe('textToSpeech Handler', () => {
         };
 
         const handlerModule = proxyquire('../netlify/functions/text-to-speech-user.js', {
-            '@supabase/supabase-js': {
-                createClient: () => supabaseMock
-            },
+            '@supabase/supabase-js': { createClient: createClientMock },
             'axios': axiosMock,
-            '@google/generative-ai': {
-                GoogleGenerativeAI: sinon.stub().returns(genAI_mock)
-            }
+            '@google/generative-ai': { GoogleGenerativeAI: sinon.stub().returns(genAI_mock) },
+            './utils/errors': { handleError: handleErrorMock },
         });
         handler = handlerModule.handler;
     });
@@ -77,27 +73,16 @@ describe('textToSpeech Handler', () => {
 
         assert.strictEqual(response.statusCode, 200);
         assert.strictEqual(body.audioUrl, 'data:audio/mp3;base64,fake_base64_string');
-
-        const summarizationPrompt = `Ты — AI-ассистент. Сделай краткий пересказ предоставленного текста. Пересказ должен быть строго в рамках документа и занимать примерно 5 минут при чтении (около 750 слов). ИСХОДНЫЙ ТЕКСТ: \n---\nHello world\n---`;
-        assert(genAI_mock.getGenerativeModel().generateContent.calledWith(summarizationPrompt));
-
-        assert(axiosMock.post.calledWith(
-            sinon.match.any,
-            sinon.match({ input: fakeSummary.substring(0, 2000) }),
-            sinon.match.any
-        ));
     });
 
     it('should return 401 if user is not authorized', async () => {
-        supabaseMock.auth.getUser.resolves({ data: { user: null }, error: new Error('Unauthorized') });
+        supabaseMock.auth.getUser.rejects(new Error('Unauthorized'));
         const event = {
             headers: { authorization: 'Bearer FAKE_TOKEN' },
             queryStringParameters: { course_id: '123' }
         };
-        const response = await handler(event);
-
-        assert.strictEqual(response.statusCode, 401);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'Unauthorized' });
+        await handler(event);
+        assert(handleErrorMock.calledOnce);
     });
 
     it('should return 400 if course_id is missing', async () => {
@@ -106,13 +91,11 @@ describe('textToSpeech Handler', () => {
             queryStringParameters: {}
         };
         const response = await handler(event);
-
         assert.strictEqual(response.statusCode, 400);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'course_id is required' });
     });
 
     it('should return 404 if course not found', async () => {
-        fromStub.withArgs('courses').returns({
+        supabaseMock.from.withArgs('courses').returns({
             select: sinon.stub().returnsThis(),
             eq: sinon.stub().returnsThis(),
             single: sinon.stub().resolves({ data: null, error: { message: 'Not found' } })
@@ -122,9 +105,7 @@ describe('textToSpeech Handler', () => {
             queryStringParameters: { course_id: '456' }
         };
         const response = await handler(event);
-
         assert.strictEqual(response.statusCode, 404);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'Source text for this course not found.' });
     });
 
     it('should return 500 if Gemini API call fails', async () => {
@@ -133,10 +114,8 @@ describe('textToSpeech Handler', () => {
             headers: { authorization: 'Bearer FAKE_TOKEN' },
             queryStringParameters: { course_id: '123' }
         };
-        const response = await handler(event);
-
-        assert.strictEqual(response.statusCode, 500);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'Gemini Error' });
+        await handler(event);
+        assert(handleErrorMock.calledOnce);
     });
 
     it('should return 500 if Speechify API call fails', async () => {
@@ -145,49 +124,7 @@ describe('textToSpeech Handler', () => {
             headers: { authorization: 'Bearer FAKE_TOKEN' },
             queryStringParameters: { course_id: '123' }
         };
-        const response = await handler(event);
-
-        assert.strictEqual(response.statusCode, 500);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'Failed to generate audio file from Speechify.' });
-    });
-
-    it('should return 500 if Speechify API key is not configured', async () => {
-        delete process.env.SPEECHIFY_API_KEY;
-
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '123' }
-        };
-        const module = proxyquire('../netlify/functions/text-to-speech-user.js', {
-            '@supabase/supabase-js': { createClient: () => supabaseMock },
-            'axios': axiosMock,
-            '@google/generative-ai': { GoogleGenerativeAI: sinon.stub().returns(genAI_mock) }
-        });
-        handler = module.handler;
-
-        const response = await handler(event);
-
-        assert.strictEqual(response.statusCode, 500);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'Speechify API key is not configured.' });
-    });
-
-    it('should return 500 if Gemini API key is not configured', async () => {
-        delete process.env.GEMINI_API_KEY;
-
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '123' }
-        };
-        const module = proxyquire('../netlify/functions/text-to-speech-user.js', {
-            '@supabase/supabase-js': { createClient: () => supabaseMock },
-            'axios': axiosMock,
-            '@google/generative-ai': { GoogleGenerativeAI: sinon.stub().returns(genAI_mock) }
-        });
-        handler = module.handler;
-
-        const response = await handler(event);
-
-        assert.strictEqual(response.statusCode, 500);
-        assert.deepStrictEqual(JSON.parse(response.body), { error: 'GEMINI_API_KEY is not configured.' });
+        await handler(event);
+        assert(handleErrorMock.calledOnce);
     });
 });

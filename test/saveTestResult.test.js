@@ -4,10 +4,17 @@ const proxyquire = require('proxyquire');
 
 describe('saveTestResult Handler', () => {
     let handler;
-    let supabaseMock, fromStub;
+    let supabaseMock;
+    let handleErrorMock;
+    let fromStub;
 
     beforeEach(() => {
+        handleErrorMock = sinon.stub().returns({ statusCode: 500, body: '{"error":"An internal server error occurred. Please try again later."}' });
+
         fromStub = sinon.stub();
+        const authStub = {
+            getUser: sinon.stub().resolves({ data: { user: { email: 'test@test.com' } }, error: null })
+        };
 
         const singleStub = sinon.stub().resolves({ data: null, error: null });
         const eqStub2 = sinon.stub().returns({ maybeSingle: singleStub });
@@ -16,7 +23,7 @@ describe('saveTestResult Handler', () => {
         const updateStub = sinon.stub().returns({ eq: sinon.stub().resolves({ error: null }) });
         const insertStub = sinon.stub().resolves({ error: null });
 
-        fromStub.returns({
+        fromStub.withArgs('user_progress').returns({
             select: selectStub,
             update: updateStub,
             insert: insertStub,
@@ -24,13 +31,13 @@ describe('saveTestResult Handler', () => {
 
         supabaseMock = {
             from: fromStub,
-            auth: {
-                getUser: sinon.stub().resolves({ data: { user: { email: 'test@test.com' } }, error: null })
-            }
+            auth: authStub,
         };
+        const createClientMock = sinon.stub().returns(supabaseMock);
 
         const module = proxyquire('../netlify/functions/saveTestResult.js', {
-            '@supabase/supabase-js': { createClient: () => supabaseMock }
+            '@supabase/supabase-js': { createClient: createClientMock },
+            './utils/errors': { handleError: handleErrorMock },
         });
         handler = module.handler;
     });
@@ -56,9 +63,12 @@ describe('saveTestResult Handler', () => {
         const singleStub = sinon.stub().resolves({ data: existingRecord, error: null });
         const eqStub2 = sinon.stub().returns({ maybeSingle: singleStub });
         const eqStub1 = sinon.stub().returns({ eq: eqStub2 });
-        const selectStub = sinon.stub().returns({ eq: eqStub1 });
         const updateStub = sinon.stub().returns({ eq: sinon.stub().resolves({ error: null }) });
-        fromStub.withArgs('user_progress').returns({ select: selectStub, update: updateStub, insert: fromStub.returns.insert });
+        fromStub.withArgs('user_progress').returns({
+            ...fromStub.withArgs('user_progress')._originalValue,
+            select: sinon.stub().returns({ eq: eqStub1 }),
+            update: updateStub,
+        });
 
 
         const event = {
@@ -95,11 +105,9 @@ describe('saveTestResult Handler', () => {
     });
 
     it('should handle database errors', async () => {
-        const insertStub = sinon.stub().resolves({ error: { message: 'DB Error' } });
         fromStub.withArgs('user_progress').returns({
-            select: fromStub.returns.select,
-            update: fromStub.returns.update,
-            insert: insertStub
+            ...fromStub.withArgs('user_progress')._originalValue,
+            insert: sinon.stub().rejects(new Error('DB Error')),
         });
 
         const event = {
@@ -107,7 +115,7 @@ describe('saveTestResult Handler', () => {
             headers: { authorization: 'Bearer valid_token' },
             body: JSON.stringify({ course_id: 'test-course', score: 10, total_questions: 10, percentage: 100 })
         };
-        const response = await handler(event);
-        assert.strictEqual(response.statusCode, 500);
+        await handler(event);
+        assert(handleErrorMock.calledOnce);
     });
 });

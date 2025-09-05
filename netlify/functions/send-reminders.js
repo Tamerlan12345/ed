@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { handleError } = require('./utils/errors');
 
 // This function requires the SERVICE_ROLE_KEY to bypass RLS and insert notifications for any user.
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -22,7 +23,6 @@ exports.handler = async (event) => {
             .lte('created_at', sevenDaysAgo.toISOString()); // assigned on or before 7 days ago
 
         if (progressError) {
-            console.error('Error fetching incomplete progress:', progressError);
             throw progressError;
         }
 
@@ -50,7 +50,6 @@ exports.handler = async (event) => {
             .insert(notificationsToInsert);
 
         if (insertError) {
-            console.error('Error inserting notifications:', insertError);
             throw insertError;
         }
 
@@ -58,7 +57,6 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: `Inserted ${notificationsToInsert.length} reminders.` };
 
     } catch (error) {
-        console.error('Error in send-reminders function:', error.message);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return handleError(error, 'send-reminders');
     }
 };

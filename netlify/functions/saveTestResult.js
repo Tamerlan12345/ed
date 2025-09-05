@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { handleError } = require('./utils/errors');
 
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') {
@@ -38,7 +39,6 @@ exports.handler = async (event) => {
             .maybeSingle();
 
         if (selectError) {
-            console.error('Supabase select error:', selectError);
             throw selectError;
         }
 
@@ -56,7 +56,6 @@ exports.handler = async (event) => {
                 .eq('id', existingRecord.id);
 
             if (updateError) {
-                console.error('Supabase update error:', updateError);
                 throw updateError;
             }
         } else {
@@ -74,7 +73,6 @@ exports.handler = async (event) => {
                 });
 
             if (insertError) {
-                console.error('Supabase insert error:', insertError);
                 throw insertError;
             }
         }
@@ -82,7 +80,6 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ message: 'Результат успешно сохранен' }) };
 
     } catch (error) {
-        console.error('Error in saveTestResult handler:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: 'Не удалось сохранить результат. ' + error.message }) };
+        return handleError(error, 'saveTestResult');
     }
 };

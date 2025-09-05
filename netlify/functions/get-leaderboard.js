@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { handleError } = require('./utils/errors');
 
 exports.handler = async (event) => {
     // This function can be called by any authenticated user.
@@ -43,9 +44,7 @@ exports.handler = async (event) => {
         });
 
         if (rpcError) {
-            console.error('Error calling get_weekly_leaderboard RPC:', rpcError);
-            const errorMessage = rpcError.message || 'An unknown database error occurred.';
-            throw new Error(`Could not retrieve leaderboard data: ${errorMessage}`);
+            throw rpcError;
         }
 
         return {
@@ -54,7 +53,6 @@ exports.handler = async (event) => {
         };
 
     } catch (error) {
-        console.error('Handler error:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return handleError(error, 'get-leaderboard');
     }
 };

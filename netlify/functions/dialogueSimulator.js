@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { handleError } = require('./utils/errors');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -110,7 +111,6 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ answer }) };
 
     } catch (error) {
-        console.error('Error in dialogueSimulator:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return handleError(error, 'dialogueSimulator');
     }
 };

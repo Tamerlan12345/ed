@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const { handleError } = require('./utils/errors');
+const { isAuthorized } = require('./utils/auth');
 
 // This function requires the SERVICE_ROLE_KEY to bypass RLS and join user profiles.
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -29,7 +31,6 @@ function convertToCSV(data) {
 
 exports.handler = async (event) => {
     try {
-        // Proper security check for an admin-only function
         const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
         const authHeader = event.headers.authorization;
         if (!authHeader) {
@@ -38,7 +39,23 @@ exports.handler = async (event) => {
         const token = authHeader.split(' ')[1];
         const { data: { user }, error: authError } = await anonSupabase.auth.getUser(token);
 
-        if (authError || !user || user.email.toLowerCase() !== 'admin@cic.kz') {
+        if (authError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+        }
+
+        const supabase_user = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_ANON_KEY,
+            { global: { headers: { Authorization: `Bearer ${token}` } } }
+        );
+
+        const { data: roles, error: rolesError } = await supabase_user.rpc('get_my_roles');
+
+        if (rolesError) {
+            throw rolesError;
+        }
+
+        if (!isAuthorized(roles, ['admin', 'editor', 'viewer'])) {
             return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
         }
 
@@ -53,11 +70,7 @@ exports.handler = async (event) => {
         });
 
         if (error) {
-            // Log the detailed error on the server
-            console.error('Supabase RPC error:', error);
-            // Return a more detailed error to the client for debugging
-            const errorMessage = error.message || 'An unknown database error occurred.';
-            return { statusCode: 500, body: JSON.stringify({ error: `Failed to fetch report data: ${errorMessage}` }) };
+            throw error;
         }
 
         const { format } = event.queryStringParameters || {};
@@ -83,7 +96,6 @@ exports.handler = async (event) => {
             };
         }
     } catch (error) {
-        console.error('Handler error:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: 'An unexpected error occurred.' }) };
+        return handleError(error, 'getDetailedReport');
     }
 };

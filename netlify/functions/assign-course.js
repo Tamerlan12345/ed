@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { handleError } = require('./utils/errors');
 
 exports.handler = async (event) => {
     // 1. Check for POST request
@@ -37,13 +38,7 @@ exports.handler = async (event) => {
             });
 
         if (insertError) {
-            // Log the actual error on the server
-            console.error('Supabase insert error:', insertError);
-            // Return a more specific error to the client for better debugging
-            return { statusCode: 500, body: JSON.stringify({
-                error: `Could not assign course. Database error: ${insertError.message}`,
-                details: insertError.details
-            }) };
+            throw insertError;
         }
 
         // 5. Return success
@@ -53,7 +48,6 @@ exports.handler = async (event) => {
         };
 
     } catch (error) {
-        console.error('Handler error:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return handleError(error, 'assign-course');
     }
 };
