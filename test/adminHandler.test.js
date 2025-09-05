@@ -74,28 +74,6 @@ describe('admin-handler', () => {
         assert.deepStrictEqual(JSON.parse(response.body).error, 'Access denied.');
     });
 
-    describe('Action: publish_course', () => {
-        it('should include product_line in the update payload when publishing a course', async () => {
-            const updateStub = sinon.stub().returns({ eq: sinon.stub().resolves({ error: null }) });
-            fromStub.withArgs('courses').returns({ update: updateStub });
-
-            const payload = {
-                action: 'publish_course',
-                course_id: 'kasko-2025',
-                content_html: [],
-                questions: [],
-                product_line: 'КАСКО'
-            };
-            const event = { headers: { authorization: 'Bearer admin_token' }, body: JSON.stringify(payload) };
-
-            await handler(event);
-
-            assert.ok(updateStub.calledOnce, 'Update was not called');
-            const updateArg = updateStub.firstCall.args[0];
-            assert.ok(updateArg.hasOwnProperty('product_line'), 'Payload does not have product_line');
-            assert.strictEqual(updateArg.product_line, 'КАСКО');
-        });
-    });
 
     describe('Action: create_course_group', () => {
         it('should insert a new course group and return it', async () => {

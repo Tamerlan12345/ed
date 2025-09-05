@@ -140,16 +140,12 @@ async function textToSpeech(supabase, payload) {
 }
 
 async function publishCourse(supabase, payload) {
-    const { course_id, content_html, questions, admin_prompt, product_line } = payload;
+    const { course_id, content_html, questions, admin_prompt } = payload;
     const courseContent = { summary: content_html, questions: questions, admin_prompt: admin_prompt || '' };
     const updateData = {
         content_html: courseContent,
         status: 'published'
     };
-
-    if (product_line) {
-        updateData.product_line = product_line;
-    }
 
     const { error } = await supabase.from('courses').update(updateData).eq('course_id', course_id);
     if (error) throw error;
@@ -285,7 +281,8 @@ exports.handler = async (event) => {
                 case 'get_leaderboard_settings':
                     const { data: s, error: se2 } = await supabase.from('leaderboard_settings').select('setting_value').eq('setting_key', 'metrics').single();
                     if (se2 && se2.code !== 'PGRST116') throw se2;
-                    result = s ? s.setting_value : {};
+                    // Ensure we always return an object, even if setting_value is null.
+                    result = s?.setting_value || {};
                     break;
                 case 'save_leaderboard_settings':
                     const { error: se3 } = await supabase.from('leaderboard_settings').upsert({ setting_key: 'metrics', setting_value: payload.metrics });
@@ -294,18 +291,46 @@ exports.handler = async (event) => {
                     break;
                 // --- Simulator Results ---
                 case 'get_simulation_results':
-                    const { data: simData, error: simError } = await supabase.rpc('get_simulation_results');
-                    if (simError) throw simError;
-                    result = simData;
+                    const { data: sims, error: simsError } = await supabase.from('dialogue_simulations').select('*').order('created_at', { ascending: false });
+                    if (simsError) throw simsError;
+                    if (!sims || sims.length === 0) {
+                        result = [];
+                        break;
+                    }
+
+                    const simUserIds = [...new Set(sims.map(s => s.user_id))];
+
+                    // Use service role client to fetch user emails
+                    const { data: usersData, error: usersError } = await supabaseServiceRole
+                        .from('users')
+                        .select('id, email')
+                        .in('id', simUserIds);
+                    if (usersError) throw usersError;
+
+                    // Use regular client to fetch profiles (respects RLS, but might be needed if service role can't access it)
+                    const { data: simProfiles, error: simProfilesError } = await supabase
+                        .from('user_profiles')
+                        .select('id, full_name')
+                        .in('id', simUserIds);
+                    if (simProfilesError) throw simProfilesError;
+
+                    const simUserMap = new Map(usersData.map(u => [u.id, u.email]));
+                    const simProfileMap = new Map(simProfiles.map(p => [p.id, p.full_name]));
+
+                    result = sims.map(sim => ({
+                        ...sim,
+                        user_email: simUserMap.get(sim.user_id) || 'Unknown',
+                        full_name: simProfileMap.get(sim.user_id) || 'Unknown'
+                    }));
                     break;
                 // --- Student Management ---
                 case 'get_all_users':
                     // This requires service role to bypass RLS and get all users.
-                    const { data: users, error: usersError } = await supabaseServiceRole
+                    const { data: users, error: getAllUsersError } = await supabaseServiceRole
                         .from('users')
                         .select('id, email, raw_user_meta_data, user_profiles(full_name, department)')
                         .eq('role', 'authenticated'); // or whatever role your users have
-                    if (usersError) throw usersError;
+                    if (getAllUsersError) throw getAllUsersError;
                     result = users.map(u => ({
                         id: u.id,
                         email: u.email,
