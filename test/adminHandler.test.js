@@ -45,7 +45,8 @@ describe('admin-handler', () => {
         supabaseMock = {
             from: fromStub,
             storage: { from: storageStub },
-            auth: { getUser: sinon.stub().resolves({ data: { user: { email: 'admin@cic.kz' } }, error: null }) }
+            auth: { getUser: sinon.stub().resolves({ data: { user: { email: 'admin@cic.kz' } }, error: null }) },
+            rpc: sinon.stub() // Add the rpc stub here
         };
 
         // Other mocks
@@ -194,10 +195,9 @@ describe('admin-handler', () => {
 
     describe('User Management', () => {
         it('should get all users', async () => {
-            const users = [{ id: '1', email: 'test@test.com', user_profiles: { full_name: 'Test User', department: 'IT' } }];
-            const eqStub = sinon.stub().resolves({ data: users, error: null });
-            const selectStub = sinon.stub().returns({ eq: eqStub });
-            fromStub.withArgs('users').returns({ select: selectStub });
+            // Mock the new RPC call
+            const users = [{ id: '1', email: 'test@test.com', full_name: 'Test User', department: 'IT' }];
+            supabaseMock.rpc.withArgs('get_all_users_with_profiles').resolves({ data: users, error: null });
 
             const event = {
                 headers: { authorization: 'Bearer admin_token' },
@@ -205,8 +205,10 @@ describe('admin-handler', () => {
             };
             const response = await handler(event);
 
-            assert.strictEqual(response.statusCode, 200);
-            assert.deepStrictEqual(JSON.parse(response.body)[0].full_name, 'Test User');
+            assert.strictEqual(response.statusCode, 200, `Expected status 200 but got ${response.statusCode}. Body: ${response.body}`);
+            const body = JSON.parse(response.body);
+            assert.deepStrictEqual(body, users);
+            assert.ok(supabaseMock.rpc.calledWith('get_all_users_with_profiles'));
         });
 
         it('should assign a course to a user', async () => {
