@@ -121,4 +121,128 @@ describe('admin-handler', () => {
             assert.deepStrictEqual(JSON.parse(response.body), returnedData);
         });
     });
+
+    describe('Action: delete_course', () => {
+        it('should delete a course and its progress', async () => {
+            const eqStub = sinon.stub().resolves({ error: null });
+            const deleteStub = sinon.stub().returns({ eq: eqStub });
+            fromStub.returns({ delete: deleteStub });
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'delete_course', course_id: 'test-course' })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.deepStrictEqual(JSON.parse(response.body), { message: 'Course test-course and all related progress have been successfully deleted.' });
+            assert.ok(fromStub.calledWith('user_progress'));
+            assert.ok(fromStub.calledWith('courses'));
+        });
+
+        it('should return 500 if deleting course progress fails', async () => {
+            const eqStub = sinon.stub().resolves({ error: { message: 'DB error' } });
+            const deleteStub = sinon.stub().returns({ eq: eqStub });
+            fromStub.withArgs('user_progress').returns({ delete: deleteStub });
+            fromStub.withArgs('courses').returns({ delete: sinon.stub().returns({ eq: sinon.stub().resolves({ error: null }) }) });
+
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'delete_course', course_id: 'test-course' })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 500);
+            const body = JSON.parse(response.body);
+            assert.strictEqual(body.error.message, 'Failed to delete user progress for the course.');
+        });
+    });
+
+    describe('Action: get_course_details', () => {
+        it('should return course details and materials', async () => {
+            const courseDetails = { course_id: 'test-course', title: 'Test Course', course_materials: [] };
+            const singleStub = sinon.stub().resolves({ data: courseDetails, error: null });
+            const eqStub = sinon.stub().returns({ single: singleStub });
+            const selectStub = sinon.stub().returns({ eq: eqStub });
+            fromStub.withArgs('courses').returns({ select: selectStub });
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'get_course_details', course_id: 'test-course' })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.deepStrictEqual(JSON.parse(response.body), courseDetails);
+            assert.ok(selectStub.calledWith('*, course_materials(*)'));
+        });
+    });
+
+    describe('Course Group Management', () => {
+        it('should update a course group', async () => {
+            const updatedGroup = { id: 1, group_name: 'Updated Group' };
+            const singleStub = sinon.stub().resolves({ data: updatedGroup, error: null });
+            const selectStub = sinon.stub().returns({ single: singleStub });
+            const eqStub = sinon.stub().returns({ select: selectStub });
+            const updateStub = sinon.stub().returns({ eq: eqStub });
+            fromStub.withArgs('course_groups').returns({ update: updateStub });
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'update_course_group', group_id: 1, group_name: 'Updated Group' })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.deepStrictEqual(JSON.parse(response.body), updatedGroup);
+        });
+
+        it('should delete a course group', async () => {
+            const eqStub = sinon.stub().resolves({ error: null });
+            const deleteStub = sinon.stub().returns({ eq: eqStub });
+            fromStub.withArgs('course_groups').returns({ delete: deleteStub });
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'delete_course_group', group_id: 1 })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.deepStrictEqual(JSON.parse(response.body), { message: 'Group 1 deleted.' });
+        });
+    });
+
+    describe('User Management', () => {
+        it('should get all users', async () => {
+            const users = [{ id: '1', email: 'test@test.com', user_profiles: { full_name: 'Test User', department: 'IT' } }];
+            const eqStub = sinon.stub().resolves({ data: users, error: null });
+            const selectStub = sinon.stub().returns({ eq: eqStub });
+            fromStub.withArgs('users').returns({ select: selectStub });
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'get_all_users' })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.deepStrictEqual(JSON.parse(response.body)[0].full_name, 'Test User');
+        });
+
+        it('should assign a course to a user', async () => {
+            const upsertStub = sinon.stub().resolves({ error: null });
+            fromStub.withArgs('user_progress').returns({ upsert: upsertStub });
+
+            const event = {
+                headers: { authorization: 'Bearer admin_token' },
+                body: JSON.stringify({ action: 'assign_course_to_user', user_email: 'test@test.com', course_id: 'test-course' })
+            };
+            const response = await handler(event);
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.deepStrictEqual(JSON.parse(response.body), { message: 'Course test-course assigned to test@test.com.' });
+        });
+    });
 });
