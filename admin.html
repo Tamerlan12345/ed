@@ -36,15 +36,19 @@
     </style>
 </head>
 <body>
-    <div id="login-view">
+    <div id="login-view" class="hidden">
         <h1>Вход для администратора</h1>
-        <input type="email" id="admin-email" value="admin@cic.kz">
+        <input type="email" id="admin-email" value="test1@cic.kz">
         <input type="password" id="admin-password" placeholder="Пароль">
         <button id="login-btn">Войти</button>
+        <div id="login-error" class="status error hidden"></div>
     </div>
 
     <div id="panel-view" class="hidden">
-        <h1>Панель управления</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Панель управления</h1>
+            <button id="logout-btn" style="width: auto; background-color: #6c757d;">Выйти</button>
+        </div>
         <div class="tabs">
             <button id="courses-tab-btn" class="active">Управление курсами</button>
             <button id="groups-tab-btn">Управление группами</button>
@@ -360,24 +364,80 @@
         });
     });
 
-    // --- LOGIN ---
-    document.getElementById('login-btn').addEventListener('click', async () => {
+    const loginError = document.getElementById('login-error');
+    const loginBtn = document.getElementById('login-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    // --- AUTHENTICATION & SESSION ---
+    async function onLoginSuccess(session) {
+        // After getting a session, verify the user has admin rights.
+        const tempClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: `Bearer ${session.access_token}` } }
+        });
+
+        try {
+            const { data: roles, error: rolesError } = await tempClient.rpc('get_my_roles');
+            if (rolesError) throw rolesError;
+
+            if (!roles.includes('admin')) {
+                throw new Error('У вас нет прав администратора.');
+            }
+
+            // Role verified, proceed to show the panel
+            adminToken = session.access_token;
+            loginView.classList.add('hidden');
+            panelView.classList.remove('hidden');
+            await loadCourses(); // Load initial data
+        } catch (error) {
+            showStatus(`Ошибка проверки прав: ${error.message}`, 'error');
+            await supabaseClient.auth.signOut(); // Log out user if they are not an admin
+            loginView.classList.remove('hidden');
+            panelView.classList.add('hidden');
+        }
+    }
+
+    async function handleLogin() {
         const email = document.getElementById('admin-email').value;
         const password = document.getElementById('admin-password').value;
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Вход...';
+        loginError.classList.add('hidden');
+
         try {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) throw error;
-            if (data.user.email.toLowerCase() !== 'admin@cic.kz') {
-                 throw new Error('Доступ только для администратора.');
-            }
-            adminToken = data.session.access_token;
-            loginView.classList.add('hidden');
-            panelView.classList.remove('hidden');
-            // Load initial data for the default tab
-            await loadCourses();
-        } catch(error) {
-            showStatus(`Ошибка входа: ${error.message}`, 'error');
+            await onLoginSuccess(data.session);
+        } catch (error) {
+            loginError.textContent = `Ошибка входа: ${error.message}`;
+            loginError.classList.remove('hidden');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Войти';
         }
+    }
+
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        adminToken = null;
+        loginView.classList.remove('hidden');
+        panelView.classList.add('hidden');
+    }
+
+    async function checkSession() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            await onLoginSuccess(session);
+        } else {
+            loginView.classList.remove('hidden');
+            panelView.classList.add('hidden');
+        }
+    }
+
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        checkSession();
+        loginBtn.addEventListener('click', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
     });
 
     // --- COURSE MANAGEMENT ---
@@ -407,6 +467,7 @@
     cancelEditBtn.addEventListener('click', clearCourseForm);
 
     async function loadCourses() {
+        coursesTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
         try {
             const courses = await apiCall('get_courses_admin');
             allCoursesData = courses; // Cache for group management
@@ -519,9 +580,14 @@
     cancelGroupEditBtn.addEventListener('click', clearGroupForm);
 
     async function loadGroups() {
+        groupsTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
         try {
             const groups = await apiCall('get_course_groups');
             groupsTableBody.innerHTML = '';
+            if (groups.length === 0) {
+                groupsTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Группы еще не созданы.</td></tr>';
+                return;
+            }
             groups.sort((a, b) => a.group_name.localeCompare(b.group_name)).forEach(g => {
                 const row = groupsTableBody.insertRow();
                 row.insertCell(0).textContent = g.group_name;
@@ -724,6 +790,8 @@
 
     // --- RESULTS ---
     async function loadResults() {
+        const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Загрузка отчета...</td></tr>';
         const userEmail = document.getElementById('filter-user').value;
         const department = document.getElementById('filter-department').value;
         const courseId = document.getElementById('filter-course').value;
@@ -738,8 +806,11 @@
                 throw new Error(err.error || 'Ошибка при загрузке отчета.');
             }
             const results = await response.json();
-            const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
             tableBody.innerHTML = '';
+            if (results.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Результаты не найдены.</td></tr>';
+                return;
+            }
             results.forEach(result => {
                 const row = tableBody.insertRow();
                 row.insertCell(0).textContent = result.user_profiles?.full_name || result.user_email;
@@ -751,6 +822,7 @@
             });
         } catch (error) {
             showStatus('Ошибка при загрузке результатов.', 'error');
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">${error.message}</td></tr>`;
         }
     }
 
@@ -758,11 +830,16 @@
 
     // --- SIMULATOR RESULTS ---
     async function loadSimulatorResults() {
+        const tableBody = document.getElementById('simulator-results-table').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Загрузка результатов...</td></tr>';
         showStatus('Загрузка результатов тренажера...', 'info');
         try {
             const results = await apiCall('get_simulation_results');
-            const tableBody = document.getElementById('simulator-results-table').getElementsByTagName('tbody')[0];
             tableBody.innerHTML = '';
+            if (results.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Результаты тренажера отсутствуют.</td></tr>';
+                return;
+            }
             results.forEach(res => {
                 const row = tableBody.insertRow();
                 row.insertCell(0).textContent = new Date(res.created_at).toLocaleString();
@@ -777,7 +854,9 @@
                 scoreCell.textContent = res.evaluation?.average_score ? res.evaluation.average_score.toFixed(1) : 'N/A';
             });
             showStatus('Результаты тренажера загружены.', 'success');
-        } catch (e) { /* Handled in apiCall */ }
+        } catch (e) {
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">${e.message}</td></tr>`;
+        }
     }
 
     document.getElementById('refresh-sim-results-btn').addEventListener('click', loadSimulatorResults);

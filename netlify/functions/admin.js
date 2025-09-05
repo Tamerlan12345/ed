@@ -99,27 +99,12 @@ exports.handler = async (event) => {
             return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
         }
 
-        const supabase = createClient(
-            process.env.SUPABASE_URL,
-            process.env.SUPABASE_ANON_KEY,
-            { global: { headers: { Authorization: `Bearer ${token}` } } }
-        );
-
-        const { data: roles, error: rolesError } = await supabase.rpc('get_my_roles');
-
-        if (rolesError) {
-            console.error('Error fetching user roles:', rolesError);
-            return { statusCode: 500, body: JSON.stringify({ error: 'Could not fetch user roles.' }) };
-        }
-
-        // The sub-handler will be responsible for authorization.
-        // We pass the user and roles to the sub-handler in the event body.
-        const newEvent = {
-            ...event,
-            body: JSON.stringify({ ...payload, user, roles }),
-        };
-
-        return await actionMap[action](newEvent);
+        // The original event, which contains the vital Authorization header,
+        // is passed directly to the sub-handler.
+        // The sub-handler is responsible for creating its own user-scoped Supabase client
+        // and for relying on RLS for authorization.
+        // This router's only job is to validate the user token and route the request.
+        return await actionMap[action](event);
 
     } catch (error) {
         console.error('Error in admin router:', error);

@@ -53,7 +53,9 @@
                     </div>
                 </div>
                  <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo">
+                 <button id="logout-btn" style="background: transparent; border: none; cursor: pointer; font-size: 1.5em; margin-left: 20px;" title="Выйти">🚪</button>
             </div>
+            <div id="content-loader" class="hidden" style="display: flex; justify-content: center; align-items: center; height: 60vh;"><div class="loader"></div></div>
             <div class="content-area" id="content-area">
                 <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <div id="leaderboard-container" style="flex: 1 1 300px; min-width: 280px; padding: 15px; background-color: #e9f7fe; border-radius: 8px; align-self: flex-start;">
@@ -182,41 +184,87 @@
     const evaluationResults = document.getElementById('evaluation-results');
     const restartSimulationBtn = document.getElementById('restart-simulation-btn');
 
-    function showLoader() { contentArea.innerHTML = '<div class="loader"></div>'; }
-    function showMessage(message, details = '') { contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`; }
+    const contentLoader = document.getElementById('content-loader');
 
-    function initAuth() {
-        console.log('[ШАГ 1] Приложение запущено, инициализация входа.');
-        authForm.addEventListener('submit', async (e) => {
+    function showLoader() {
+        contentArea.classList.add('hidden');
+        contentLoader.classList.remove('hidden');
+    }
+    function hideLoader() {
+        contentArea.classList.remove('hidden');
+        contentLoader.classList.add('hidden');
+    }
+    function showMessage(message, details = '') {
+        contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`;
+        hideLoader();
+    }
+
+    async function handleLogin(email, password) {
+        const authButton = document.getElementById('auth-button');
+        authButton.disabled = true;
+        authButton.textContent = 'Вход...';
+        authError.classList.add('hidden');
+
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+
+            if (data && data.session) {
+                await onLoginSuccess(data.session);
+            } else {
+                throw new Error("Ответ от сервера не содержит сессию.");
+            }
+        } catch (error) {
+            console.error("Не удалось войти:", error);
+            authError.textContent = 'Ошибка: неверный логин или пароль.';
+            authError.classList.remove('hidden');
+            authButton.disabled = false;
+            authButton.textContent = 'Войти';
+        }
+    }
+
+    async function onLoginSuccess(session) {
+        userData.email = session.user.email;
+        userData.token = session.access_token;
+
+        authView.classList.add('hidden');
+        appView.classList.remove('hidden');
+
+        showLoader();
+        await showMainMenu();
+        await loadNotifications();
+        hideLoader();
+    }
+
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        userData.token = null;
+        userData.email = '';
+        sessionStorage.clear();
+
+        appView.classList.add('hidden');
+        authView.classList.remove('hidden');
+        document.getElementById('user-email').value = '';
+        document.getElementById('user-password').value = '';
+    }
+
+    async function checkSession() {
+        showLoader();
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            await onLoginSuccess(session);
+        } else {
+            authView.classList.remove('hidden');
+            hideLoader();
+        }
+        // Attach listeners after session check
+        authForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            console.log('[ШАГ 2] Кнопка "Войти" нажата.');
-            authError.classList.add('hidden');
             const email = document.getElementById('user-email').value.trim();
             const password = document.getElementById('user-password').value.trim();
-            
-            try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                if (error) throw error;
-                console.log('[ШАГ 3] Ответ от Supabase получен, ошибка отсутствует. Ответ:', data);
-                
-                if (data && data.session && data.session.access_token) {
-                    userData.email = data.user.email;
-                    userData.token = data.session.access_token;
-                    console.log('[ШАГ 4] Токен и email успешно сохранены. Токен:', userData.token ? 'ПОЛУЧЕН' : 'ОТСУТСТВУЕТ', '| Email:', userData.email);
-                    
-                    authView.classList.add('hidden');
-                    appView.classList.remove('hidden');
-                    showMainMenu();
-                    loadNotifications();
-                } else {
-                    throw new Error("Ответ от сервера не содержит сессию или токен.");
-                }
-            } catch (error) {
-                console.error("[ОШИБКА НА ШАГЕ 3] Не удалось войти:", error);
-                authError.textContent = 'Ошибка: неверный логин или пароль.';
-                authError.classList.remove('hidden');
-            }
+            handleLogin(email, password);
         });
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
     }
 
     async function fetchAuthenticated(url, options = {}) {
@@ -699,7 +747,16 @@
             console.error('Не удалось сохранить результат:', error);
         }
     }
-    document.addEventListener('DOMContentLoaded', () => { initAuth(); backToMenuBtn.addEventListener('click', showMainMenu); backToMenuFromResultsBtn.addEventListener('click', showMainMenu); });
+    document.addEventListener('DOMContentLoaded', () => {
+        // Hide app view initially
+        appView.classList.add('hidden');
+        authView.classList.add('hidden');
+
+        checkSession();
+
+        backToMenuBtn.addEventListener('click', showMainMenu);
+        backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
+    });
 
     const simulationScenarios = [
         "Клиент хочет застраховать новый автомобиль (Hyundai Tucson) по КАСКО от всех рисков. Он впервые покупает КАСКО и хочет знать все детали: что покрывается, какие есть франшизы, от чего зависит цена.",

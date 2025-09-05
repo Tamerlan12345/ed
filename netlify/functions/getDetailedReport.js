@@ -1,9 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
 const { handleError } = require('./utils/errors');
-const { isAuthorized } = require('./utils/auth');
-
-// This function requires the SERVICE_ROLE_KEY to bypass RLS and join user profiles.
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 function convertToCSV(data) {
     if (!data || data.length === 0) {
@@ -31,38 +27,36 @@ function convertToCSV(data) {
 
 exports.handler = async (event) => {
     try {
-        const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
         const authHeader = event.headers.authorization;
         if (!authHeader) {
             return { statusCode: 401, body: JSON.stringify({ error: 'Authorization header is missing.' }) };
         }
         const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await anonSupabase.auth.getUser(token);
 
-        if (authError || !user) {
-            return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
-        }
-
-        const supabase_user = createClient(
+        // Create a single, user-scoped Supabase client.
+        // This client will be used for all database operations.
+        const supabase = createClient(
             process.env.SUPABASE_URL,
             process.env.SUPABASE_ANON_KEY,
             { global: { headers: { Authorization: `Bearer ${token}` } } }
         );
 
-        const { data: roles, error: rolesError } = await supabase_user.rpc('get_my_roles');
-
-        if (rolesError) {
-            throw rolesError;
+        // Verify user authentication
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
         }
 
-        if (!isAuthorized(roles, ['admin', 'editor', 'viewer'])) {
-            return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
-        }
+        // The RPC call below will be protected by RLS.
+        // The policies for user_progress, courses, and user_profiles will be checked.
+        // If the user does not have the required role ('admin', 'editor', or 'viewer'),
+        // the RPC call will fail or return empty data, which is the desired secure behavior.
+        // The explicit role check is removed to make RLS the single source of truth.
 
-        const { user_email, department, course_id } = event.queryStringParameters || {};
+        const { user_email, department, course_id, format } = event.queryStringParameters || {};
 
-        // Call the RPC function with the filter parameters.
-        // The main 'supabase' client uses the SERVICE_ROLE_KEY to bypass RLS for reporting.
+        // Call the RPC function using the user-scoped client.
+        // RLS policies will be enforced by Supabase for this call.
         const { data, error } = await supabase.rpc('get_detailed_report_data', {
             user_email_filter: user_email,
             department_filter: department,
@@ -72,8 +66,6 @@ exports.handler = async (event) => {
         if (error) {
             throw error;
         }
-
-        const { format } = event.queryStringParameters || {};
 
         if (format === 'csv') {
             const csv = convertToCSV(data);

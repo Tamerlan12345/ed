@@ -1,5 +1,4 @@
 const { createClient } = require('@supabase/supabase-js');
-const { isAuthorized } = require('../utils/auth');
 const { handleError } = require('../utils/errors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -8,13 +7,17 @@ const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 exports.handler = async (event) => {
     try {
-        const { roles, course_id, custom_prompt } = JSON.parse(event.body);
+        const { course_id, custom_prompt } = JSON.parse(event.body);
 
-        if (!isAuthorized(roles, ['admin', 'editor'])) {
-            return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
         }
 
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const token = event.headers.authorization.split(' ')[1];
+        const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_ANON_KEY,
+            { global: { headers: { Authorization: `Bearer ${token}` } } }
+        );
+
 
         const { data: courseData, error } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
         if (error || !courseData || !courseData.source_text) {

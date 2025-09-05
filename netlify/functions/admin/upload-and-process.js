@@ -1,18 +1,21 @@
 const { createClient } = require('@supabase/supabase-js');
-const { isAuthorized } = require('../utils/auth');
 const { handleError } = require('../utils/errors');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
 
 exports.handler = async (event) => {
     try {
-        const { roles, course_id, title, file_name, file_data } = JSON.parse(event.body);
+        const { course_id, title, file_name, file_data } = JSON.parse(event.body);
 
-        if (!isAuthorized(roles, ['admin', 'editor'])) {
-            return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
         }
 
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const token = event.headers.authorization.split(' ')[1];
+        const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_ANON_KEY,
+            { global: { headers: { Authorization: `Bearer ${token}` } } }
+        );
+
 
         const buffer = Buffer.from(file_data, 'base64');
         let textContent = '';
