@@ -44,7 +44,8 @@ exports.handler = async (event) => {
 
         if (rpcError) {
             console.error('Error calling get_weekly_leaderboard RPC:', rpcError);
-            throw new Error('Could not retrieve leaderboard data.');
+            const errorMessage = rpcError.message || 'An unknown database error occurred.';
+            throw new Error(`Could not retrieve leaderboard data: ${errorMessage}`);
         }
 
         return {

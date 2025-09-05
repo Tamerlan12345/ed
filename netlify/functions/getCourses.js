@@ -21,7 +21,7 @@ exports.handler = async (event) => {
     // 2. Get all published courses
     const { data: publishedCourses, error: coursesError } = await supabase
       .from('courses')
-      .select('course_id, title, product_line')
+      .select('course_id, title')
       .eq('status', 'published');
     if (coursesError) throw coursesError;
 
@@ -74,7 +74,7 @@ exports.handler = async (event) => {
     if (missingCourseIds.length > 0) {
         const { data: missingCourses, error: missingCoursesError } = await supabase
             .from('courses')
-            .select('course_id, title, product_line')
+            .select('course_id, title')
             .in('course_id', missingCourseIds);
         if (missingCoursesError) throw missingCoursesError;
         missingCourses.forEach(c => allCoursesMap.set(c.course_id, c));
@@ -86,7 +86,6 @@ exports.handler = async (event) => {
       return {
         id: course.course_id,
         title: course.title,
-        product_line: course.product_line,
         isAssigned: assignedCourseIds.has(course.course_id),
         startDate: assignmentDetails?.startDate,
         recurrence: assignmentDetails?.recurrence

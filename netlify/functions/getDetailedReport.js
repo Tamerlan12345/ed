@@ -55,8 +55,9 @@ exports.handler = async (event) => {
         if (error) {
             // Log the detailed error on the server
             console.error('Supabase RPC error:', error);
-            // Return a generic error to the client
-            return { statusCode: 500, body: JSON.stringify({ error: 'Failed to fetch report data.' }) };
+            // Return a more detailed error to the client for debugging
+            const errorMessage = error.message || 'An unknown database error occurred.';
+            return { statusCode: 500, body: JSON.stringify({ error: `Failed to fetch report data: ${errorMessage}` }) };
         }
 
         const { format } = event.queryStringParameters || {};

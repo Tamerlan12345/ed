@@ -23,7 +23,7 @@ describe('getCourses Handler', () => {
         // Mock for courses
         fromStub.withArgs('courses').returns({
             select: sinon.stub().returnsThis(),
-            eq: sinon.stub().resolves({ data: [{ course_id: 'test1', title: 'Test Course 1', product_line: 'General' }], error: null }),
+            eq: sinon.stub().resolves({ data: [{ course_id: 'test1', title: 'Test Course 1' }], error: null }),
             in: sinon.stub().resolves({ data: [], error: null }) // Default for missing courses
         });
 
@@ -65,7 +65,7 @@ describe('getCourses Handler', () => {
         assert.strictEqual(response.statusCode, 200, `Expected 200 but got ${response.statusCode}. Body: ${response.body}`);
         const body = JSON.parse(response.body);
 
-        const expectedCourses = [{ id: 'test1', title: 'Test Course 1', product_line: 'General', isAssigned: true }];
+        const expectedCourses = [{ id: 'test1', title: 'Test Course 1', isAssigned: true }];
         const expectedProgress = { 'test1': { completed: true, percentage: 100, attempts: 1 } };
 
         assert.deepStrictEqual(body.courses, expectedCourses);
