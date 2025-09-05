@@ -91,7 +91,6 @@
                 <h2 id="course-form-header">Создать новый курс</h2>
                 <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
                 <input type="text" id="course-title" placeholder="Название курса">
-                <input type="text" id="course-product-line" placeholder="Продуктовая линейка (напр. КАСКО, ОГПО ВТС)">
 
                 <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
                 <input type="file" id="file-uploader" accept=".pdf,.docx">
@@ -186,6 +185,31 @@
             <h3>Назначить группу подразделению</h3>
             <input type="text" id="assign-department-name" placeholder="Название подразделения">
             <button id="assign-group-btn">Назначить</button>
+
+            <hr style="margin-top: 25px; margin-bottom: 25px;">
+
+            <h3>Управление учениками</h3>
+            <p>Здесь вы можете найти любого ученика и назначить ему курс индивидуально.</p>
+            <button id="load-students-btn">Загрузить список всех учеников</button>
+
+            <table id="students-table" class="hidden" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Email</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Имя</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Подразделение</th>
+                    </tr>
+                </thead>
+                <tbody id="students-table-body">
+                    <!-- Student rows will be inserted here -->
+                </tbody>
+            </table>
+
+            <div id="student-actions-panel" class="hidden" style="margin-top: 15px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
+                <h4>Назначить курс для: <b id="selected-student-email-span"></b></h4>
+                <select id="student-course-assignment-list"></select>
+                <button id="assign-course-to-student-btn" style="width: auto; padding: 10px 20px; margin-top: 10px;">Назначить выбранный курс</button>
+            </div>
         </div>
 
         <div id="results-view" class="hidden">
@@ -363,7 +387,6 @@
         document.getElementById('course-id').value = '';
         document.getElementById('course-id').disabled = false;
         document.getElementById('course-title').value = '';
-        document.getElementById('course-product-line').value = '';
         document.getElementById('file-uploader').value = '';
         document.getElementById('source-text').value = '';
         document.getElementById('custom-prompt').value = '';
@@ -432,7 +455,6 @@
             document.getElementById('course-id').value = course.course_id;
             document.getElementById('course-id').disabled = true;
             document.getElementById('course-title').value = course.title;
-            document.getElementById('course-product-line').value = course.product_line || '';
             document.getElementById('source-text').value = course.source_text || '';
 
             let summary = '', questions = '', adminPrompt = '';
@@ -623,6 +645,64 @@
         } catch (e) { /* Handled in apiCall */ }
     });
 
+    // --- STUDENT MANAGEMENT (within Groups tab) ---
+    let selectedStudentEmail = null;
+
+    document.getElementById('load-students-btn').addEventListener('click', async () => {
+        try {
+            showStatus('Загрузка списка учеников...', 'info');
+            const students = await apiCall('get_all_users');
+            const studentsTable = document.getElementById('students-table');
+            const studentsTbody = document.getElementById('students-table-body');
+            studentsTbody.innerHTML = '';
+            students.forEach(student => {
+                const row = studentsTbody.insertRow();
+                row.dataset.email = student.email;
+                row.insertCell(0).textContent = student.email;
+                row.insertCell(1).textContent = student.full_name;
+                row.insertCell(2).textContent = student.department;
+            });
+            studentsTable.classList.remove('hidden');
+            showStatus(`Загружено ${students.length} учеников.`, 'success');
+        } catch(e) { /* Handled in apiCall */ }
+    });
+
+    document.getElementById('students-table-body').addEventListener('click', (e) => {
+        const row = e.target.closest('tr');
+        if (!row) return;
+
+        // Toggle selection and update UI
+        document.querySelectorAll('#students-table-body tr').forEach(r => r.style.backgroundColor = '');
+        row.style.backgroundColor = '#e9f7fe';
+
+        selectedStudentEmail = row.dataset.email;
+        const actionsPanel = document.getElementById('student-actions-panel');
+        document.getElementById('selected-student-email-span').textContent = selectedStudentEmail;
+
+        const courseList = document.getElementById('student-course-assignment-list');
+        courseList.innerHTML = '';
+        allCoursesData.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.course_id;
+            option.textContent = `${course.title} (${course.course_id})`;
+            courseList.appendChild(option);
+        });
+
+        actionsPanel.classList.remove('hidden');
+    });
+
+    document.getElementById('assign-course-to-student-btn').addEventListener('click', async () => {
+        const courseId = document.getElementById('student-course-assignment-list').value;
+        if (!selectedStudentEmail || !courseId) {
+            return showStatus('Выберите ученика и курс для назначения.', 'error');
+        }
+        try {
+            await apiCall('assign_course_to_user', { user_email: selectedStudentEmail, course_id: courseId });
+            showStatus(`Курс "${courseId}" успешно назначен ${selectedStudentEmail}.`, 'success');
+        } catch(e) { /* Handled in apiCall */ }
+    });
+
+
     // --- LEADERBOARD & OTHER ---
     async function loadLeaderboardSettings() {
         try {
@@ -649,7 +729,14 @@
         const courseId = document.getElementById('filter-course').value;
         const params = new URLSearchParams({ user_email: userEmail, department, course_id: courseId });
         try {
-            const response = await fetch(`/.netlify/functions/getDetailedReport?${params.toString()}`);
+            if (!adminToken) throw new Error('Не авторизован');
+            const response = await fetch(`/.netlify/functions/getDetailedReport?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Ошибка при загрузке отчета.');
+            }
             const results = await response.json();
             const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
             tableBody.innerHTML = '';
@@ -735,7 +822,6 @@
                 const base64File = reader.result.split(',')[1];
                 const data = await apiCall('upload_and_process', {
                     course_id: courseId, title,
-                    product_line: document.getElementById('course-product-line').value.trim(),
                     file_name: sanitizeForPath(file.name), file_data: base64File
                 });
                 showStatus('Файл успешно обработан.', 'success');
@@ -786,8 +872,7 @@
             const questions = JSON.parse(document.getElementById('generated-questions').value);
             await apiCall('publish_course', {
                 course_id: courseId, content_html, questions,
-                admin_prompt: document.getElementById('custom-prompt').value,
-                product_line: document.getElementById('course-product-line').value.trim()
+                admin_prompt: document.getElementById('custom-prompt').value
             });
             showStatus('Курс успешно опубликован.', 'success');
             await loadCourses();

@@ -96,4 +96,19 @@ USING (get_my_role() IN ('админ', 'руководитель'))
 WITH CHECK (get_my_role() IN ('админ', 'руководитель'));
 
 
+-- Политики для диалогового тренажера
+ALTER TABLE public.dialogue_simulations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow admin/manager to see all simulation results" ON public.dialogue_simulations;
+DROP POLICY IF EXISTS "Allow user to see their own simulation results" ON public.dialogue_simulations;
+
+CREATE POLICY "Allow admin/manager to see all simulation results"
+ON public.dialogue_simulations FOR SELECT
+USING (get_my_role() IN ('админ', 'руководитель'));
+
+CREATE POLICY "Allow user to see their own simulation results"
+ON public.dialogue_simulations FOR SELECT
+USING (auth.uid() = user_id);
+
+
 -- SELECT 'Миграция RLS и ролей успешно подготовлена. Примените этот скрипт в вашей базе данных.';
