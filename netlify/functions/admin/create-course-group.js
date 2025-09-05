@@ -1,20 +1,25 @@
 const { createClient } = require('@supabase/supabase-js');
-const { isAuthorized } = require('../utils/auth');
 const { handleError } = require('../utils/errors');
 
 exports.handler = async (event) => {
     try {
-        const { roles, group_name, is_for_new_employees, start_date, recurrence_period } = JSON.parse(event.body);
+        const { group_name, is_for_new_employees, start_date, recurrence_period } = JSON.parse(event.body);
 
-        if (!isAuthorized(roles, ['admin', 'editor'])) {
-            return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
+        if (!group_name) {
+            return { statusCode: 400, body: JSON.stringify({ error: 'group_name is required.' }) };
         }
 
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const token = event.headers.authorization.split(' ')[1];
+        const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_ANON_KEY,
+            { global: { headers: { Authorization: `Bearer ${token}` } } }
+        );
 
+        // RLS policy "Allow admin or editor to manage course groups" will handle authorization.
         const { data, error } = await supabase.from('course_groups').insert({
             group_name,
-            is_for_new_employees,
+            is_for_new_employees: is_for_new_employees || false,
             start_date: start_date || null,
             recurrence_period: recurrence_period || null
         }).select().single();
