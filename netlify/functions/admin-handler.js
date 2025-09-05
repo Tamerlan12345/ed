@@ -291,52 +291,19 @@ exports.handler = async (event) => {
                     break;
                 // --- Simulator Results ---
                 case 'get_simulation_results':
-                    const { data: sims, error: simsError } = await supabase.from('dialogue_simulations').select('*').order('created_at', { ascending: false });
-                    if (simsError) throw simsError;
-                    if (!sims || sims.length === 0) {
-                        result = [];
-                        break;
-                    }
-
-                    const simUserIds = [...new Set(sims.map(s => s.user_id))];
-
-                    // Use service role client to fetch user emails
-                    const { data: usersData, error: usersError } = await supabaseServiceRole
-                        .from('users')
-                        .select('id, email')
-                        .in('id', simUserIds);
-                    if (usersError) throw usersError;
-
-                    // Use regular client to fetch profiles (respects RLS, but might be needed if service role can't access it)
-                    const { data: simProfiles, error: simProfilesError } = await supabase
-                        .from('user_profiles')
-                        .select('id, full_name')
-                        .in('id', simUserIds);
-                    if (simProfilesError) throw simProfilesError;
-
-                    const simUserMap = new Map(usersData.map(u => [u.id, u.email]));
-                    const simProfileMap = new Map(simProfiles.map(p => [p.id, p.full_name]));
-
-                    result = sims.map(sim => ({
-                        ...sim,
-                        user_email: simUserMap.get(sim.user_id) || 'Unknown',
-                        full_name: simProfileMap.get(sim.user_id) || 'Unknown'
-                    }));
+                    // Use the new, efficient RPC function.
+                    // This must be called with the service role client to bypass RLS and join user data.
+                    const { data: simResults, error: simError } = await supabaseServiceRole.rpc('get_simulation_results_with_user_data');
+                    if (simError) throw simError;
+                    result = simResults;
                     break;
                 // --- Student Management ---
                 case 'get_all_users':
-                    // This requires service role to bypass RLS and get all users.
-                    const { data: users, error: getAllUsersError } = await supabaseServiceRole
-                        .from('users')
-                        .select('id, email, raw_user_meta_data, user_profiles(full_name, department)')
-                        .eq('role', 'authenticated'); // or whatever role your users have
+                    // Use the new, robust RPC function to get all users with their profiles.
+                    // This must be called with the service role client to bypass RLS.
+                    const { data: users, error: getAllUsersError } = await supabaseServiceRole.rpc('get_all_users_with_profiles');
                     if (getAllUsersError) throw getAllUsersError;
-                    result = users.map(u => ({
-                        id: u.id,
-                        email: u.email,
-                        full_name: u.user_profiles?.full_name || u.raw_user_meta_data?.full_name || 'N/A',
-                        department: u.user_profiles?.department || 'N/A'
-                    }));
+                    result = users;
                     break;
                 case 'assign_course_to_user':
                     const { user_email, course_id } = payload;

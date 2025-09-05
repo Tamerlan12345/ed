@@ -23,27 +23,27 @@ exports.handler = async (event) => {
         }
 
         // 4. Insert into user_progress table
-        // The table has default values for score, percentage, etc.
-        // Using ON CONFLICT DO NOTHING prevents an error if the user is already enrolled,
-        // which makes the operation idempotent and safe.
-        // Using upsert with ignoreDuplicates: true is the Supabase v2 equivalent
-        // of the old .onConflict().ignore() syntax. This will do nothing if the
-        // user is already assigned to the course.
+        // The primary key is now on (user_id, course_id).
+        // We must insert the user's UUID (user.id) and their email for convenience.
         const { error: insertError } = await supabase
             .from('user_progress')
             .upsert({
-                user_email: user.email,
+                user_id: user.id, // Correct UUID from auth.users
+                user_email: user.email, // Still useful to have
                 course_id: course_id
             }, {
-                onConflict: 'user_email, course_id',
-                ignoreDuplicates: true
+                onConflict: 'user_id, course_id', // Use the new composite primary key
+                ignoreDuplicates: true // Prevents errors on re-assignment
             });
 
         if (insertError) {
             // Log the actual error on the server
             console.error('Supabase insert error:', insertError);
-            // Return a generic error to the client
-            return { statusCode: 500, body: JSON.stringify({ error: 'Could not assign course.' }) };
+            // Return a more specific error to the client for better debugging
+            return { statusCode: 500, body: JSON.stringify({
+                error: `Could not assign course. Database error: ${insertError.message}`,
+                details: insertError.details
+            }) };
         }
 
         // 5. Return success
