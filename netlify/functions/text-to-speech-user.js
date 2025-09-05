@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { handleError } = require('./utils/errors');
 
 // This Supabase client uses the service key for admin-level access
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -90,7 +91,6 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify(result) };
 
     } catch (error) {
-        console.error('Handler error:', error);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return handleError(error, 'text-to-speech-user');
     }
 };
