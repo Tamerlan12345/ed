@@ -582,19 +582,27 @@
         panelView.classList.add('hidden');
     }
 
-    async function checkSession() {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) {
-            await onLoginSuccess(session);
-        } else {
-            loginView.classList.remove('hidden');
-            panelView.classList.add('hidden');
-        }
+    function showLogin() {
+        loginView.classList.remove('hidden');
+        panelView.classList.add('hidden');
     }
 
     // --- INITIALIZATION ---
-    document.addEventListener('DOMContentLoaded', () => {
-        checkSession();
+    document.addEventListener('DOMContentLoaded', async () => {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+        if (error) {
+            console.error("Ошибка при получении сессии:", error);
+            showLogin();
+            return;
+        }
+
+        if (session) {
+            await onLoginSuccess(session);
+        } else {
+            showLogin();
+        }
+
         loginBtn.addEventListener('click', handleLogin);
         logoutBtn.addEventListener('click', handleLogout);
     });
