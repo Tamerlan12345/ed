@@ -532,8 +532,6 @@
     // --- AUTHENTICATION & SESSION ---
     async function onLoginSuccess(session) {
         // After getting a session, verify the user has admin rights.
-        supabaseClient.global.headers['Authorization'] = `Bearer ${session.access_token}`;
-
         try {
             const { data: roles, error: rolesError } = await supabaseClient.rpc('get_my_roles');
             if (rolesError) throw rolesError;
