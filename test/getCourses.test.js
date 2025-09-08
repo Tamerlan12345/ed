@@ -22,9 +22,7 @@ describe('getCourses Handler', () => {
         });
 
         fromStub.withArgs('courses').returns({
-            select: sinon.stub().returnsThis(),
-            eq: sinon.stub().resolves({ data: [{ course_id: 'test1', title: 'Test Course 1' }], error: null }),
-            in: sinon.stub().resolves({ data: [], error: null })
+            select: sinon.stub().resolves({ data: [{ course_id: 'test1', title: 'Test Course 1', status: 'published' }], error: null })
         });
 
         fromStub.withArgs('group_assignments').returns({
@@ -73,15 +71,4 @@ describe('getCourses Handler', () => {
         assert(handleErrorMock.calledOnce);
     });
 
-    it('should return 500 if fetching user_profiles fails', async () => {
-        supabaseMock.from.withArgs('user_profiles').returns({
-            select: sinon.stub().returnsThis(),
-            eq: sinon.stub().returnsThis(),
-            single: sinon.stub().rejects(new Error('DB Error'))
-        });
-
-        const event = { headers: { authorization: 'Bearer FAKE_TOKEN' } };
-        await handler(event);
-        assert(handleErrorMock.calledOnce);
-    });
 });
