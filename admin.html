@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Админ-панель</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f4f7f6; }
@@ -531,12 +532,10 @@
     // --- AUTHENTICATION & SESSION ---
     async function onLoginSuccess(session) {
         // After getting a session, verify the user has admin rights.
-        const tempClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: { headers: { Authorization: `Bearer ${session.access_token}` } }
-        });
+        supabaseClient.global.headers['Authorization'] = `Bearer ${session.access_token}`;
 
         try {
-            const { data: roles, error: rolesError } = await tempClient.rpc('get_my_roles');
+            const { data: roles, error: rolesError } = await supabaseClient.rpc('get_my_roles');
             if (rolesError) throw rolesError;
 
             if (!roles.includes('admin')) {

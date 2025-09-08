@@ -4,9 +4,6 @@ const { handleError } = require('../utils/errors');
 exports.handler = async (event) => {
     try {
         const { metrics } = JSON.parse(event.body);
-
-        }
-
         const token = event.headers.authorization.split(' ')[1];
         const supabase = createClient(
             process.env.SUPABASE_URL,
