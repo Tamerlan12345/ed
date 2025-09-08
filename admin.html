@@ -354,22 +354,151 @@
         return collapsed.replace(/^-+|-+$/g, '').toLowerCase();
     }
 
+    // --- API & State Management ---
+    const apiState = {
+        activeCalls: 0,
+        jobs: {} // To track background jobs { jobId: { intervalId, status } }
+    };
+
+    function showGlobalLoader() {
+        let loader = document.getElementById('global-loader');
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.id = 'global-loader';
+            loader.style.position = 'fixed';
+            loader.style.top = '10px';
+            loader.style.left = '50%';
+            loader.style.transform = 'translateX(-50%)';
+            loader.style.backgroundColor = '#005A9C';
+            loader.style.color = 'white';
+            loader.style.padding = '10px 20px';
+            loader.style.borderRadius = '8px';
+            loader.style.zIndex = '2000';
+            loader.style.fontWeight = 'bold';
+            loader.textContent = 'Загрузка...';
+            document.body.appendChild(loader);
+        }
+        loader.classList.remove('hidden');
+    }
+
+    function hideGlobalLoader() {
+        const loader = document.getElementById('global-loader');
+        if (loader) {
+            loader.classList.add('hidden');
+        }
+    }
+
+    function updateApiState(change) {
+        const wasActive = apiState.activeCalls > 0;
+        apiState.activeCalls += change;
+        const isActive = apiState.activeCalls > 0;
+
+        if (!wasActive && isActive) {
+            showGlobalLoader();
+        } else if (wasActive && !isActive) {
+            hideGlobalLoader();
+        }
+    }
+
     async function apiCall(action, payload = {}) {
         if (!adminToken) {
-            showStatus('Ошибка: вы не авторизованы.', 'error');
+            showToast('Ошибка: вы не авторизованы. Пожалуйста, обновите страницу.', 'error');
             throw new Error('Not authorized');
         }
-        const response = await fetch('/.netlify/functions/admin', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, ...payload })
-        });
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response from server.' }));
-            handleApiError(errorData);
-            throw new Error(errorData.error || 'API Call Failed');
+
+        updateApiState(1);
+
+        try {
+            const response = await fetch('/.netlify/functions/admin', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, ...payload })
+            });
+
+            if (response.status === 202) {
+                const data = await response.json();
+                startJobPolling(data.jobId);
+                showToast(`Задача запущена в фоновом режиме (ID: ${data.jobId}). Вы можете продолжать работу.`, 'info');
+                return data;
+            }
+
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    errorData = { error: `Сервер вернул ошибку ${response.status}, но тело ответа не в формате JSON.` };
+                }
+                // Log the full error for debugging
+                console.error('API Error Response:', errorData);
+                // Show a user-friendly message
+                showToast(errorData.error || `Ошибка ${response.status}. Попробуйте позже.`, 'error');
+                throw new Error(errorData.error || `API Call Failed with status ${response.status}`);
+            }
+
+            return await response.json();
+
+        } catch (error) {
+            // This catches network errors or errors from the !response.ok block
+            console.error('API Call failed:', error);
+            // Avoid showing a generic toast if a specific one was already shown
+            if (!error.message.includes('API Call Failed')) {
+                 showToast('Сетевая ошибка или сервер недоступен. Проверьте ваше подключение и попробуйте снова.', 'error');
+            }
+            throw error; // Re-throw so calling functions know it failed
+        } finally {
+            updateApiState(-1);
         }
-        return await response.json();
+    }
+
+    function startJobPolling(jobId) {
+        if (!jobId) return;
+
+        apiState.jobs[jobId] = { status: 'pending' };
+
+        const intervalId = setInterval(async () => {
+            try {
+                if (!adminToken) { // Safety check
+                    clearInterval(intervalId);
+                    return;
+                }
+                const response = await fetch(`/.netlify/functions/get-job-status?jobId=${jobId}`, {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+
+                if (!response.ok) {
+                    // Stop polling on 4xx or 5xx errors
+                    console.error(`Polling for job ${jobId} failed with status ${response.status}. Stopping.`);
+                    showToast(`Не удалось отследить статус задачи ${jobId}.`, 'error');
+                    clearInterval(intervalId);
+                    delete apiState.jobs[jobId];
+                    return;
+                }
+
+                const job = await response.json();
+                apiState.jobs[jobId].status = job.status;
+
+                if (job.status === 'completed') {
+                    showToast(`Задача (ID: ${jobId}) успешно завершена!`, 'success');
+                    clearInterval(intervalId);
+                    delete apiState.jobs[jobId];
+                    // Optionally, refresh data, e.g., loadCourses()
+                    if (window.loadCourses) loadCourses();
+                } else if (job.status === 'failed') {
+                    showToast(`Задача (ID: ${jobId}) не удалась: ${job.error_message}`, 'error');
+                    clearInterval(intervalId);
+                    delete apiState.jobs[jobId];
+                }
+                // If 'pending', continue polling silently.
+            } catch (error) {
+                console.error(`Error during job polling for ${jobId}:`, error);
+                showToast(`Ошибка при проверке статуса задачи ${jobId}.`, 'error');
+                clearInterval(intervalId);
+                delete apiState.jobs[jobId];
+            }
+        }, 5000); // Poll every 5 seconds
+
+        apiState.jobs[jobId].intervalId = intervalId;
     }
 
     // --- TAB SWITCHING ---
@@ -563,12 +692,13 @@
         reader.onload = async () => {
             try {
                 const base64File = reader.result.split(',')[1];
-                const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
+                // This now returns a job ID, not the extracted text.
+                await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
                     course_id: courseId, title,
                     file_name: sanitizeForPath(file.name), file_data: base64File
                 });
-                showStatus('Файл успешно обработан.', 'success');
-                document.getElementById('source-text').value = data.extractedText;
+                // The toast is shown by apiCall. We just clear the text area.
+                document.getElementById('source-text').value = 'Обработка файла запущена в фоновом режиме...';
                 document.getElementById('course-id').disabled = true;
                 await loadCourses();
             } catch(e) { /* Handled in apiCall */ }
@@ -577,17 +707,28 @@
 
     async function generateContentHandler() {
         let courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) return showStatus('Укажите ID курса.', 'error');
-        showStatus('Идет генерация контента AI...', 'info');
+        if (!courseId) {
+            showToast('Укажите ID курса.', 'error');
+            return;
+        }
+
+        // Clear previous results and show info message
+        document.getElementById('generated-html').value = 'Генерация контента запущена в фоновом режиме...';
+        document.getElementById('generated-questions').value = 'Результаты появятся здесь после завершения задачи.';
+
         try {
-            const data = await apiCall(ACTIONS.GENERATE_CONTENT, {
+            // This will now return a 202 with a jobId and trigger the poller
+            await apiCall(ACTIONS.GENERATE_CONTENT, {
                 course_id: courseId,
                 custom_prompt: document.getElementById('custom-prompt').value
             });
-            showStatus('Черновик успешно сгенерирован.', 'success');
-            document.getElementById('generated-html').value = JSON.stringify(data.summary, null, 2);
-            document.getElementById('generated-questions').value = JSON.stringify(data.questions, null, 2);
-        } catch(e) { /* Handled in apiCall */ }
+            // The apiCall function already shows a toast for background jobs
+        } catch(e) {
+            // Error handling is also managed within apiCall, so this can be empty
+            // unless specific UI cleanup is needed on failure.
+            document.getElementById('generated-html').value = 'Ошибка при запуске генерации. Пожалуйста, проверьте консоль.';
+            document.getElementById('generated-questions').value = '';
+        }
     }
 
     async function textToSpeechHandler() {

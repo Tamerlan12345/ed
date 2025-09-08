@@ -17,6 +17,7 @@ describe('getTestResults Handler', () => {
 
         supabaseMock = {
             from: fromStub,
+            rpc: sinon.stub().resolves({ data: ['admin'], error: null }), // Assume admin role by default
             auth: {
                 getUser: sinon.stub().resolves({ data: { user: { email: 'admin@cic.kz' } }, error: null })
             }
@@ -73,7 +74,7 @@ describe('getTestResults Handler', () => {
     });
 
     it('should return 403 for non-admin users', async () => {
-        supabaseMock.auth.getUser.resolves({ data: { user: { email: 'not-admin@test.com' } }, error: null });
+        supabaseMock.rpc.resolves({ data: ['user'], error: null }); // Non-admin role
         const event = {
             headers: { authorization: 'Bearer valid_token' },
             body: JSON.stringify({})
