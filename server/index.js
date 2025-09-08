@@ -544,7 +544,7 @@ apiRouter.post('/text-to-speech-user', async (req, res) => {
 
         if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not configured.');
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Corrected model name
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Corrected model name
 
         const summarizationPrompt = `Ты — AI-ассистент. Сделай краткий пересказ предоставленного текста. Пересказ должен быть строго в рамках документа и занимать примерно 5 минут при чтении (около 750 слов). ИСХОДНЫЙ ТЕКСТ: \n---\n${courseData.source_text}\n---`;
         const summaryResult = await model.generateContent(summarizationPrompt);
@@ -576,7 +576,7 @@ apiRouter.post('/askAssistant', async (req, res) => {
         }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         const prompt = [
             'Задание: Ты — AI-ассистент. Ответь на вопрос, используя ТОЛЬКО предоставленный исходный текст.',
             'Если ответа в тексте нет, скажи: "К сожалению, в материалах нет ответа на этот вопрос."',
@@ -691,7 +691,7 @@ apiRouter.post('/dialogueSimulator', async (req, res) => {
         if (action === 'chat' && (!PERSONALITIES[persona] || !scenario)) return res.status(400).json({ error: 'Bad Request: Invalid persona or missing scenario.' });
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         let prompt, answer;
 
         if (action === 'evaluate') {
