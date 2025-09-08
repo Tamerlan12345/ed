@@ -7,6 +7,8 @@ exports.handler = async (event) => {
     try {
         const { course_id, title, file_name, file_data } = JSON.parse(event.body);
 
+        if (!course_id || !title || !file_name || !file_data) {
+            throw new Error('Missing required fields: course_id, title, file_name, or file_data.');
         }
 
         const token = event.headers.authorization.split(' ')[1];

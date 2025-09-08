@@ -58,4 +58,5 @@ web_modules/
 
 # Netlify local dev
 .netlify
+.netlify/state.json
 state.json
