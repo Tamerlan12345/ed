@@ -3,15 +3,24 @@ const { handleError } = require('./utils/errors');
 
 exports.handler = async (event) => {
     try {
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-        const anonSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+        const token = event.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return handleError('Требуется токен авторизации.', 401);
+        }
 
-        const authHeader = event.headers.authorization;
-        if (!authHeader) throw new Error('Authorization header is missing.');
-        const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await anonSupabase.auth.getUser(token);
-        if (authError || !user || user.email.toLowerCase() !== 'admin@cic.kz') {
-            return { statusCode: 403, body: JSON.stringify({ error: 'Access denied.' }) };
+        // Create a Supabase client with the user's token to make RLS work
+        const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_ANON_KEY,
+            { global: { headers: { Authorization: `Bearer ${token}` } } }
+        );
+
+        // Check if the user has the 'admin' role
+        const { data: roles, error: rolesError } = await supabase.rpc('get_my_roles');
+        if (rolesError || !roles.includes('admin')) {
+            // Using handleError here for consistency, though it currently returns a generic 500.
+            // This will be improved in the next task.
+            return { statusCode: 403, body: JSON.stringify({ error: 'У вас нет прав для выполнения этой операции.' }) };
         }
 
         const { user_email, date, course_id } = JSON.parse(event.body);

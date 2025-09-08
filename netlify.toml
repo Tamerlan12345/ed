@@ -3,6 +3,7 @@
   functions = "netlify/functions"
 
 [functions]
+  included_files = ["shared/**"]
   node_bundler = "zisi"
 
 [functions."*"]
