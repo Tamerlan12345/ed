@@ -33,9 +33,16 @@
         .actions-cell button { width: auto; padding: 6px 12px; font-size: 14px; margin-right: 5px; }
         .status-published { color: #28a745; font-weight: bold; }
         .status-processed { color: #ffc107; }
+        .inline-error { color: #dc3545; font-size: 0.9em; margin-top: -5px; margin-bottom: 10px; }
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+        .toast { padding: 15px 20px; margin-bottom: 10px; border-radius: 8px; color: white; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1); opacity: 0.9; width: 300px; }
+        .toast-error { background-color: #dc3545; }
+        .toast-success { background-color: #28a745; }
+        .toast-info { background-color: #00AEEF; }
     </style>
 </head>
 <body>
+    <div id="toast-container"></div>
     <div id="login-view" class="hidden">
         <h1>Вход для администратора</h1>
         <input type="email" id="admin-email" value="test1@cic.kz">
@@ -91,38 +98,7 @@
             </table>
             <hr>
 
-            <div id="course-form-container" class="hidden">
-                <h2 id="course-form-header">Создать новый курс</h2>
-                <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)">
-                <input type="text" id="course-title" placeholder="Название курса">
-
-                <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
-                <input type="file" id="file-uploader" accept=".pdf,.docx">
-                <button id="process-file-btn">Загрузить и обработать файл</button>
-
-                <h3>Извлеченный текст (Источник для AI)</h3>
-                <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
-                <button id="text-to-speech-btn">Озвучить текст</button>
-                <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст..."></textarea>
-
-                <h3>Шаг 2: Сгенерируйте контент</h3>
-                <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
-                <button id="generate-btn">Сгенерировать черновик по тексту</button>
-
-                <h3>Шаг 3: Проверьте и отредактируйте</h3>
-                <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML..."></textarea>
-                <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON..."></textarea>
-
-                <h3>Шаг 4: Сохранение и публикация</h3>
-                <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
-                <button id="cancel-edit-btn" class="hidden" style="background-color: #6c757d;">Отмена</button>
-
-                <hr>
-                <h3>Сопутствующие материалы</h3>
-                <div id="materials-list"></div>
-                <input type="file" id="material-uploader">
-                <button id="upload-material-btn">Загрузить материал</button>
-            </div>
+            <div id="course-form-wrapper"></div>
         </div>
 
         <div id="groups-view" class="hidden">
@@ -148,6 +124,7 @@
             <div id="group-form-container" class="hidden">
                 <h2 id="group-form-header">Создать новую группу</h2>
                 <input type="text" id="group-name" placeholder="Название новой группы">
+                <div id="group_name-error" class="inline-error"></div>
                 <div style="display: flex; gap: 20px; margin-top: 10px; margin-bottom: 10px; align-items: center;">
                     <div style="flex: 1;">
                         <label for="group-start-date" style="display: block; margin-bottom: 5px;">Дата начала (необязательно)</label>
@@ -262,6 +239,31 @@
     </div>
 
 <script>
+    // --- CONSTANTS ---
+    const ACTIONS = {
+        GET_COURSES_ADMIN: 'get_courses_admin',
+        GET_COURSE_DETAILS: 'get_course_details',
+        UPLOAD_AND_PROCESS: 'upload_and_process',
+        GENERATE_CONTENT: 'generate_content',
+        PUBLISH_COURSE: 'publish_course',
+        DELETE_COURSE: 'delete_course',
+        GET_COURSE_GROUPS: 'get_course_groups',
+        CREATE_COURSE_GROUP: 'create_course_group',
+        UPDATE_COURSE_GROUP: 'update_course_group',
+        DELETE_COURSE_GROUP: 'delete_course_group',
+        GET_GROUP_DETAILS: 'get_group_details',
+        UPDATE_COURSES_IN_GROUP: 'update_courses_in_group',
+        ASSIGN_GROUP_TO_DEPARTMENT: 'assign_group_to_department',
+        UPLOAD_COURSE_MATERIAL: 'upload_course_material',
+        DELETE_COURSE_MATERIAL: 'delete_course_material',
+        GET_LEADERBOARD_SETTINGS: 'get_leaderboard_settings',
+        SAVE_LEADERBOARD_SETTINGS: 'save_leaderboard_settings',
+        GET_SIMULATION_RESULTS: 'get_simulation_results',
+        GET_ALL_USERS: 'get_all_users',
+        ASSIGN_COURSE_TO_USER: 'assign_course_to_user',
+        TEXT_TO_SPEECH: 'text_to_speech',
+    };
+
     // --- CORE SETUP ---
     const SUPABASE_URL = 'https://wnsdlibhrlmgyszbyxat.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2RsaWJocmxtZ3lzemJ5eGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE0MjgsImV4cCI6MjA2OTg1NzQyOH0.Sgz-50dHj8M599sIjTRYs0kMP7b6kX2BJ-Gc-trMUQ4';
@@ -293,7 +295,6 @@
     const courseFormContainer = document.getElementById('course-form-container');
     const courseFormHeader = document.getElementById('course-form-header');
     const coursesTableBody = document.getElementById('courses-table').getElementsByTagName('tbody')[0];
-    const cancelEditBtn = document.getElementById('cancel-edit-btn');
     // Group UI elements
     const groupFormContainer = document.getElementById('group-form-container');
     const groupFormHeader = document.getElementById('group-form-header');
@@ -305,15 +306,46 @@
     const groupCoursesList = document.getElementById('group-courses-list');
 
     // --- UTILITY FUNCTIONS ---
-    function showStatus(message, type = 'info') {
-        statusBox.textContent = message;
-        statusBox.className = `status ${type}`;
+    function showToast(message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
         setTimeout(() => {
-            if (statusBox.textContent === message) {
-                statusBox.textContent = '';
-                statusBox.className = 'status hidden';
-            }
+            toast.remove();
         }, 5000);
+    }
+
+    function handleApiError(errorData) {
+        // Clear previous inline errors
+        document.querySelectorAll('.inline-error').forEach(el => el.textContent = '');
+
+        if (errorData.details && typeof errorData.details === 'object') {
+            for (const fieldName in errorData.details) {
+                const errorElement = document.getElementById(`${fieldName}-error`);
+                if (errorElement) {
+                    errorElement.textContent = errorData.details[fieldName];
+                } else {
+                    showToast(`${fieldName}: ${errorData.details[fieldName]}`, 'error');
+                }
+            }
+            showToast(errorData.error || 'Пожалуйста, проверьте ошибки в форме.', 'error');
+        } else if (errorData.error) {
+            showToast(errorData.error, 'error');
+        } else {
+            showToast('Произошла неизвестная ошибка. Попробуйте снова.', 'error');
+        }
+    }
+
+    // This function is kept for backwards compatibility with existing calls, but now uses the toast system.
+    function showStatus(message, type = 'info') {
+        showToast(message, type);
+    }
+
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/'/g, '&apos;').replace(/"/g, '&quot;');
     }
 
     function sanitizeForPath(text) {
@@ -332,13 +364,12 @@
             headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, ...payload })
         });
-        const data = await response.json();
         if (!response.ok) {
-            const errorMsg = data.error?.message || JSON.stringify(data.error);
-            showStatus(`Ошибка: ${errorMsg}`, 'error');
-            throw new Error(errorMsg);
+            const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response from server.' }));
+            handleApiError(errorData);
+            throw new Error(errorData.error || 'API Call Failed');
         }
-        return data;
+        return await response.json();
     }
 
     // --- TAB SWITCHING ---
@@ -440,60 +471,226 @@
         logoutBtn.addEventListener('click', handleLogout);
     });
 
+    // --- DYNAMIC FORM RENDERING ---
+    function renderCourseForm(course = null) {
+        const isEditing = course !== null;
+        const courseId = isEditing ? course.course_id : '';
+        const title = isEditing ? course.title : '';
+        const sourceText = isEditing ? course.source_text : '';
+        const headerText = isEditing ? `Редактирование курса: ${title}` : 'Создать новый курс';
+
+        let summary = '', questions = '', adminPrompt = '';
+        if (isEditing && course.content_html) {
+            if (typeof course.content_html === 'object' && course.content_html.summary) {
+                summary = JSON.stringify(course.content_html.summary, null, 2);
+                questions = JSON.stringify(course.content_html.questions || [], null, 2);
+                adminPrompt = course.content_html.admin_prompt || '';
+            } else {
+                summary = JSON.stringify(course.content_html, null, 2);
+            }
+        }
+
+        let materialsHtml = 'Материалы не загружены.';
+        if (isEditing && course.course_materials && course.course_materials.length > 0) {
+            materialsHtml = course.course_materials.map(mat =>
+                `<div>${escapeHTML(mat.file_name)} <button class="delete-material-btn" data-id="${mat.id}" data-path="${mat.storage_path}">Удалить</button></div>`
+            ).join('');
+        }
+
+        return `
+            <div id="course-form-container">
+                <h2 id="course-form-header">${headerText}</h2>
+                <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)" value="${escapeHTML(courseId)}" ${isEditing ? 'disabled' : ''}>
+                <input type="text" id="course-title" placeholder="Название курса" value="${escapeHTML(title)}">
+
+                <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
+                <input type="file" id="file-uploader" accept=".pdf,.docx">
+                <button id="process-file-btn">Загрузить и обработать файл</button>
+
+                <h3>Извлеченный текст (Источник для AI)</h3>
+                <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
+                <button id="text-to-speech-btn">Озвучить текст</button>
+                <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст...">${escapeHTML(sourceText)}</textarea>
+
+                <h3>Шаг 2: Сгенерируйте контент</h3>
+                <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного...">${escapeHTML(adminPrompt)}</textarea>
+                <button id="generate-btn">Сгенерировать черновик по тексту</button>
+
+                <h3>Шаг 3: Проверьте и отредактируйте</h3>
+                <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML...">${escapeHTML(summary)}</textarea>
+                <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON...">${escapeHTML(questions)}</textarea>
+
+                <h3>Шаг 4: Сохранение и публикация</h3>
+                <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
+                <button id="cancel-edit-btn" style="background-color: #6c757d;">Отмена</button>
+
+                <hr>
+                <h3>Сопутствующие материалы</h3>
+                <div id="materials-list">${materialsHtml}</div>
+                <input type="file" id="material-uploader">
+                <button id="upload-material-btn">Загрузить материал</button>
+            </div>
+        `;
+    }
+
+    function attachCourseFormListeners() {
+        document.getElementById('cancel-edit-btn').addEventListener('click', clearCourseForm);
+        document.getElementById('process-file-btn').addEventListener('click', processFileHandler);
+        document.getElementById('generate-btn').addEventListener('click', generateContentHandler);
+        document.getElementById('text-to-speech-btn').addEventListener('click', textToSpeechHandler);
+        document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
+        document.getElementById('upload-material-btn').addEventListener('click', uploadMaterialHandler);
+        document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
+    }
+
     // --- COURSE MANAGEMENT ---
     function clearCourseForm() {
-        courseFormContainer.classList.add('hidden');
-        courseFormHeader.textContent = 'Создать новый курс';
-        document.getElementById('course-id').value = '';
-        document.getElementById('course-id').disabled = false;
-        document.getElementById('course-title').value = '';
-        document.getElementById('file-uploader').value = '';
-        document.getElementById('source-text').value = '';
-        document.getElementById('custom-prompt').value = '';
-        document.getElementById('generated-html').value = '';
-        document.getElementById('generated-questions').value = '';
-        document.getElementById('materials-list').innerHTML = '';
-        document.getElementById('material-uploader').value = '';
-        cancelEditBtn.classList.add('hidden');
+        const wrapper = document.getElementById('course-form-wrapper');
+        wrapper.innerHTML = '';
         currentEditingCourseId = null;
     }
 
+    // Event handlers are separated to be attached to dynamically created elements
+    async function processFileHandler() {
+        const file = document.getElementById('file-uploader').files[0];
+        const title = document.getElementById('course-title').value.trim();
+        let courseId = document.getElementById('course-id').value.trim();
+        if (!file || !courseId || !title) return showStatus('Укажите ID, название курса и выберите файл.', 'error');
+        courseId = sanitizeForPath(courseId);
+        showStatus(`Обработка файла...`, 'info');
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            try {
+                const base64File = reader.result.split(',')[1];
+                const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
+                    course_id: courseId, title,
+                    file_name: sanitizeForPath(file.name), file_data: base64File
+                });
+                showStatus('Файл успешно обработан.', 'success');
+                document.getElementById('source-text').value = data.extractedText;
+                document.getElementById('course-id').disabled = true;
+                await loadCourses();
+            } catch(e) { /* Handled in apiCall */ }
+        };
+    }
+
+    async function generateContentHandler() {
+        let courseId = document.getElementById('course-id').value.trim();
+        if (!courseId) return showStatus('Укажите ID курса.', 'error');
+        showStatus('Идет генерация контента AI...', 'info');
+        try {
+            const data = await apiCall(ACTIONS.GENERATE_CONTENT, {
+                course_id: courseId,
+                custom_prompt: document.getElementById('custom-prompt').value
+            });
+            showStatus('Черновик успешно сгенерирован.', 'success');
+            document.getElementById('generated-html').value = JSON.stringify(data.summary, null, 2);
+            document.getElementById('generated-questions').value = JSON.stringify(data.questions, null, 2);
+        } catch(e) { /* Handled in apiCall */ }
+    }
+
+    async function textToSpeechHandler() {
+        const sourceText = document.getElementById('source-text').value;
+        if (!sourceText) return showStatus('Нет текста для озвучивания.', 'error');
+        showStatus('Идет генерация аудио...', 'info');
+        const audioPlayerContainer = document.getElementById('audio-player-container');
+        audioPlayerContainer.innerHTML = '';
+        try {
+            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: sourceText });
+            const audio = new Audio(data.audioUrl);
+            audio.controls = true;
+            audioPlayerContainer.appendChild(audio);
+            audioPlayerContainer.classList.remove('hidden');
+            showStatus('Аудио успешно сгенерировано.', 'success');
+        } catch (error) { /* Handled in apiCall */ }
+    }
+
+    async function publishCourseHandler() {
+        let courseId = document.getElementById('course-id').value.trim();
+        if (!courseId) return showStatus('Укажите ID курса.', 'error');
+        showStatus('Публикую курс...', 'info');
+        try {
+            const content_html = JSON.parse(document.getElementById('generated-html').value);
+            const questions = JSON.parse(document.getElementById('generated-questions').value);
+            await apiCall(ACTIONS.PUBLISH_COURSE, {
+                course_id: courseId, content_html, questions,
+                admin_prompt: document.getElementById('custom-prompt').value
+            });
+            showStatus('Курс успешно опубликован.', 'success');
+            await loadCourses();
+            clearCourseForm();
+        } catch (e) {
+            showStatus('Ошибка: Неверный формат JSON или другая проблема.', 'error');
+        }
+    }
+
+    async function uploadMaterialHandler() {
+        const file = document.getElementById('material-uploader').files[0];
+        if (!currentEditingCourseId || !file) return showStatus('Сначала выберите курс для редактирования и файл для загрузки.', 'error');
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            try {
+                await apiCall(ACTIONS.UPLOAD_COURSE_MATERIAL, {
+                    course_id: currentEditingCourseId,
+                    file_name: file.name,
+                    file_data: reader.result.split(',')[1]
+                });
+                showStatus('Материал успешно загружен.', 'success');
+                loadCourseForEditing(currentEditingCourseId); // Refresh
+            } catch(e) { /* Handled in apiCall */ }
+        };
+    }
+
+    async function deleteMaterialHandler(e) {
+        if (e.target.classList.contains('delete-material-btn')) {
+            const materialId = e.target.dataset.id;
+            const storagePath = e.target.dataset.path;
+            if (confirm(`Удалить материал "${storagePath}"?`)) {
+                try {
+                    await apiCall(ACTIONS.DELETE_COURSE_MATERIAL, { material_id: materialId, storage_path: storagePath });
+                    showStatus('Материал удален.', 'success');
+                    loadCourseForEditing(currentEditingCourseId); // Refresh
+                } catch(e) { /* Handled in apiCall */ }
+            }
+        }
+    }
+
     document.getElementById('show-create-form-btn').addEventListener('click', () => {
-        clearCourseForm();
-        courseFormContainer.classList.remove('hidden');
+        const wrapper = document.getElementById('course-form-wrapper');
+        wrapper.innerHTML = renderCourseForm();
+        attachCourseFormListeners();
         document.getElementById('course-id').focus();
     });
 
-    cancelEditBtn.addEventListener('click', clearCourseForm);
+    function renderCoursesTable(courses) {
+        if (!courses || courses.length === 0) {
+            return '<tr><td colspan="4" style="text-align:center;">Курсы еще не созданы.</td></tr>';
+        }
+        return courses.sort((a, b) => a.title.localeCompare(b.title)).map(course => `
+            <tr>
+                <td>${escapeHTML(course.title)}</td>
+                <td>${escapeHTML(course.course_id)}</td>
+                <td class="status-${course.status}">${course.status || 'N/A'}</td>
+                <td class="actions-cell">
+                    <button onclick="loadCourseForEditing('${escapeHTML(course.course_id)}')">Редактировать</button>
+                    <button style="background-color: #dc3545;" onclick="deleteCourse('${escapeHTML(course.course_id)}', '${escapeHTML(course.title)}')">Удалить</button>
+                </td>
+            </tr>
+        `).join('');
+    }
 
     async function loadCourses() {
         coursesTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
         try {
-            const courses = await apiCall('get_courses_admin');
+            const courses = await apiCall(ACTIONS.GET_COURSES_ADMIN);
             allCoursesData = courses; // Cache for group management
-            coursesTableBody.innerHTML = '';
+            coursesTableBody.innerHTML = renderCoursesTable(courses);
+
             const filterCourseSelector = document.getElementById('filter-course');
             filterCourseSelector.innerHTML = '<option value="">Все курсы</option>';
-
-            courses.sort((a, b) => a.title.localeCompare(b.title)).forEach(course => {
-                const row = coursesTableBody.insertRow();
-                row.insertCell(0).textContent = course.title;
-                row.insertCell(1).textContent = course.course_id;
-                const statusCell = row.insertCell(2);
-                statusCell.textContent = course.status || 'N/A';
-                statusCell.className = `status-${course.status}`;
-                const actionsCell = row.insertCell(3);
-                actionsCell.className = 'actions-cell';
-                const editBtn = document.createElement('button');
-                editBtn.textContent = 'Редактировать';
-                editBtn.onclick = () => loadCourseForEditing(course.course_id);
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = 'Удалить';
-                deleteBtn.style.backgroundColor = '#dc3545';
-                deleteBtn.onclick = () => deleteCourse(course.course_id, course.title);
-                actionsCell.appendChild(editBtn);
-                actionsCell.appendChild(deleteBtn);
-
+            courses.forEach(course => {
                 const option = document.createElement('option');
                 option.value = course.course_id;
                 option.textContent = `${course.title} (${course.course_id})`;
@@ -505,50 +702,22 @@
     async function loadCourseForEditing(courseId) {
         showStatus(`Загружаю данные для курса ${courseId}...`, 'info');
         try {
-            const course = await apiCall('get_course_details', { course_id: courseId });
-            clearCourseForm();
+            const course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
             currentEditingCourseId = courseId;
-            courseFormContainer.classList.remove('hidden');
-            courseFormHeader.textContent = `Редактирование курса: ${course.title}`;
-            cancelEditBtn.classList.remove('hidden');
-            window.scrollTo(0, courseFormContainer.offsetTop);
 
-            document.getElementById('course-id').value = course.course_id;
-            document.getElementById('course-id').disabled = true;
-            document.getElementById('course-title').value = course.title;
-            document.getElementById('source-text').value = course.source_text || '';
+            const wrapper = document.getElementById('course-form-wrapper');
+            wrapper.innerHTML = renderCourseForm(course);
+            attachCourseFormListeners();
 
-            let summary = '', questions = '', adminPrompt = '';
-            if (course.content_html) {
-                if (typeof course.content_html === 'object' && course.content_html.summary) {
-                    summary = JSON.stringify(course.content_html.summary, null, 2);
-                    questions = JSON.stringify(course.content_html.questions || [], null, 2);
-                    adminPrompt = course.content_html.admin_prompt || '';
-                } else {
-                    summary = JSON.stringify(course.content_html, null, 2);
-                }
-            }
-            document.getElementById('generated-html').value = summary;
-            document.getElementById('generated-questions').value = questions;
-            document.getElementById('custom-prompt').value = adminPrompt;
-
-            const materialsList = document.getElementById('materials-list');
-            materialsList.innerHTML = '';
-            if (course.course_materials && course.course_materials.length > 0) {
-                course.course_materials.forEach(mat => {
-                    const matDiv = document.createElement('div');
-                    matDiv.innerHTML = `${mat.file_name} <button class="delete-material-btn" data-id="${mat.id}" data-path="${mat.storage_path}">Удалить</button>`;
-                    materialsList.appendChild(matDiv);
-                });
-            }
             showStatus(`Курс ${course.title} успешно загружен.`, 'success');
+            window.scrollTo(0, wrapper.offsetTop);
         } catch (e) { /* Handled in apiCall */ }
     }
 
     async function deleteCourse(courseId, courseTitle) {
         if (!confirm(`Вы уверены, что хотите удалить курс "${courseTitle}" (${courseId})? Это действие необратимо и также удалит все результаты тестов по этому курсу.`)) return;
         try {
-            await apiCall('delete_course', { course_id: courseId });
+            await apiCall(ACTIONS.DELETE_COURSE, { course_id: courseId });
             showStatus('Курс успешно удален.', 'success');
             clearCourseForm();
             await loadCourses();
@@ -579,40 +748,36 @@
 
     cancelGroupEditBtn.addEventListener('click', clearGroupForm);
 
+    function renderGroupsTable(groups) {
+        if (!groups || groups.length === 0) {
+            return '<tr><td colspan="4" style="text-align:center;">Группы еще не созданы.</td></tr>';
+        }
+        const recurrenceMap = {'1': 'Раз в 1 месяц', '3': 'Раз в 3 месяца', '6': 'Раз в 6 месяцев', '12': 'Раз в 12 месяцев'};
+        return groups.sort((a, b) => a.group_name.localeCompare(b.group_name)).map(g => `
+            <tr>
+                <td>${escapeHTML(g.group_name)}</td>
+                <td>${g.is_for_new_employees ? 'Да' : 'Нет'}</td>
+                <td>${recurrenceMap[g.recurrence_period] || 'Однократно'}</td>
+                <td class="actions-cell">
+                    <button onclick="loadGroupForEditing('${g.id}')">Редактировать</button>
+                    <button style="background-color: #dc3545;" onclick="deleteGroup('${g.id}', '${escapeHTML(g.group_name)}')">Удалить</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
     async function loadGroups() {
         groupsTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
         try {
-            const groups = await apiCall('get_course_groups');
-            groupsTableBody.innerHTML = '';
-            if (groups.length === 0) {
-                groupsTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Группы еще не созданы.</td></tr>';
-                return;
-            }
-            groups.sort((a, b) => a.group_name.localeCompare(b.group_name)).forEach(g => {
-                const row = groupsTableBody.insertRow();
-                row.insertCell(0).textContent = g.group_name;
-                row.insertCell(1).textContent = g.is_for_new_employees ? 'Да' : 'Нет';
-                const recurrenceMap = {'1': 'Раз в 1 месяц', '3': 'Раз в 3 месяца', '6': 'Раз в 6 месяцев', '12': 'Раз в 12 месяцев'};
-                row.insertCell(2).textContent = recurrenceMap[g.recurrence_period] || 'Однократно';
-                const actionsCell = row.insertCell(3);
-                actionsCell.className = 'actions-cell';
-                const editBtn = document.createElement('button');
-                editBtn.textContent = 'Редактировать';
-                editBtn.onclick = () => loadGroupForEditing(g.id);
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = 'Удалить';
-                deleteBtn.style.backgroundColor = '#dc3545';
-                deleteBtn.onclick = () => deleteGroup(g.id, g.group_name);
-                actionsCell.appendChild(editBtn);
-                actionsCell.appendChild(deleteBtn);
-            });
+            const groups = await apiCall(ACTIONS.GET_COURSE_GROUPS);
+            groupsTableBody.innerHTML = renderGroupsTable(groups);
         } catch (e) { /* Handled in apiCall */ }
     }
 
     async function loadGroupForEditing(groupId) {
         showStatus(`Загрузка группы ${groupId}...`, 'info');
         try {
-            const groupDetails = await apiCall('get_group_details', { group_id: groupId });
+            const groupDetails = await apiCall(ACTIONS.GET_GROUP_DETAILS, { group_id: groupId });
             clearGroupForm();
             groupFormContainer.classList.remove('hidden');
             groupFormHeader.textContent = `Редактирование группы: ${groupDetails.group_name}`;
@@ -641,7 +806,7 @@
     async function deleteGroup(groupId, groupName) {
         if (confirm(`Вы уверены, что хотите удалить группу "${groupName}"?`)) {
             try {
-                await apiCall('delete_course_group', { group_id: groupId });
+                await apiCall(ACTIONS.DELETE_COURSE_GROUP, { group_id: groupId });
                 showStatus('Группа удалена.', 'success');
                 clearGroupForm();
                 await loadGroups();
@@ -660,10 +825,10 @@
         };
         try {
             if (currentEditingGroupId) {
-                await apiCall('update_course_group', { ...payload, group_id: currentEditingGroupId });
+                await apiCall(ACTIONS.UPDATE_COURSE_GROUP, { ...payload, group_id: currentEditingGroupId });
                 showStatus('Группа успешно обновлена.', 'success');
             } else {
-                const newGroup = await apiCall('create_course_group', payload);
+                const newGroup = await apiCall(ACTIONS.CREATE_COURSE_GROUP, payload);
                 currentEditingGroupId = newGroup.id; // Set current group to allow adding courses right away
                 showStatus('Группа успешно создана.', 'success');
             }
@@ -674,7 +839,7 @@
     async function loadAllCoursesForGrouping() {
         if (allCoursesData.length === 0) {
              try {
-                allCoursesData = await apiCall('get_courses_admin');
+                allCoursesData = await apiCall(ACTIONS.GET_COURSES_ADMIN);
              } catch(e) { /* Handled in apiCall */ }
         }
     }
@@ -696,7 +861,7 @@
         if (!currentEditingGroupId) return showStatus('Сначала выберите или создайте группу.', 'error');
         const courseIds = Array.from(groupCoursesList.options).map(opt => opt.value);
         try {
-            await apiCall('update_courses_in_group', { group_id: currentEditingGroupId, course_ids: courseIds });
+            await apiCall(ACTIONS.UPDATE_COURSES_IN_GROUP, { group_id: currentEditingGroupId, course_ids: courseIds });
             showStatus('Состав группы успешно сохранен.', 'success');
         } catch (e) { /* Handled in apiCall */ }
     });
@@ -705,7 +870,7 @@
         const department = document.getElementById('assign-department-name').value.trim();
         if (!currentEditingGroupId || !department) return showStatus('Выберите группу и укажите название подразделения.', 'error');
         try {
-            await apiCall('assign_group_to_department', { group_id: currentEditingGroupId, department: department });
+            await apiCall(ACTIONS.ASSIGN_GROUP_TO_DEPARTMENT, { group_id: currentEditingGroupId, department: department });
             showStatus(`Группа успешно назначена подразделению "${department}".`, 'success');
             document.getElementById('assign-department-name').value = '';
         } catch (e) { /* Handled in apiCall */ }
@@ -717,7 +882,7 @@
     document.getElementById('load-students-btn').addEventListener('click', async () => {
         try {
             showStatus('Загрузка списка учеников...', 'info');
-            const students = await apiCall('get_all_users');
+            const students = await apiCall(ACTIONS.GET_ALL_USERS);
             const studentsTable = document.getElementById('students-table');
             const studentsTbody = document.getElementById('students-table-body');
             studentsTbody.innerHTML = '';
@@ -763,7 +928,7 @@
             return showStatus('Выберите ученика и курс для назначения.', 'error');
         }
         try {
-            await apiCall('assign_course_to_user', { user_email: selectedStudentEmail, course_id: courseId });
+            await apiCall(ACTIONS.ASSIGN_COURSE_TO_USER, { user_email: selectedStudentEmail, course_id: courseId });
             showStatus(`Курс "${courseId}" успешно назначен ${selectedStudentEmail}.`, 'success');
         } catch(e) { /* Handled in apiCall */ }
     });
@@ -772,7 +937,7 @@
     // --- LEADERBOARD & OTHER ---
     async function loadLeaderboardSettings() {
         try {
-            const settings = await apiCall('get_leaderboard_settings');
+            const settings = await apiCall(ACTIONS.GET_LEADERBOARD_SETTINGS);
             const metrics = settings.metrics || { courses_completed: true, time_spent: false, avg_score: false };
             document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(c => { c.checked = metrics[c.value] || false; });
             showStatus('Настройки загружены.', 'success');
@@ -783,7 +948,7 @@
         const metrics = {};
         document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(c => { metrics[c.value] = c.checked; });
         try {
-            await apiCall('save_leaderboard_settings', { metrics });
+            await apiCall(ACTIONS.SAVE_LEADERBOARD_SETTINGS, { metrics });
             showStatus('Настройки успешно сохранены.', 'success');
         } catch (e) { /* Handled in apiCall */ }
     });
@@ -834,7 +999,7 @@
         tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Загрузка результатов...</td></tr>';
         showStatus('Загрузка результатов тренажера...', 'info');
         try {
-            const results = await apiCall('get_simulation_results');
+            const results = await apiCall(ACTIONS.GET_SIMULATION_RESULTS);
             tableBody.innerHTML = '';
             if (results.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Результаты тренажера отсутствуют.</td></tr>';
@@ -883,113 +1048,6 @@
             showStatus('Отчет успешно выгружен.', 'success');
         } catch (error) {
             showStatus(`Ошибка при выгрузке: ${error.message}`, 'error');
-        }
-    });
-
-    // --- LEGACY FORM BUTTONS (inside course/group forms) ---
-    document.getElementById('process-file-btn').addEventListener('click', async () => {
-        const file = document.getElementById('file-uploader').files[0];
-        const title = document.getElementById('course-title').value.trim();
-        let courseId = document.getElementById('course-id').value.trim();
-        if (!file || !courseId || !title) return showStatus('Укажите ID, название курса и выберите файл.', 'error');
-        courseId = sanitizeForPath(courseId);
-        showStatus(`Обработка файла...`, 'info');
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            try {
-                const base64File = reader.result.split(',')[1];
-                const data = await apiCall('upload_and_process', {
-                    course_id: courseId, title,
-                    file_name: sanitizeForPath(file.name), file_data: base64File
-                });
-                showStatus('Файл успешно обработан.', 'success');
-                document.getElementById('source-text').value = data.extractedText;
-                document.getElementById('course-id').disabled = true;
-                await loadCourses();
-            } catch(e) { /* Handled in apiCall */ }
-        };
-    });
-
-    document.getElementById('generate-btn').addEventListener('click', async () => {
-        let courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) return showStatus('Укажите ID курса.', 'error');
-        showStatus('Идет генерация контента AI...', 'info');
-        try {
-            const data = await apiCall('generate_content', {
-                course_id: courseId,
-                custom_prompt: document.getElementById('custom-prompt').value
-            });
-            showStatus('Черновик успешно сгенерирован.', 'success');
-            document.getElementById('generated-html').value = JSON.stringify(data.summary, null, 2);
-            document.getElementById('generated-questions').value = JSON.stringify(data.questions, null, 2);
-        } catch(e) { /* Handled in apiCall */ }
-    });
-
-    document.getElementById('text-to-speech-btn').addEventListener('click', async () => {
-        const sourceText = document.getElementById('source-text').value;
-        if (!sourceText) return showStatus('Нет текста для озвучивания.', 'error');
-        showStatus('Идет генерация аудио...', 'info');
-        const audioPlayerContainer = document.getElementById('audio-player-container');
-        audioPlayerContainer.innerHTML = '';
-        try {
-            const data = await apiCall('text_to_speech', { text: sourceText });
-            const audio = new Audio(data.audioUrl);
-            audio.controls = true;
-            audioPlayerContainer.appendChild(audio);
-            audioPlayerContainer.classList.remove('hidden');
-            showStatus('Аудио успешно сгенерировано.', 'success');
-        } catch (error) { /* Handled in apiCall */ }
-    });
-
-    document.getElementById('publish-btn').addEventListener('click', async () => {
-        let courseId = document.getElementById('course-id').value.trim();
-        if (!courseId) return showStatus('Укажите ID курса.', 'error');
-        showStatus('Публикую курс...', 'info');
-        try {
-            const content_html = JSON.parse(document.getElementById('generated-html').value);
-            const questions = JSON.parse(document.getElementById('generated-questions').value);
-            await apiCall('publish_course', {
-                course_id: courseId, content_html, questions,
-                admin_prompt: document.getElementById('custom-prompt').value
-            });
-            showStatus('Курс успешно опубликован.', 'success');
-            await loadCourses();
-            clearCourseForm();
-        } catch (e) {
-            showStatus('Ошибка: Неверный формат JSON или другая проблема.', 'error');
-        }
-    });
-
-    document.getElementById('upload-material-btn').addEventListener('click', async () => {
-        const file = document.getElementById('material-uploader').files[0];
-        if (!currentEditingCourseId || !file) return showStatus('Сначала выберите курс для редактирования и файл для загрузки.', 'error');
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            try {
-                await apiCall('upload_course_material', {
-                    course_id: currentEditingCourseId,
-                    file_name: file.name,
-                    file_data: reader.result.split(',')[1]
-                });
-                showStatus('Материал успешно загружен.', 'success');
-                loadCourseForEditing(currentEditingCourseId); // Refresh
-            } catch(e) { /* Handled in apiCall */ }
-        };
-    });
-
-    document.getElementById('materials-list').addEventListener('click', async (e) => {
-        if (e.target.classList.contains('delete-material-btn')) {
-            const materialId = e.target.dataset.id;
-            const storagePath = e.target.dataset.path;
-            if (confirm(`Удалить материал "${storagePath}"?`)) {
-                try {
-                    await apiCall('delete_course_material', { material_id: materialId, storage_path: storagePath });
-                    showStatus('Материал удален.', 'success');
-                    loadCourseForEditing(currentEditingCourseId); // Refresh
-                } catch(e) { /* Handled in apiCall */ }
-            }
         }
     });
 </script>

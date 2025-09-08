@@ -1,12 +1,14 @@
 const { createClient } = require('@supabase/supabase-js');
-const { handleError } = require('../utils/errors');
+const { handleError, createError } = require('../utils/errors');
 
 exports.handler = async (event) => {
     try {
         const { group_name, is_for_new_employees, start_date, recurrence_period } = JSON.parse(event.body);
 
-        if (!group_name) {
-            return { statusCode: 400, body: JSON.stringify({ error: 'group_name is required.' }) };
+        if (!group_name || group_name.trim() === '') {
+            throw createError(400, 'Ошибка валидации', {
+                group_name: 'Название группы не может быть пустым.'
+            });
         }
 
         const token = event.headers.authorization.split(' ')[1];

@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { ACTIONS } = require('../shared/constants');
 
 // Course and Content Management
 const getCoursesHandler = require('./admin/get-courses').handler;
@@ -38,39 +39,39 @@ const textToSpeechHandler = require('./admin/text-to-speech').handler;
 
 const actionMap = {
     // Course and Content Management
-    'get_courses_admin': getCoursesHandler,
-    'get_course_details': getCourseDetailsHandler,
-    'upload_and_process': uploadAndProcessHandler,
-    'generate_content': generateContentHandler,
-    'publish_course': publishCourseHandler,
-    'delete_course': deleteCourseHandler,
+    [ACTIONS.GET_COURSES_ADMIN]: getCoursesHandler,
+    [ACTIONS.GET_COURSE_DETAILS]: getCourseDetailsHandler,
+    [ACTIONS.UPLOAD_AND_PROCESS]: uploadAndProcessHandler,
+    [ACTIONS.GENERATE_CONTENT]: generateContentHandler,
+    [ACTIONS.PUBLISH_COURSE]: publishCourseHandler,
+    [ACTIONS.DELETE_COURSE]: deleteCourseHandler,
 
     // Course Group Management
-    'get_course_groups': getCourseGroupsHandler,
-    'create_course_group': createCourseGroupHandler,
-    'update_course_group': updateCourseGroupHandler,
-    'delete_course_group': deleteCourseGroupHandler,
-    'get_group_details': getGroupDetailsHandler,
-    'update_courses_in_group': updateCoursesInGroupHandler,
-    'assign_group_to_department': assignGroupToDepartmentHandler,
+    [ACTIONS.GET_COURSE_GROUPS]: getCourseGroupsHandler,
+    [ACTIONS.CREATE_COURSE_GROUP]: createCourseGroupHandler,
+    [ACTIONS.UPDATE_COURSE_GROUP]: updateCourseGroupHandler,
+    [ACTIONS.DELETE_COURSE_GROUP]: deleteCourseGroupHandler,
+    [ACTIONS.GET_GROUP_DETAILS]: getGroupDetailsHandler,
+    [ACTIONS.UPDATE_COURSES_IN_GROUP]: updateCoursesInGroupHandler,
+    [ACTIONS.ASSIGN_GROUP_TO_DEPARTMENT]: assignGroupToDepartmentHandler,
 
     // Course Materials Management
-    'upload_course_material': uploadCourseMaterialHandler,
-    'delete_course_material': deleteCourseMaterialHandler,
+    [ACTIONS.UPLOAD_COURSE_MATERIAL]: uploadCourseMaterialHandler,
+    [ACTIONS.DELETE_COURSE_MATERIAL]: deleteCourseMaterialHandler,
 
     // Leaderboard Settings
-    'get_leaderboard_settings': getLeaderboardSettingsHandler,
-    'save_leaderboard_settings': saveLeaderboardSettingsHandler,
+    [ACTIONS.GET_LEADERBOARD_SETTINGS]: getLeaderboardSettingsHandler,
+    [ACTIONS.SAVE_LEADERBOARD_SETTINGS]: saveLeaderboardSettingsHandler,
 
     // Simulation Results
-    'get_simulation_results': getSimulationResultsHandler,
+    [ACTIONS.GET_SIMULATION_RESULTS]: getSimulationResultsHandler,
 
     // User Management
-    'get_all_users': getAllUsersHandler,
-    'assign_course_to_user': assignCourseToUserHandler,
+    [ACTIONS.GET_ALL_USERS]: getAllUsersHandler,
+    [ACTIONS.ASSIGN_COURSE_TO_USER]: assignCourseToUserHandler,
 
     // Other
-    'text_to_speech': textToSpeechHandler,
+    [ACTIONS.TEXT_TO_SPEECH]: textToSpeechHandler,
 };
 
 exports.handler = async (event) => {
