@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "type": "commonjs",
   "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.57.2",
     "axios": "^1.11.0",
@@ -12,6 +16,7 @@
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
+    "nodemon": "^3.1.4",
     "assert": "^2.0.0",
     "mocha": "^11.7.2",
     "netlify-cli": "^23.5.0",
@@ -19,8 +24,9 @@
     "sinon": "^21.0.0"
   },
   "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
     "test": "mocha 'test/**/*.test.js'",
-    "test:cov": "c8 npm test",
-    "dev": "netlify dev"
+    "test:cov": "c8 npm test"
   }
 }
