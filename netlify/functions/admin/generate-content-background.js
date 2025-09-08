@@ -42,7 +42,14 @@ async function generateContent(jobId, eventBody, token) {
         const result = await model.generateContent(finalPrompt);
         const response = await result.response;
         const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsedJson = JSON.parse(jsonString);
+
+        let parsedJson;
+        try {
+            parsedJson = JSON.parse(jsonString);
+        } catch (e) {
+            console.error(`[Job ${jobId}] Failed to parse JSON string. Raw string was: "${jsonString}"`, e);
+            throw new Error('AI model returned malformed JSON.');
+        }
 
         if (!parsedJson.summary || !parsedJson.questions) {
             throw new Error('AI model returned an invalid or incomplete JSON structure.');
@@ -52,7 +59,7 @@ async function generateContent(jobId, eventBody, token) {
         const { error: dbError } = await supabase
             .from('courses')
             .update({
-                content: parsedJson, // Save the structured content
+                content_html: parsedJson, // Save the structured content
                 status: 'generated'
             })
             .eq('course_id', course_id);
@@ -84,11 +91,17 @@ exports.handler = async (event) => {
         const eventBody = JSON.parse(event.body);
         const { course_id } = eventBody;
 
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+        if (userError || !user) {
+            console.error(`[Job ${jobId}] Auth error for token:`, userError);
+            throw new Error('User authentication failed, cannot create job.');
+        }
+
         const { error } = await supabase.from('background_jobs').insert({
             job_id: jobId,
             job_type: 'content_generation',
             status: 'pending',
-            created_by: (await supabase.auth.getUser(token)).data.user.id,
+            created_by: user.id,
             related_entity_id: course_id
         });
 
