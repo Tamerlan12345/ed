@@ -1,13 +1,17 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const proxyquire = require('proxyquire');
+const request = require('supertest');
 
 describe('textToSpeech Handler', () => {
-    let handler;
+    let app;
     let supabaseMock;
     let axiosMock;
     let genAI_mock;
-    let handleErrorMock;
+    let cronMock;
+    let createClientMock;
+    let authStub;
+    let fromStub;
 
     const fakeSummary = 'This is a fake summary.';
 
@@ -15,12 +19,9 @@ describe('textToSpeech Handler', () => {
         process.env.SPEECHIFY_API_KEY = 'test_speechify_api_key';
         process.env.GEMINI_API_KEY = 'test_gemini_api_key';
 
-        handleErrorMock = sinon.stub().returns({ statusCode: 500, body: '{"error":"An internal server error occurred. Please try again later."}' });
-
-        const fromStub = sinon.stub();
-        const authStub = {
-            getUser: sinon.stub().resolves({ data: { user: { id: '123' } }, error: null })
-        };
+        authStub = sinon.stub();
+        fromStub = sinon.stub();
+        cronMock = { schedule: sinon.stub() };
 
         fromStub.withArgs('courses').returns({
             select: sinon.stub().returnsThis(),
@@ -30,9 +31,11 @@ describe('textToSpeech Handler', () => {
 
         supabaseMock = {
             from: fromStub,
-            auth: authStub,
+            auth: {
+                getUser: authStub,
+            },
         };
-        const createClientMock = sinon.stub().returns(supabaseMock);
+        createClientMock = sinon.stub().returns(supabaseMock);
 
         axiosMock = {
             post: sinon.stub().resolves({ data: { audio_data: 'fake_base64_string' } })
@@ -48,13 +51,12 @@ describe('textToSpeech Handler', () => {
             })
         };
 
-        const handlerModule = proxyquire('../netlify/functions/text-to-speech-user.js', {
+        app = proxyquire('../server/index.js', {
             '@supabase/supabase-js': { createClient: createClientMock },
             'axios': axiosMock,
             '@google/generative-ai': { GoogleGenerativeAI: sinon.stub().returns(genAI_mock) },
-            './utils/errors': { handleError: handleErrorMock },
+            'node-cron': cronMock,
         });
-        handler = handlerModule.handler;
     });
 
     afterEach(() => {
@@ -64,67 +66,65 @@ describe('textToSpeech Handler', () => {
     });
 
     it('should return audio data for an authorized user with a valid course_id', async () => {
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '123' }
-        };
-        const response = await handler(event);
-        const body = JSON.parse(response.body);
+        authStub.resolves({ data: { user: { id: '123' } }, error: null });
+        const response = await request(app)
+            .post('/api/text-to-speech-user')
+            .set('Authorization', 'Bearer FAKE_TOKEN')
+            .send({ course_id: '123' });
 
-        assert.strictEqual(response.statusCode, 200);
-        assert.strictEqual(body.audioUrl, 'data:audio/mp3;base64,fake_base64_string');
+        assert.strictEqual(response.status, 200);
+        assert.deepStrictEqual(response.body, { audioUrl: 'data:audio/mp3;base64,fake_base64_string' });
     });
 
     it('should return 401 if user is not authorized', async () => {
-        supabaseMock.auth.getUser.rejects(new Error('Unauthorized'));
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '123' }
-        };
-        await handler(event);
-        assert(handleErrorMock.calledOnce);
+        authStub.resolves({ data: { user: null }, error: { message: 'Unauthorized' } });
+        const response = await request(app)
+            .post('/api/text-to-speech-user')
+            .set('Authorization', 'Bearer FAKE_TOKEN')
+            .send({ course_id: '123' });
+        assert.strictEqual(response.status, 401);
     });
 
     it('should return 400 if course_id is missing', async () => {
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: {}
-        };
-        const response = await handler(event);
-        assert.strictEqual(response.statusCode, 400);
+        authStub.resolves({ data: { user: { id: '123' } }, error: null });
+        const response = await request(app)
+            .post('/api/text-to-speech-user')
+            .set('Authorization', 'Bearer FAKE_TOKEN')
+            .send({});
+        assert.strictEqual(response.status, 400);
     });
 
     it('should return 404 if course not found', async () => {
-        supabaseMock.from.withArgs('courses').returns({
+        authStub.resolves({ data: { user: { id: '123' } }, error: null });
+        fromStub.withArgs('courses').returns({
             select: sinon.stub().returnsThis(),
             eq: sinon.stub().returnsThis(),
-            single: sinon.stub().resolves({ data: null, error: { message: 'Not found' } })
+            single: sinon.stub().resolves({ data: null, error: null })
         });
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '456' }
-        };
-        const response = await handler(event);
-        assert.strictEqual(response.statusCode, 404);
+        const response = await request(app)
+            .post('/api/text-to-speech-user')
+            .set('Authorization', 'Bearer FAKE_TOKEN')
+            .send({ course_id: '456' });
+        assert.strictEqual(response.status, 404);
     });
 
     it('should return 500 if Gemini API call fails', async () => {
+        authStub.resolves({ data: { user: { id: '123' } }, error: null });
         genAI_mock.getGenerativeModel().generateContent.rejects(new Error('Gemini Error'));
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '123' }
-        };
-        await handler(event);
-        assert(handleErrorMock.calledOnce);
+        const response = await request(app)
+            .post('/api/text-to-speech-user')
+            .set('Authorization', 'Bearer FAKE_TOKEN')
+            .send({ course_id: '123' });
+        assert.strictEqual(response.status, 500);
     });
 
     it('should return 500 if Speechify API call fails', async () => {
+        authStub.resolves({ data: { user: { id: '123' } }, error: null });
         axiosMock.post.rejects(new Error('API Error'));
-        const event = {
-            headers: { authorization: 'Bearer FAKE_TOKEN' },
-            queryStringParameters: { course_id: '123' }
-        };
-        await handler(event);
-        assert(handleErrorMock.calledOnce);
+        const response = await request(app)
+            .post('/api/text-to-speech-user')
+            .set('Authorization', 'Bearer FAKE_TOKEN')
+            .send({ course_id: '123' });
+        assert.strictEqual(response.status, 500);
     });
 });

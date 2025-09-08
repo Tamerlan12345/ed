@@ -90,8 +90,10 @@ apiRouter.post('/admin', async (req, res) => {
             case 'delete_course': {
                 const { course_id } = payload;
                 if (!course_id) return res.status(400).json({ error: 'course_id is required.' });
-                await supabase.from('user_progress').delete().eq('course_id', course_id);
-                await supabase.from('courses').delete().eq('course_id', course_id);
+                const { error: progressError } = await supabase.from('user_progress').delete().eq('course_id', course_id);
+                if (progressError) throw progressError;
+                const { error: courseError } = await supabase.from('courses').delete().eq('course_id', course_id);
+                if (courseError) throw courseError;
                 data = { message: `Course ${course_id} and all related progress have been successfully deleted.` };
                 break;
             }
@@ -113,13 +115,15 @@ apiRouter.post('/admin', async (req, res) => {
                 const jobId = crypto.randomUUID();
                 const { course_id } = payload;
 
-                await supabase.from('background_jobs').insert({
+                const { error: insertError } = await supabase.from('background_jobs').insert({
                     job_id: jobId,
                     job_type: 'file_upload',
                     status: 'pending',
                     created_by: user.id,
                     related_entity_id: course_id
                 });
+
+                if (insertError) throw insertError;
 
                 // Fire and forget
                 handleUploadAndProcess(jobId, payload, token);
@@ -131,13 +135,15 @@ apiRouter.post('/admin', async (req, res) => {
                 const jobId = crypto.randomUUID();
                 const { course_id } = payload;
 
-                await supabase.from('background_jobs').insert({
+                const { error: insertError } = await supabase.from('background_jobs').insert({
                     job_id: jobId,
                     job_type: 'content_generation',
                     status: 'pending',
                     created_by: user.id,
                     related_entity_id: course_id
                 });
+
+                if (insertError) throw insertError;
 
                 // Fire and forget
                 handleGenerateContent(jobId, payload, token);
@@ -911,8 +917,11 @@ console.log('Cron job for reminders scheduled.');
 
 
 // --- Запуск сервера ---
-app.listen(PORT, () => {
-    console.log(`Сервер запущен и слушает порт ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Сервер запущен и слушает порт ${PORT}`);
+    });
+}
 
+module.exports = app;
 // --- Конец файла /server/index.js ---

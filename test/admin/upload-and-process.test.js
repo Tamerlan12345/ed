@@ -1,81 +1,85 @@
 const assert = require('assert');
 const sinon = require('sinon');
 const proxyquire = require('proxyquire');
+const request = require('supertest');
 
 describe('Admin: Upload and Process File (Background)', () => {
-    let handler;
+    let app;
     let supabaseMock;
-    let handleErrorMock;
+    let createClientMock;
+    let authStub;
     let cryptoMock;
+    let cronMock;
+    let handleUploadAndProcessMock;
 
     beforeEach(() => {
-        handleErrorMock = sinon.stub().returns({ statusCode: 500, body: '{"error":"Internal Server Error"}' });
-
         supabaseMock = {
             from: sinon.stub().returnsThis(),
             insert: sinon.stub().resolves({ error: null }),
-            update: sinon.stub().returnsThis(),
-            eq: sinon.stub().resolves({ error: null }),
             auth: {
-                getUser: sinon.stub().resolves({ data: { user: { id: 'user-123' } } })
-            }
+                getUser: sinon.stub(),
+            },
         };
 
-        const createClientMock = sinon.stub().returns(supabaseMock);
+        createClientMock = sinon.stub().returns(supabaseMock);
+
+        authStub = supabaseMock.auth.getUser.resolves({
+            data: { user: { id: 'user-123' } },
+            error: null,
+        });
 
         cryptoMock = {
             randomUUID: sinon.stub().returns('mock-uuid-123'),
         };
 
-        // We are testing the main handler, not the async processFile part.
-        // The processFile function is not exported and runs in the background,
-        // so we don't mock mammoth or pdf-parse here.
-        handler = proxyquire('../../netlify/functions/admin/upload-and-process-background', {
+        cronMock = {
+            schedule: sinon.stub(),
+        };
+
+        // This is a "fire-and-forget" function, so we mock it to prevent it from running.
+        // In the original server/index.js, this function is defined in the same scope
+        // as the route handler, so we can't easily mock it with proxyquire.
+        // This is a limitation of the current monolithic structure.
+        // For now, we will assume it's called and test the synchronous part.
+        // A better solution would be to refactor handleUploadAndProcess into its own module.
+        handleUploadAndProcessMock = sinon.stub();
+
+
+        app = proxyquire('../../server/index.js', {
             '@supabase/supabase-js': { createClient: createClientMock },
-            '../utils/errors': { handleError: handleErrorMock },
             'crypto': cryptoMock,
-            // We don't need the parsers for this unit test
-            'mammoth': {},
-            'pdf-parse': {},
-        }).handler;
+            'node-cron': cronMock,
+            // We can't mock handleUploadAndProcess directly this way as it's not a module
+        });
     });
 
     afterEach(() => {
         sinon.restore();
     });
 
-    const createEvent = (body) => ({
-        headers: {
-            authorization: 'Bearer fake-token',
-        },
-        body: JSON.stringify(body),
-    });
+    const validPayload = {
+        action: 'upload_and_process',
+        course_id: 'test-course',
+        title: 'Test Course',
+        file_name: 'test.docx',
+        file_data: 'aGVsbG8=', // "hello" in base64
+    };
 
     it('should return 202 Accepted and a jobId on valid request', async () => {
-        const event = createEvent({
-            course_id: 'test-course',
-            title: 'Test Course',
-            file_name: 'test.docx',
-            file_data: 'aGVsbG8=',
-        });
+        const response = await request(app)
+            .post('/api/admin')
+            .set('Authorization', 'Bearer fake-token')
+            .send(validPayload);
 
-        const result = await handler(event);
-
-        assert.strictEqual(result.statusCode, 202);
-        const body = JSON.parse(result.body);
-        assert.strictEqual(body.jobId, 'mock-uuid-123');
-        assert.strictEqual(body.message, 'File upload accepted and is being processed in the background.');
+        assert.strictEqual(response.status, 202);
+        assert.deepStrictEqual(response.body, { jobId: 'mock-uuid-123' });
     });
 
     it('should create a job entry in the database', async () => {
-        const event = createEvent({
-            course_id: 'test-course',
-            title: 'Test Course',
-            file_name: 'test.docx',
-            file_data: 'aGVsbG8=',
-        });
-
-        await handler(event);
+        await request(app)
+            .post('/api/admin')
+            .set('Authorization', 'Bearer fake-token')
+            .send(validPayload);
 
         assert(supabaseMock.from.calledWith('background_jobs'));
         assert(supabaseMock.insert.calledOnce);
@@ -89,33 +93,19 @@ describe('Admin: Upload and Process File (Background)', () => {
         });
     });
 
-    it('should call handleError if creating the initial job entry fails', async () => {
-        const dbError = new Error('Insert failed');
+    it('should return 500 if creating the initial job entry fails', async () => {
+        const dbError = { message: 'Insert failed' };
         supabaseMock.insert.resolves({ error: dbError });
 
-        const event = createEvent({
-            course_id: 'test-course',
-            title: 'Test Course',
-            file_name: 'test.docx',
-            file_data: 'aGVsbG8=',
+        const response = await request(app)
+            .post('/api/admin')
+            .set('Authorization', 'Bearer fake-token')
+            .send(validPayload);
+
+        assert.strictEqual(response.status, 500);
+        assert.deepStrictEqual(response.body, {
+            error: 'An internal server error occurred.',
+            errorMessage: 'Insert failed',
         });
-
-        await handler(event);
-
-        assert(handleErrorMock.calledOnce);
-        assert(handleErrorMock.calledWith(dbError));
-    });
-
-    it('should call handleError for invalid JSON body', async () => {
-        const event = {
-            headers: { authorization: 'Bearer fake-token' },
-            body: 'this is not json',
-        };
-
-        await handler(event);
-
-        assert(handleErrorMock.calledOnce);
-        const error = handleErrorMock.firstCall.args[0];
-        assert(error instanceof SyntaxError);
     });
 });
