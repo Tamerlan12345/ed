@@ -291,7 +291,7 @@
 
     async function loadNotifications() {
         try {
-            const notifications = await fetchAuthenticated('/.netlify/functions/getNotifications');
+            const notifications = await fetchAuthenticated('/api/getNotifications');
             notificationsList.innerHTML = '';
             if (notifications.length === 0) {
                 notificationsList.innerHTML = '<p style="padding: 15px; text-align: center; color: #888;">Уведомлений нет.</p>';
@@ -324,12 +324,12 @@
     notificationsBell.addEventListener('click', async () => {
         const isHidden = notificationsPanel.classList.toggle('hidden');
         if (!isHidden) {
-            const notifications = await fetchAuthenticated('/.netlify/functions/getNotifications');
+            const notifications = await fetchAuthenticated('/api/getNotifications');
             const unreadNotificationIds = notifications.filter(n => !n.is_read).map(n => n.id);
 
             if (unreadNotificationIds.length > 0) {
                 try {
-                    await fetchAuthenticated('/.netlify/functions/markNotificationsAsRead', {
+                    await fetchAuthenticated('/api/markNotificationsAsRead', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ notification_ids: unreadNotificationIds })
@@ -347,7 +347,7 @@
         const leaderboardContent = document.getElementById('leaderboard-content');
         leaderboardContent.innerHTML = '<div class="loader" style="height: 20px; width: 20px; margin: 0;"></div>';
         try {
-            const leaderboardData = await fetchAuthenticated('/.netlify/functions/get-leaderboard');
+            const leaderboardData = await fetchAuthenticated('/api/get-leaderboard');
             if (!leaderboardData || leaderboardData.length === 0) {
                 leaderboardContent.innerHTML = '<p>На этой неделе пока нет лидеров. Станьте первым!</p>';
                 return;
@@ -390,7 +390,7 @@
 
         try {
             console.log('[ШАГ 6] Отправка запроса на /getCourses...');
-            const data = await fetchAuthenticated(`/.netlify/functions/getCourses`);
+            const data = await fetchAuthenticated(`/api/getCourses`);
             console.log('[ШАГ 7] Ответ от /getCourses получен. Данные:', data);
             
             if (!data || !Array.isArray(data.courses)) {
@@ -540,7 +540,7 @@
                 button.disabled = true;
                 button.textContent = 'Запись...';
                 try {
-                    await fetchAuthenticated('/.netlify/functions/assign-course', {
+                    await fetchAuthenticated('/api/assign-course', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ course_id: courseId })
@@ -564,7 +564,7 @@
     async function sendTimeUpdate(courseId, seconds) {
         if (!courseId || seconds <= 0) return;
         try {
-            await fetchAuthenticated('/.netlify/functions/update-time-spent', {
+            await fetchAuthenticated('/api/update-time-spent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ course_id: courseId, seconds_spent: seconds })
@@ -608,7 +608,7 @@
             chatBox.innerHTML = '';
         }
         try {
-            const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
+            const url = `/api/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
             const data = await fetchAuthenticated(url);
             currentCourse.summary = data.summary;
             currentCourse.questions = data.questions;
@@ -638,7 +638,7 @@
             }
             const listenBtn = document.createElement('button');
             listenBtn.textContent = 'Озвучить саммари';
-            listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/.netlify/functions/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } };
+            listenBtn.onclick = async () => { listenBtn.disabled = true; listenBtn.textContent = 'Генерация аудио...'; try { const response = await fetchAuthenticated(`/api/text-to-speech-user?course_id=${currentCourse.id}`); const audio = new Audio(response.audioUrl); audio.controls = true; audio.autoplay = true; audioPlayerContainerUser.innerHTML = ''; audioPlayerContainerUser.appendChild(audio); listenBtn.textContent = 'Аудио готово'; } catch (error) { console.error('Audio generation failed:', error); listenBtn.textContent = 'Ошибка генерации'; } };
             productContent.appendChild(listenBtn);
             const startTestBtn = document.createElement('button');
             startTestBtn.id = 'start-test-btn';
@@ -654,7 +654,7 @@
         }
     }
 
-    chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const url = `/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`; const data = await fetchAuthenticated(url); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
+    chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const url = `/api/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`; const data = await fetchAuthenticated(url); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
     function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
     function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } } }
 
@@ -734,7 +734,7 @@
         userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage };
 
         try {
-            await fetchAuthenticated('/.netlify/functions/saveTestResult', {
+            await fetchAuthenticated('/api/saveTestResult', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -817,7 +817,7 @@
         simulatorChatInput.disabled = true;
 
         try {
-            const data = await fetchAuthenticated('/.netlify/functions/dialogueSimulator', {
+            const data = await fetchAuthenticated('/api/dialogueSimulator', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -847,7 +847,7 @@
         evaluationResults.innerHTML = '<div class="loader"></div>';
 
         try {
-             const data = await fetchAuthenticated('/.netlify/functions/dialogueSimulator', {
+             const data = await fetchAuthenticated('/api/dialogueSimulator', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

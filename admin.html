@@ -410,7 +410,7 @@
         updateApiState(1);
 
         try {
-            const response = await fetch('/.netlify/functions/admin', {
+            const response = await fetch('/api/admin', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, ...payload })
@@ -463,7 +463,7 @@
                     clearInterval(intervalId);
                     return;
                 }
-                const response = await fetch(`/.netlify/functions/get-job-status?jobId=${jobId}`, {
+                const response = await fetch(`/api/get-job-status?jobId=${jobId}`, {
                     headers: { 'Authorization': `Bearer ${adminToken}` }
                 });
 
@@ -1109,7 +1109,7 @@
         const params = new URLSearchParams({ user_email: userEmail, department, course_id: courseId });
         try {
             if (!adminToken) throw new Error('Не авторизован');
-            const response = await fetch(`/.netlify/functions/getDetailedReport?${params.toString()}`, {
+            const response = await fetch(`/api/getDetailedReport?${params.toString()}`, {
                 headers: { 'Authorization': `Bearer ${adminToken}` }
             });
             if (!response.ok) {
@@ -1180,7 +1180,12 @@
         const params = new URLSearchParams({ format: 'csv', user_email: userEmail, department, course_id: courseId });
         showStatus('Выгрузка отчета...', 'info');
         try {
-            const response = await fetch(`/.netlify/functions/getDetailedReport?${params.toString()}`);
+            // This endpoint requires auth, but for a simple GET request for file download,
+            // we can construct the URL and trigger a download without a complex fetch.
+            // However, to pass the auth header, we must use fetch.
+            const response = await fetch(`/api/getDetailedReport?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
             if (!response.ok) throw new Error((await response.json()).error || 'Не удалось получить данные.');
             const csvData = await response.text();
             const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
