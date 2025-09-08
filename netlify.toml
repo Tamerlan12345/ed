@@ -15,3 +15,6 @@
 [functions."send-reminders"]
   # Run the send-reminders function once a day at midnight UTC
   schedule = "0 0 * * *"
+
+[functions.admin]
+  included_files = ["netlify/functions/admin/**"]
