@@ -731,7 +731,7 @@ apiRouter.post('/saveTestResult', async (req, res) => {
         }
 
         res.status(200).json({ message: 'Результат успешно сохранен' });
-    } catch (error)
+    } catch (error) {
         console.error('Error saving test result:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
