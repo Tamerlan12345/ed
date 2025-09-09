@@ -829,8 +829,32 @@ async function handleUploadAndProcess(jobId, payload, token) {
     };
 
     try {
-        const { course_id, title, file_name, file_data } = payload;
-        console.log(`[Job ${jobId}] Starting processing for course ${course_id}`);
+        let { course_id, title, file_name, file_data } = payload;
+        console.log(`[Job ${jobId}] Starting processing for course ID: ${course_id}`);
+
+        // --- Logic to handle new vs. existing courses ---
+        let numericCourseId;
+        const isNumericId = course_id && !isNaN(parseInt(course_id, 10));
+
+        if (isNumericId) {
+            numericCourseId = parseInt(course_id, 10);
+            console.log(`[Job ${jobId}] Existing course detected. Using ID: ${numericCourseId}`);
+        } else {
+            console.log(`[Job ${jobId}] New course detected with temporary ID: "${course_id}". Creating new course entry...`);
+            const { data: newCourse, error: createError } = await supabase
+                .from('courses')
+                .insert({ title: title || 'Новый курс' }) // Use provided title or a default
+                .select('id')
+                .single();
+
+            if (createError) {
+                console.error(`[Job ${jobId}] Failed to create new course entry:`, createError);
+                throw new Error('Failed to create a new course in the database.');
+            }
+            numericCourseId = newCourse.id;
+            console.log(`[Job ${jobId}] New course created successfully with ID: ${numericCourseId}`);
+        }
+        // --- End of new/existing course logic ---
 
         const buffer = Buffer.from(file_data, 'base64');
         let textContent = '';
@@ -854,23 +878,24 @@ async function handleUploadAndProcess(jobId, payload, token) {
             throw new Error(`Failed to process file: ${e.message}`);
         }
 
-        console.log(`[Job ${jobId}] Text extracted successfully. Saving to database...`);
-        // The 'status' column is obsolete and has been removed from the upsert operation.
+        console.log(`[Job ${jobId}] Text extracted. Saving to database for course ID: ${numericCourseId}...`);
+
         const { error: dbError } = await supabase
             .from('courses')
-            .upsert({
-                id: course_id,
-                title: title,
-                source_text: textContent
-            }, { onConflict: 'id' });
+            .update({
+                source_text: textContent,
+                // Also update the title in case it was changed for an existing course
+                title: title
+            })
+            .eq('id', numericCourseId);
 
         if (dbError) {
-            console.error(`[Job ${jobId}] Supabase upsert error:`, dbError);
+            console.error(`[Job ${jobId}] Supabase update error:`, dbError);
             throw new Error('Failed to save course content to the database.');
         }
 
-        console.log(`[Job ${jobId}] Processing completed successfully.`);
-        await updateJobStatus('completed', { message: 'File processed and content saved.' });
+        console.log(`[Job ${jobId}] Processing completed successfully for course ID: ${numericCourseId}.`);
+        await updateJobStatus('completed', { message: 'File processed and content saved.', courseId: numericCourseId });
 
     } catch (error) {
         console.error(`[Job ${jobId}] Unhandled error during processing:`, error);
