@@ -114,7 +114,7 @@ apiRouter.post('/admin', async (req, res) => {
                 const { course_id } = payload;
 
                 await supabase.from('background_jobs').insert({
-                    job_id: jobId,
+                    id: jobId,
                     job_type: 'file_upload',
                     status: 'pending',
                     created_by: user.id,
@@ -132,7 +132,7 @@ apiRouter.post('/admin', async (req, res) => {
                 const { course_id } = payload;
 
                 await supabase.from('background_jobs').insert({
-                    job_id: jobId,
+                    id: jobId,
                     job_type: 'content_generation',
                     status: 'pending',
                     created_by: user.id,
@@ -204,10 +204,12 @@ apiRouter.post('/get-job-status', async (req, res) => {
             global: { headers: { Authorization: `Bearer ${token}` } },
         });
 
+        // Query uses 'id' and 'last_error', but aliases them to 'job_id' and 'error_message'
+        // to maintain API compatibility with the frontend.
         const { data: job, error } = await supabase
             .from('background_jobs')
-            .select('job_id, status, result, error_message, updated_at')
-            .eq('job_id', jobId)
+            .select('job_id:id, status, result, error_message:last_error, updated_at')
+            .eq('id', jobId)
             .single();
 
         if (error) {
@@ -784,8 +786,8 @@ async function handleUploadAndProcess(jobId, payload, token) {
     const updateJobStatus = async (status, data = null, errorMessage = null) => {
         const { error } = await supabase
             .from('background_jobs')
-            .update({ status, result: data, error_message: errorMessage, updated_at: new Date().toISOString() })
-            .eq('job_id', jobId);
+            .update({ status, result: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .eq('id', jobId);
         if (error) {
             console.error(`Failed to update job ${jobId} status to ${status}:`, error);
         }
@@ -821,11 +823,11 @@ async function handleUploadAndProcess(jobId, payload, token) {
         const { error: dbError } = await supabase
             .from('courses')
             .upsert({
-                course_id: course_id,
+                id: course_id,
                 title: title,
                 source_text: textContent,
                 status: 'processed'
-            }, { onConflict: 'course_id' });
+            }, { onConflict: 'id' });
 
         if (dbError) {
             console.error(`[Job ${jobId}] Supabase upsert error:`, dbError);
@@ -851,8 +853,8 @@ async function handleGenerateContent(jobId, payload, token) {
     const updateJobStatus = async (status, data = null, errorMessage = null) => {
         const { error } = await supabase
             .from('background_jobs')
-            .update({ status, result: data, error_message: errorMessage, updated_at: new Date().toISOString() })
-            .eq('job_id', jobId);
+            .update({ status, result: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .eq('id', jobId);
         if (error) {
             console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
         }
