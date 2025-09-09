@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 3001;
 
 // --- Middlewares ---
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 // Отдаем статику из корневой папки (где лежат index.html, admin.html)
 app.use(express.static(path.join(__dirname, '..')));
 
@@ -299,6 +299,9 @@ apiRouter.post('/markNotificationsAsRead', async (req, res) => {
     }
 });
 
+// NOTE FOR DBA: The `get_weekly_leaderboard` RPC function requires read access to the `users` table.
+// If you see 'permission denied for table users' errors, run the following SQL command:
+// GRANT SELECT ON TABLE users TO authenticated;
 // POST /api/get-leaderboard
 apiRouter.post('/get-leaderboard', async (req, res) => {
     try {
@@ -810,7 +813,10 @@ async function handleGenerateContent(jobId, payload, token) {
 
         const { data: courseData, error: fetchError } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
         if (fetchError || !courseData || !courseData.source_text) {
-            throw new Error('Course source text not found or not yet processed.');
+            const errorMessage = 'Course source text not found or not yet processed.';
+            console.warn(`[Job ${jobId}] ${errorMessage}`);
+            await updateJobStatus('failed', null, errorMessage);
+            return;
         }
 
         const outputFormat = {
