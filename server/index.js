@@ -145,6 +145,27 @@ apiRouter.post('/admin', async (req, res) => {
                 return res.status(202).json({ jobId });
             }
 
+            case 'get_course_groups': {
+                const { data: groups, error } = await supabase.from('course_groups').select('*');
+                if (error) throw error;
+                data = groups;
+                break;
+            }
+
+            case 'get_simulation_results': {
+                const { data: results, error } = await supabase.rpc('get_simulation_results_with_user_data');
+                if (error) throw error;
+                data = results;
+                break;
+            }
+
+            case 'get_leaderboard_settings': {
+                const { data: settings, error } = await supabase.from('leaderboard_settings').select('setting_value').eq('setting_key', 'metrics').single();
+                if (error) throw error;
+                data = settings ? settings.setting_value : {};
+                break;
+            }
+
             // TODO: Migrate course group, materials, and background job handlers
 
             default:
