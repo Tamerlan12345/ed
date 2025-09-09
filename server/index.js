@@ -64,7 +64,7 @@ apiRouter.post('/admin', async (req, res) => {
             }
 
             case 'get_all_users': {
-                const { data: users, error } = await supabase.rpc('get_all_users_with_profiles');
+                const { data: users, error } = await supabase.rpc('get_all_users_for_admin');
                 if (error) throw error;
                 data = users;
                 break;
@@ -72,6 +72,7 @@ apiRouter.post('/admin', async (req, res) => {
 
             case 'get_course_details': {
                 const { course_id } = payload;
+                if (!course_id) return res.status(400).json({ error: 'course_id is required.' });
                 // Uses 'id' instead of 'course_id' for the query.
                 const { data: courseDetails, error } = await supabase.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
                 if (error) throw error;
@@ -117,13 +118,17 @@ apiRouter.post('/admin', async (req, res) => {
                 const jobId = crypto.randomUUID();
                 const { course_id } = payload;
 
-                await supabase.from('background_jobs').insert({
+                const { error: insertError } = await supabase.from('background_jobs').insert({
                     id: jobId,
                     job_type: 'file_upload',
                     status: 'pending',
                     created_by: user.id,
                     related_entity_id: course_id
                 });
+
+                if (insertError) {
+                    throw insertError;
+                }
 
                 // Fire and forget
                 handleUploadAndProcess(jobId, payload, token);
@@ -157,13 +162,7 @@ apiRouter.post('/admin', async (req, res) => {
             }
 
             case 'get_simulation_results': {
-                // The RPC 'get_simulation_results_with_user_data' is deprecated due to schema changes.
-                // This new query joins results with simulations and user profiles directly.
-                // Replaced 'user_profiles' with 'users' to match the current schema.
-                const { data: results, error } = await supabase
-                    .from('simulation_results')
-                    .select('*, dialogue_simulations(*), users(full_name, email)');
-
+                const { data: results, error } = await supabase.rpc('get_simulation_results_for_admin');
                 if (error) throw error;
                 data = results;
                 break;
@@ -242,7 +241,7 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-        const { user_email, department, course_id, format } = req.body;
+        const { user_email, course_id, format } = req.body;
 
         // The RPC 'get_detailed_report_data' is deprecated.
         // This query builder call replaces it with corrected joins and filtering.
@@ -256,7 +255,7 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
                 time_spent_seconds,
                 completed_at,
                 courses (title),
-                users (full_name, department)
+                users (full_name)
             `);
 
         if (user_email) {
@@ -264,10 +263,6 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
         }
         if (course_id) {
             query = query.eq('course_id', course_id);
-        }
-        // Filtering on a joined table's column.
-        if (department) {
-            query = query.eq('users.department', department);
         }
 
         const { data, error } = await query;
@@ -299,12 +294,12 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
 
 function convertToCSV(data) {
     if (!data || data.length === 0) return '';
-    const headers = ['Full Name', 'Email', 'Department', 'Course Title', 'Progress (%)', 'Time Spent (min)', 'Completed At'];
+    const headers = ['Full Name', 'Email', 'Course Title', 'Progress (%)', 'Time Spent (min)', 'Completed At'];
     const csvRows = [headers.join(',')];
     for (const row of data) {
         const timeSpentMinutes = row.time_spent_seconds ? Math.round(row.time_spent_seconds / 60) : 0;
         const values = [
-            `"${row.users?.full_name || 'N/A'}"`, `"${row.user_email}"`, `"${row.users?.department || 'N/A'}"`,
+            `"${row.users?.full_name || 'N/A'}"`, `"${row.user_email}"`,
             `"${row.courses.title}"`, row.score, timeSpentMinutes, `"${row.completed_at ? new Date(row.completed_at).toLocaleString() : 'In Progress'}"`
         ];
         csvRows.push(values.join(','));
@@ -481,7 +476,6 @@ apiRouter.post('/assign-course', async (req, res) => {
             .from('user_progress')
             .upsert({
                 user_id: user.id,
-                user_email: user.email,
                 course_id: course_id
             }, {
                 onConflict: 'user_id, course_id',
@@ -1029,14 +1023,17 @@ async function sendReminders() {
     }
 }
 
-// Schedule to run once a day at midnight
-cron.schedule('0 0 * * *', sendReminders);
-console.log('Cron job for reminders scheduled.');
-
-
 // --- Запуск сервера ---
-app.listen(PORT, () => {
-    console.log(`Сервер запущен и слушает порт ${PORT}`);
-});
+if (require.main === module) {
+    // Schedule to run once a day at midnight
+    cron.schedule('0 0 * * *', sendReminders);
+    console.log('Cron job for reminders scheduled.');
+
+    app.listen(PORT, () => {
+        console.log(`Сервер запущен и слушает порт ${PORT}`);
+    });
+}
+
+module.exports = app; // Export for testing
 
 // --- Конец файла /server/index.js ---

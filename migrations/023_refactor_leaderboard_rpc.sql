@@ -16,9 +16,9 @@ BEGIN
         SELECT
             p.user_email,
             -- Ensure counts and sums are not null
-            COALESCE(COUNT(CASE WHEN p.percentage = 100 THEN 1 END), 0) as courses_completed_count,
+            COALESCE(COUNT(CASE WHEN p.score = 100 THEN 1 END), 0) as courses_completed_count,
             COALESCE(SUM(p.time_spent_seconds), 0) as total_seconds,
-            AVG(CASE WHEN p.percentage > 0 THEN p.percentage ELSE NULL END) as avg_score_val
+            AVG(CASE WHEN p.score > 0 THEN p.score ELSE NULL END) as avg_score_val
         FROM public.user_progress p
         WHERE
             p.updated_at >= now() - interval '7 days'
@@ -32,7 +32,7 @@ BEGIN
         ROUND(COALESCE(wp.avg_score_val, 0), 2) AS average_score
     FROM weekly_progress wp
     LEFT JOIN auth.users u ON wp.user_email = u.email
-    LEFT JOIN public.user_profiles up ON u.id = up.id
+    LEFT JOIN public.users up ON u.id = up.id
     ORDER BY
         CASE
             -- Use COALESCE to handle potential NULLs gracefully during sorting
