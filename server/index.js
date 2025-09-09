@@ -72,7 +72,8 @@ apiRouter.post('/admin', async (req, res) => {
 
             case 'get_course_details': {
                 const { course_id } = payload;
-                const { data: courseDetails, error } = await supabase.from('courses').select('*, course_materials(*)').eq('course_id', course_id).single();
+                // Uses 'id' instead of 'course_id' for the query.
+                const { data: courseDetails, error } = await supabase.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
                 if (error) throw error;
                 data = courseDetails;
                 break;
@@ -81,7 +82,8 @@ apiRouter.post('/admin', async (req, res) => {
             case 'publish_course': {
                 const { course_id, content_html, questions, admin_prompt } = payload;
                 const courseContent = { summary: content_html, questions: questions, admin_prompt: admin_prompt || '' };
-                const { error } = await supabase.from('courses').update({ content_html: courseContent, status: 'published' }).eq('course_id', course_id);
+                // Uses 'id' and removes the obsolete 'status' column.
+                const { error } = await supabase.from('courses').update({ content_html: courseContent }).eq('id', course_id);
                 if (error) throw error;
                 data = { message: `Course ${course_id} successfully published.` };
                 break;
@@ -90,8 +92,10 @@ apiRouter.post('/admin', async (req, res) => {
             case 'delete_course': {
                 const { course_id } = payload;
                 if (!course_id) return res.status(400).json({ error: 'course_id is required.' });
+                // Note: 'user_progress' still uses 'course_id' as a foreign key.
                 await supabase.from('user_progress').delete().eq('course_id', course_id);
-                await supabase.from('courses').delete().eq('course_id', course_id);
+                // The 'courses' table now uses 'id' as the primary key.
+                await supabase.from('courses').delete().eq('id', course_id);
                 data = { message: `Course ${course_id} and all related progress have been successfully deleted.` };
                 break;
             }
@@ -204,11 +208,12 @@ apiRouter.post('/get-job-status', async (req, res) => {
             global: { headers: { Authorization: `Bearer ${token}` } },
         });
 
+        // The 'result' column is now 'payload'. We alias it back to 'result' for API compatibility.
         // Query uses 'id' and 'last_error', but aliases them to 'job_id' and 'error_message'
         // to maintain API compatibility with the frontend.
         const { data: job, error } = await supabase
             .from('background_jobs')
-            .select('job_id:id, status, result, error_message:last_error, updated_at')
+            .select('job_id:id, status, result:payload, error_message:last_error, updated_at')
             .eq('id', jobId)
             .single();
 
@@ -240,11 +245,12 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
 
         // The RPC 'get_detailed_report_data' is deprecated.
         // This query builder call replaces it with corrected joins and filtering.
+        // This query builder call replaces the deprecated RPC and uses 'score' instead of 'percentage'.
         let query = supabase
             .from('user_progress')
             .select(`
                 user_email,
-                percentage,
+                score,
                 time_spent_seconds,
                 completed_at,
                 courses (title),
@@ -297,7 +303,7 @@ function convertToCSV(data) {
         const timeSpentMinutes = row.time_spent_seconds ? Math.round(row.time_spent_seconds / 60) : 0;
         const values = [
             `"${row.user_profiles?.full_name || 'N/A'}"`, `"${row.user_email}"`, `"${row.user_profiles?.department || 'N/A'}"`,
-            `"${row.courses.title}"`, row.percentage, timeSpentMinutes, `"${row.completed_at ? new Date(row.completed_at).toLocaleString() : 'In Progress'}"`
+            `"${row.courses.title}"`, row.score, timeSpentMinutes, `"${row.completed_at ? new Date(row.completed_at).toLocaleString() : 'In Progress'}"`
         ];
         csvRows.push(values.join(','));
     }
@@ -410,32 +416,45 @@ apiRouter.post('/getCourses', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
+        // Fetches courses using the new 'id' column and removes 'status'.
         const { data: courses, error: coursesError } = await supabase
             .from('courses')
-            .select('course_id, title, status');
-        if (coursesError) throw coursesError;
+            .select('id, title');
+        if (coursesError) {
+            console.error('Error getting courses:', coursesError);
+            // Provide a more specific error message if the column is the issue.
+            if (coursesError.message.includes("does not exist")) {
+                 return res.status(500).json({ error: `Database schema mismatch. Details: ${coursesError.message}` });
+            }
+            throw coursesError;
+        }
 
+
+        // Fetches user progress using 'score' instead of 'percentage'.
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
-            .select('course_id, percentage, attempts')
+            .select('course_id, score, attempts')
             .eq('user_id', user.id);
         if (progressError) throw progressError;
 
         const userProgress = {};
         progressData.forEach(p => {
-            userProgress[p.course_id] = { completed: p.percentage === 100, percentage: p.percentage, attempts: p.attempts };
+            // The 'percentage' field is maintained for frontend compatibility, but is populated by 'score'.
+            userProgress[p.course_id] = { completed: p.score === 100, percentage: p.score, attempts: p.attempts };
         });
 
         const formattedCourses = courses.map(course => ({
-            id: course.course_id,
+            // Uses 'course.id' which is the new primary key.
+            id: course.id,
             title: course.title,
-            isAssigned: userProgress.hasOwnProperty(course.course_id),
+            isAssigned: userProgress.hasOwnProperty(course.id),
         }));
 
         res.status(200).json({ courses: formattedCourses, userProgress });
     } catch (error) {
-        console.error('Error getting courses:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        // Catch-all for other unexpected errors.
+        console.error('Error in /api/getCourses endpoint:', error);
+        res.status(500).json({ error: 'An unexpected internal server error occurred.' });
     }
 });
 
@@ -523,11 +542,11 @@ apiRouter.post('/getCourseContent', async (req, res) => {
         const { course_id } = req.body;
         if (!course_id) return res.status(400).json({ error: 'course_id is required' });
 
+        // Uses 'id' and removes the obsolete 'status' filter.
         const { data, error } = await supabase
             .from('courses')
             .select('content_html')
-            .eq('course_id', course_id)
-            .eq('status', 'published')
+            .eq('id', course_id)
             .single();
 
         if (error || !data) return res.status(404).json({ error: 'Опубликованный курс не найден.' });
@@ -593,7 +612,8 @@ apiRouter.post('/text-to-speech-user', async (req, res) => {
         if (!course_id) return res.status(400).json({ error: 'course_id is required' });
 
         const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-        const { data: courseData, error: courseError } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
+        // Uses 'id' instead of 'course_id'.
+        const { data: courseData, error: courseError } = await supabase.from('courses').select('source_text').eq('id', course_id).single();
         if (courseError || !courseData || !courseData.source_text) {
             return res.status(404).json({ error: 'Source text for this course not found.' });
         }
@@ -626,7 +646,8 @@ apiRouter.post('/askAssistant', async (req, res) => {
         const { course_id, question } = req.body;
         if (!course_id || !question) return res.status(400).json({ error: 'Требуется course_id и question' });
 
-        const { data: courseData, error: courseError } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
+        // Uses 'id' instead of 'course_id'.
+        const { data: courseData, error: courseError } = await supabase.from('courses').select('source_text').eq('id', course_id).single();
         if (courseError || !courseData || !courseData.source_text) {
             return res.status(404).json({ error: 'Исходный текст для этого курса не найден.' });
         }
@@ -674,9 +695,10 @@ apiRouter.post('/saveTestResult', async (req, res) => {
         const { data: { user }, error: authError } = await anonSupabase.auth.getUser(token);
         if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-        const { course_id, score, total_questions, percentage } = req.body;
-        if (course_id === undefined || score === undefined || total_questions === undefined || percentage === undefined) {
-            return res.status(400).json({ error: 'Missing required fields.' });
+        const { course_id, score, total_questions } = req.body;
+        // The 'percentage' field is received from the client but ignored, as 'score' is the new source of truth.
+        if (course_id === undefined || score === undefined || total_questions === undefined) {
+            return res.status(400).json({ error: 'Missing required fields: course_id, score, total_questions.' });
         }
 
         const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -684,20 +706,32 @@ apiRouter.post('/saveTestResult', async (req, res) => {
             .from('user_progress').select('id, attempts').eq('user_email', user.email).eq('course_id', course_id).maybeSingle();
         if (selectError) throw selectError;
 
+        // The 'percentage' column is removed from the update/insert objects.
+        const progressData = {
+            score,
+            total_questions,
+            completed_at: new Date().toISOString(),
+        };
+
         if (existingRecord) {
             const { error: updateError } = await supabase.from('user_progress').update({
-                score, total_questions, percentage, completed_at: new Date().toISOString(), attempts: (existingRecord.attempts || 0) + 1
+                ...progressData,
+                attempts: (existingRecord.attempts || 0) + 1
             }).eq('id', existingRecord.id);
             if (updateError) throw updateError;
         } else {
             const { error: insertError } = await supabase.from('user_progress').insert({
-                user_email: user.email, user_id: user.id, course_id, score, total_questions, percentage, completed_at: new Date().toISOString(), attempts: 1
+                ...progressData,
+                user_email: user.email,
+                user_id: user.id,
+                course_id,
+                attempts: 1
             });
             if (insertError) throw insertError;
         }
 
         res.status(200).json({ message: 'Результат успешно сохранен' });
-    } catch (error) {
+    } catch (error)
         console.error('Error saving test result:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -784,9 +818,10 @@ async function handleUploadAndProcess(jobId, payload, token) {
     );
 
     const updateJobStatus = async (status, data = null, errorMessage = null) => {
+        // The 'result' column is now 'payload'.
         const { error } = await supabase
             .from('background_jobs')
-            .update({ status, result: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .update({ status, payload: data, last_error: errorMessage, updated_at: new Date().toISOString() })
             .eq('id', jobId);
         if (error) {
             console.error(`Failed to update job ${jobId} status to ${status}:`, error);
@@ -820,13 +855,13 @@ async function handleUploadAndProcess(jobId, payload, token) {
         }
 
         console.log(`[Job ${jobId}] Text extracted successfully. Saving to database...`);
+        // The 'status' column is obsolete and has been removed from the upsert operation.
         const { error: dbError } = await supabase
             .from('courses')
             .upsert({
                 id: course_id,
                 title: title,
-                source_text: textContent,
-                status: 'processed'
+                source_text: textContent
             }, { onConflict: 'id' });
 
         if (dbError) {
@@ -851,9 +886,10 @@ async function handleGenerateContent(jobId, payload, token) {
     );
 
     const updateJobStatus = async (status, data = null, errorMessage = null) => {
+        // The 'result' column is now 'payload'.
         const { error } = await supabase
             .from('background_jobs')
-            .update({ status, result: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .update({ status, payload: data, last_error: errorMessage, updated_at: new Date().toISOString() })
             .eq('id', jobId);
         if (error) {
             console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
@@ -864,7 +900,8 @@ async function handleGenerateContent(jobId, payload, token) {
         const { course_id, custom_prompt } = payload;
         console.log(`[Job ${jobId}] Starting content generation for course ${course_id}`);
 
-        const { data: courseData, error: fetchError } = await supabase.from('courses').select('source_text').eq('course_id', course_id).single();
+        // Uses 'id' instead of 'course_id' to fetch the course.
+        const { data: courseData, error: fetchError } = await supabase.from('courses').select('source_text').eq('id', course_id).single();
         if (fetchError || !courseData || !courseData.source_text) {
             const errorMessage = 'Course source text not found or not yet processed.';
             console.warn(`[Job ${jobId}] ${errorMessage}`);
@@ -896,13 +933,13 @@ async function handleGenerateContent(jobId, payload, token) {
         }
 
         console.log(`[Job ${jobId}] Content generated. Saving to database...`);
+        // Updates the course using 'id' and removes the obsolete 'status' field.
         const { error: dbError } = await supabase
             .from('courses')
             .update({
-                content_html: parsedJson,
-                status: 'generated'
+                content_html: parsedJson
             })
-            .eq('course_id', course_id);
+            .eq('id', course_id);
 
         if (dbError) {
             throw new Error(`Failed to save generated content: ${dbError.message}`);
@@ -941,9 +978,10 @@ async function sendReminders() {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+        // Uses 'score' instead of 'percentage' to check for incomplete courses.
         const { data: incompleteProgress, error: progressError } = await supabase
             .from('user_progress').select(`user_email, created_at, courses ( title ), user_profiles ( user_id:id )`)
-            .lt('percentage', 100).lte('created_at', sevenDaysAgo.toISOString());
+            .lt('score', 100).lte('created_at', sevenDaysAgo.toISOString());
         if (progressError) throw progressError;
 
         if (!incompleteProgress || incompleteProgress.length === 0) {
