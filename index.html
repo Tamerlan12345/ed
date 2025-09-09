@@ -233,7 +233,7 @@
 
         showLoader();
         await showMainMenu();
-        await loadNotifications();
+        // await loadNotifications(); // This is now handled by clicking the bell icon.
         hideLoader();
     }
 
@@ -287,38 +287,6 @@
         }
         console.log(`[ЗАПРОС] Получен успешный ответ для ${url}.`);
         return response.json();
-    }
-
-    async function loadNotifications() {
-        try {
-            const notifications = await fetchAuthenticated('/api/getNotifications', { method: 'POST' });
-            notificationsList.innerHTML = '';
-            if (notifications.length === 0) {
-                notificationsList.innerHTML = '<p style="padding: 15px; text-align: center; color: #888;">Уведомлений нет.</p>';
-            }
-
-            let unreadCount = 0;
-            notifications.forEach(n => {
-                const notifDiv = document.createElement('div');
-                notifDiv.style.padding = '10px 15px';
-                notifDiv.style.borderBottom = '1px solid var(--border-color)';
-                if (!n.is_read) {
-                    notifDiv.style.fontWeight = 'bold';
-                    unreadCount++;
-                }
-                notifDiv.textContent = n.message;
-                notificationsList.appendChild(notifDiv);
-            });
-
-            if (unreadCount > 0) {
-                notificationsBadge.textContent = unreadCount;
-                notificationsBadge.classList.remove('hidden');
-            } else {
-                notificationsBadge.classList.add('hidden');
-            }
-        } catch (error) {
-            console.error('Failed to load notifications:', error);
-        }
     }
 
     notificationsBell.addEventListener('click', async () => {

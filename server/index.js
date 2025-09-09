@@ -322,6 +322,32 @@ apiRouter.post('/saveTestResult', async (req, res) => {
     }
 });
 
+// POST /api/getNotifications
+apiRouter.post('/getNotifications', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+        const token = authHeader.split(' ')[1];
+
+        const supabase = createSupabaseClient(token);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+        // RLS-политика в Supabase автоматически отфильтрует уведомления для текущего user_id
+        const { data: notifications, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.status(200).json(notifications);
+    } catch (error) {
+        console.error('Error getting notifications:', error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
+});
+
 
 // ... Остальные эндпоинты (уведомления, симулятор диалогов и т.д. остаются без изменений, если не было ошибок)
 // ... Я их опущу для краткости, но они должны быть в вашем файле.
