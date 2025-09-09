@@ -153,16 +153,22 @@ apiRouter.post('/admin', async (req, res) => {
             }
 
             case 'get_simulation_results': {
-                const { data: results, error } = await supabase.rpc('get_simulation_results_with_user_data');
+                // The RPC 'get_simulation_results_with_user_data' is deprecated due to schema changes.
+                // This new query joins results with simulations and user profiles directly.
+                const { data: results, error } = await supabase
+                    .from('simulation_results')
+                    .select('*, dialogue_simulations(*), user_profiles(full_name, email)');
+
                 if (error) throw error;
                 data = results;
                 break;
             }
 
             case 'get_leaderboard_settings': {
-                const { data: settings, error } = await supabase.from('leaderboard_settings').select('setting_value').eq('setting_key', 'metrics').single();
+                // Fetches all available leaderboard metrics and their statuses.
+                const { data: settings, error } = await supabase.from('leaderboard_settings').select('metric, is_enabled');
                 if (error) throw error;
-                data = settings ? settings.setting_value : {};
+                data = settings || [];
                 break;
             }
 
@@ -229,21 +235,51 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
         if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
         const { user_email, department, course_id, format } = req.body;
-        const { data, error } = await supabase.rpc('get_detailed_report_data', {
-            user_email_filter: user_email,
-            department_filter: department,
-            course_id_filter: course_id
-        });
+
+        // The RPC 'get_detailed_report_data' is deprecated.
+        // This query builder call replaces it with corrected joins and filtering.
+        let query = supabase
+            .from('user_progress')
+            .select(`
+                user_email,
+                percentage,
+                time_spent_seconds,
+                completed_at,
+                courses (title),
+                user_profiles (full_name, department)
+            `);
+
+        if (user_email) {
+            query = query.ilike('user_email', `%${user_email}%`);
+        }
+        if (course_id) {
+            query = query.eq('course_id', course_id);
+        }
+        // Filtering on a joined table's column.
+        if (department) {
+            query = query.eq('user_profiles.department', department);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
+        // The data from the new query has a slightly different shape (e.g., nested objects).
+        // We need to flatten it to match the structure expected by convertToCSV.
+        const flattenedData = data.map(row => ({
+            ...row,
+            user_profiles: row.user_profiles, // already an object
+            courses: row.courses, // already an object
+        }));
+
+
         if (format === 'csv') {
-            const csv = convertToCSV(data); // Assuming convertToCSV is defined in this file
+            const csv = convertToCSV(flattenedData);
             res.header('Content-Type', 'text/csv');
             res.attachment(`report-${new Date().toISOString().split('T')[0]}.csv`);
             res.send(csv);
         } else {
-            res.status(200).json(data);
+            res.status(200).json(flattenedData);
         }
     } catch (error) {
         console.error(`Error getting detailed report:`, error);
@@ -335,21 +371,15 @@ apiRouter.post('/get-leaderboard', async (req, res) => {
 
         const { data: settings, error: settingsError } = await supabase
             .from('leaderboard_settings')
-            .select('setting_value')
-            .eq('setting_key', 'metrics')
-            .single();
+            .select('metric, is_enabled');
 
-        if (settingsError) console.error('Could not fetch leaderboard settings:', settingsError);
-
-        const metrics = settings?.setting_value?.metrics || { courses_completed: true };
-        let orderBy = 'courses_completed';
-        const validMetrics = ['courses_completed', 'time_spent', 'avg_score'];
-        for (const metric of validMetrics) {
-            if (metrics[metric]) {
-                orderBy = metric;
-                break;
-            }
+        if (settingsError) {
+            console.error('Could not fetch leaderboard settings:', settingsError);
         }
+
+        // Find the first enabled metric. If none are enabled, default to 'courses_completed'.
+        const enabledSetting = settings?.find(s => s.is_enabled);
+        const orderBy = enabledSetting ? enabledSetting.metric : 'courses_completed';
 
         const { data: leaderboardData, error: rpcError } = await supabase.rpc('get_weekly_leaderboard', {
             p_order_by: orderBy
