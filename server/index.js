@@ -828,7 +828,7 @@ async function handleGenerateContent(jobId, payload, token) {
         console.log(`[Job ${jobId}] Generating content with Gemini...`);
         const result = await model.generateContent(finalPrompt);
         const response = await result.response;
-        const jsonString = response.text().replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
+        const jsonString = response.text().replace(/```json\n|```/g, '').trim();
 
         let parsedJson;
         try {
