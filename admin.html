@@ -424,6 +424,14 @@
             }
 
             if (!response.ok) {
+                // Специальная обработка для ошибки "Доступ запрещен"
+                if (response.status === 403) {
+                    showToast('Доступ запрещен. У вас нет прав для выполнения этого действия.', 'error');
+                    // Можно также рассмотреть выход из системы, если это необходимо
+                    // await handleLogout();
+                    throw new Error('Forbidden');
+                }
+
                 let errorData;
                 try {
                     errorData = await response.json();
