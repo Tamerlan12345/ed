@@ -159,9 +159,10 @@ apiRouter.post('/admin', async (req, res) => {
             case 'get_simulation_results': {
                 // The RPC 'get_simulation_results_with_user_data' is deprecated due to schema changes.
                 // This new query joins results with simulations and user profiles directly.
+                // Replaced 'user_profiles' with 'users' to match the current schema.
                 const { data: results, error } = await supabase
                     .from('simulation_results')
-                    .select('*, dialogue_simulations(*), user_profiles(full_name, email)');
+                    .select('*, dialogue_simulations(*), users(full_name, email)');
 
                 if (error) throw error;
                 data = results;
@@ -246,6 +247,7 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
         // The RPC 'get_detailed_report_data' is deprecated.
         // This query builder call replaces it with corrected joins and filtering.
         // This query builder call replaces the deprecated RPC and uses 'score' instead of 'percentage'.
+        // Replaced 'user_profiles' with 'users' to match the current schema.
         let query = supabase
             .from('user_progress')
             .select(`
@@ -254,7 +256,7 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
                 time_spent_seconds,
                 completed_at,
                 courses (title),
-                user_profiles (full_name, department)
+                users (full_name, department)
             `);
 
         if (user_email) {
@@ -265,7 +267,7 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
         }
         // Filtering on a joined table's column.
         if (department) {
-            query = query.eq('user_profiles.department', department);
+            query = query.eq('users.department', department);
         }
 
         const { data, error } = await query;
@@ -276,7 +278,7 @@ apiRouter.post('/getDetailedReport', async (req, res) => {
         // We need to flatten it to match the structure expected by convertToCSV.
         const flattenedData = data.map(row => ({
             ...row,
-            user_profiles: row.user_profiles, // already an object
+            users: row.users, // already an object
             courses: row.courses, // already an object
         }));
 
@@ -302,7 +304,7 @@ function convertToCSV(data) {
     for (const row of data) {
         const timeSpentMinutes = row.time_spent_seconds ? Math.round(row.time_spent_seconds / 60) : 0;
         const values = [
-            `"${row.user_profiles?.full_name || 'N/A'}"`, `"${row.user_email}"`, `"${row.user_profiles?.department || 'N/A'}"`,
+            `"${row.users?.full_name || 'N/A'}"`, `"${row.user_email}"`, `"${row.users?.department || 'N/A'}"`,
             `"${row.courses.title}"`, row.score, timeSpentMinutes, `"${row.completed_at ? new Date(row.completed_at).toLocaleString() : 'In Progress'}"`
         ];
         csvRows.push(values.join(','));
@@ -1003,9 +1005,9 @@ async function sendReminders() {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        // Uses 'score' instead of 'percentage' to check for incomplete courses.
+        // Uses 'score' and joins with 'users' instead of 'user_profiles'.
         const { data: incompleteProgress, error: progressError } = await supabase
-            .from('user_progress').select(`user_email, created_at, courses ( title ), user_profiles ( user_id:id )`)
+            .from('user_progress').select(`user_email, created_at, courses ( title ), users ( user_id:id )`)
             .lt('score', 100).lte('created_at', sevenDaysAgo.toISOString());
         if (progressError) throw progressError;
 
@@ -1015,8 +1017,8 @@ async function sendReminders() {
         }
 
         const notificationsToInsert = incompleteProgress
-            .filter(p => p.user_profiles && p.user_profiles.user_id)
-            .map(p => ({ user_id: p.user_profiles.user_id, message: `Напоминание: Пожалуйста, завершите курс "${p.courses.title}".` }));
+            .filter(p => p.users && p.users.user_id)
+            .map(p => ({ user_id: p.users.user_id, message: `Напоминание: Пожалуйста, завершите курс "${p.courses.title}".` }));
 
         if (notificationsToInsert.length > 0) {
             await supabase.from('notifications').insert(notificationsToInsert);
