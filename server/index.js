@@ -275,12 +275,23 @@ apiRouter.post('/assign-course', async (req, res) => {
         const { course_id } = req.body;
         if (!course_id) return res.status(400).json({ error: 'course_id is required' });
 
+        // Check if the course exists before trying to assign it
+        const { data: course, error: courseError } = await supabase
+            .from('courses')
+            .select('id')
+            .eq('id', course_id)
+            .single();
+
+        if (courseError || !course) {
+            return res.status(404).json({ error: `Course with id ${course_id} not found.` });
+        }
+
         const { error: insertError } = await supabase
             .from('user_progress')
             .insert({ user_id: user.id, course_id: course_id });
 
         if (insertError) {
-             if (insertError.code === '23505') { // Код ошибки для unique violation
+             if (insertError.code === '23505') { // Unique violation
                 return res.status(200).json({ message: 'Course already assigned.' });
             }
             throw insertError;
