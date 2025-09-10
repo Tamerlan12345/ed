@@ -1,5 +1,5 @@
 // --- Начало ИСПРАВЛЕННОГО файла /server/index.js ---
-
+console.log('--- SERVER.JS EXECUTING ---');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -74,6 +74,18 @@ apiRouter.post('/admin', async (req, res) => {
         const supabaseAdmin = createSupabaseAdminClient();
 
         switch (action) {
+            case 'create_course': {
+                const { title } = payload;
+                if (!title) return res.status(400).json({ error: 'Title is required to create a course.' });
+                const { data: newCourse, error } = await supabaseAdmin
+                    .from('courses')
+                    .insert({ title })
+                    .select()
+                    .single();
+                if (error) throw error;
+                data = newCourse;
+                break;
+            }
             case 'get_courses_admin': {
                 const { data: courses, error } = await supabaseAdmin.from('courses').select('*');
                 if (error) throw error;
@@ -90,18 +102,22 @@ apiRouter.post('/admin', async (req, res) => {
 
             case 'get_course_details': {
                 const { course_id } = payload;
-                if (!course_id || isNaN(parseInt(course_id))) return res.status(400).json({ error: 'A valid numeric course_id is required.' });
+                if (!course_id) return res.status(400).json({ error: 'A valid course_id is required.' });
                 const { data: courseDetails, error } = await supabaseAdmin.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
                 if (error) throw error;
                 data = courseDetails;
                 break;
             }
 
-             case 'publish_course': { // Логика требует уточнений, но исправлено под схему
-                const { course_id, content_html, questions, admin_prompt } = payload;
-                if (!course_id) return res.status(400).json({ error: 'course_id is required.' });
-                const courseContent = { summary: content_html, questions: questions, admin_prompt: admin_prompt || '' };
-                const { error } = await supabaseAdmin.from('courses').update({ generated_content: courseContent }).eq('id', course_id);
+             case 'publish_course': {
+                const { course_id, title, description, content } = payload;
+                if (!course_id || !title || !description || !content) {
+                    return res.status(400).json({ error: 'Missing required fields for publishing.' });
+                }
+                const { error } = await supabaseAdmin
+                    .from('courses')
+                    .update({ title, description, content, updated_at: new Date().toISOString() })
+                    .eq('id', course_id);
                 if (error) throw error;
                 data = { message: `Course ${course_id} successfully published.` };
                 break;
@@ -192,18 +208,13 @@ apiRouter.post('/get-leaderboard', async (req, res) => {
         const authHeader = req.headers.authorization;
         if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
         const token = authHeader.split(' ')[1];
-
         const supabase = createSupabaseClient(token);
-        const { course_id } = req.body; // Ожидаем course_id для лидерборда по курсу
-        if (!course_id) return res.status(400).json({ error: 'course_id is required' });
 
-        const { data: leaderboardData, error: rpcError } = await supabase.rpc('get_leaderboard', {
-            p_course_id: course_id
-        });
+        const { data, error } = await supabase.rpc('get_leaderboard_data');
 
-        if (rpcError) throw rpcError;
+        if (error) throw error;
 
-        res.status(200).json(leaderboardData);
+        res.status(200).json(data);
     } catch (error) {
         console.error('Error getting leaderboard:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -304,10 +315,12 @@ apiRouter.post('/saveTestResult', async (req, res) => {
             .from('user_progress').select('attempts').eq('user_id', user.id).eq('course_id', course_id).maybeSingle();
         if (selectError) throw selectError;
 
+        const { percentage } = req.body;
         const dataToUpsert = {
             user_id: user.id,
             course_id: course_id,
             score: score,
+            percentage: percentage,
             completed_at: new Date().toISOString(),
             attempts: (existingRecord?.attempts || 0) + 1
         };
@@ -368,23 +381,11 @@ async function handleUploadAndProcess(jobId, payload) {
         let { course_id, title, file_name, file_data } = payload;
         console.log(`[Job ${jobId}] Starting processing for course ID: ${course_id}`);
 
-        let numeric_course_id;
-
-        // Если course_id не число, значит это новый курс. Создаем его.
-        if (isNaN(parseInt(course_id))) {
-            console.log(`[Job ${jobId}] New course detected with temporary ID: "${course_id}". Creating new course entry...`);
-            const { data: newCourse, error: createError } = await supabaseAdmin
-                .from('courses')
-                .insert({ title: title || 'Новый курс' })
-                .select('id')
-                .single();
-
-            if (createError) throw createError;
-            numeric_course_id = newCourse.id;
-            console.log(`[Job ${jobId}] New course created successfully with ID: ${numeric_course_id}`);
-        } else {
-            numeric_course_id = parseInt(course_id);
-        }
+        // The course_id is now a UUID, so we don't need to check if it's a number.
+        // The logic to create a new course if the ID is temporary is handled by the client.
+        // Here we assume a valid UUID is passed for an existing course, or a new one is created before this job.
+        // A more robust implementation would check if the course exists before proceeding.
+        // For now, we trust the client to provide a valid course_id.
 
         const buffer = Buffer.from(file_data, 'base64');
         let textContent = '';
@@ -401,17 +402,17 @@ async function handleUploadAndProcess(jobId, payload) {
 
         if (!textContent) throw new Error('Could not extract text from the document.');
 
-        console.log(`[Job ${jobId}] Text extracted. Saving to database for course ID: ${numeric_course_id}...`);
+        console.log(`[Job ${jobId}] Text extracted. Saving to database for course ID: ${course_id}...`);
 
         const { error: dbError } = await supabaseAdmin
             .from('courses')
-            .update({ source_text: textContent })
-            .eq('id', numeric_course_id);
+            .update({ description: textContent })
+            .eq('id', course_id);
 
         if (dbError) throw new Error(`Failed to save course content: ${dbError.message}`);
 
-        console.log(`[Job ${jobId}] Processing completed successfully for course ID: ${numeric_course_id}.`);
-        await updateJobStatus('completed', { message: `File processed for course ${numeric_course_id}` });
+        console.log(`[Job ${jobId}] Processing completed successfully for course ID: ${course_id}.`);
+        await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
 
     } catch (error) {
         console.error(`[Job ${jobId}] Unhandled error during processing:`, error);
@@ -432,33 +433,32 @@ async function handleGenerateContent(jobId, payload) {
 
     try {
         const { course_id, custom_prompt } = payload;
-        if (!course_id || isNaN(parseInt(course_id))) {
-            throw new Error('Valid numeric course_id is required for content generation.');
+        if (!course_id) {
+            throw new Error('Valid course_id is required for content generation.');
         }
         console.log(`[Job ${jobId}] Starting content generation for course ${course_id}`);
 
-        const { data: courseData, error: fetchError } = await supabaseAdmin.from('courses').select('source_text').eq('id', course_id).single();
-        if (fetchError || !courseData?.source_text) {
-            throw new Error('Course source text not found or not yet processed.');
+        const { data: courseData, error: fetchError } = await supabaseAdmin.from('courses').select('description').eq('id', course_id).single();
+        if (fetchError || !courseData?.description) {
+            throw new Error('Course description not found or not yet processed.');
         }
 
         const outputFormat = {
             summary: [{ title: "string", html_content: "string" }],
             questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
         };
-        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}\n\nИСХОДНЫЙ ТЕКСТ:\n${courseData.source_text}\n\nОбязательно верни результат в формате JSON: ${JSON.stringify(outputFormat)}`;
+        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}\n\nИСХОДНЫЙ ТЕКСТ:\n${courseData.description}\n\nОбязательно верни результат в формате JSON: ${JSON.stringify(outputFormat)}`;
 
         console.log(`[Job ${jobId}] Generating content with Gemini...`);
         const result = await model.generateContent(finalPrompt);
         const response = await result.response;
         const jsonString = response.text().replace(/```json\n|```/g, '').trim();
 
-        let parsedJson = JSON.parse(jsonString);
-
+        // The 'content' column is TEXT, so we store the JSON as a string.
         console.log(`[Job ${jobId}] Content generated. Saving to database...`);
         const { error: dbError } = await supabaseAdmin
             .from('courses')
-            .update({ generated_content: parsedJson })
+            .update({ content: jsonString })
             .eq('id', course_id);
 
         if (dbError) throw new Error(`Failed to save generated content: ${dbError.message}`);
@@ -487,8 +487,11 @@ app.get('/*', (req, res) => {
 
 
 // --- Запуск сервера ---
-app.listen(PORT, () => {
-    console.log(`Сервер запущен и слушает порт ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Сервер запущен и слушает порт ${PORT}`);
+    });
+}
 
+module.exports = app;
 // --- Конец ИСПРАВЛЕННОГО файла /server/index.js ---

@@ -269,23 +269,20 @@
     }
 
     async function fetchAuthenticated(url, options = {}) {
-        console.log(`[ЗАПРОС] Вызов fetchAuthenticated для URL: ${url}`);
         if (!userData.token) {
-            console.error("[ОШИБКА ЗАПРОСА] Токен пользователя отсутствует. Запрос отменен.");
+            console.error("Auth token is missing. Request cancelled.");
             throw new Error("Пользователь не авторизован. Токен отсутствует.");
         }
         const defaultHeaders = { 'Authorization': `Bearer ${userData.token}` };
         const finalOptions = { ...options, headers: { ...defaultHeaders, ...options.headers } };
         
-        console.log('[ЗАПРОС] Отправка запроса с токеном.');
         const response = await fetch(url, finalOptions);
         
         if (!response.ok) {
-            console.error(`[ОШИБКА ЗАПРОСА] Сервер вернул ошибку ${response.status}`);
             const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText} (${response.status})` }));
+            console.error(`Authenticated fetch failed for ${url}. Status: ${response.status}.`, errorData);
             throw new Error(errorData.error);
         }
-        console.log(`[ЗАПРОС] Получен успешный ответ для ${url}.`);
         return response.json();
     }
 
@@ -335,7 +332,6 @@
     }
 
     async function showMainMenu() {
-        console.log('[ШАГ 5] Запуск showMainMenu для загрузки курсов.');
         stopTimeTracking();
         windowTitle.textContent = 'Главное Меню';
 
@@ -357,9 +353,7 @@
         mainMenu.innerHTML = '<div class="loader"></div>';
 
         try {
-            console.log('[ШАГ 6] Отправка запроса на /getCourses...');
             const data = await fetchAuthenticated(`/api/getCourses`, { method: 'POST' });
-            console.log('[ШАГ 7] Ответ от /getCourses получен. Данные:', data);
             
             if (!data || !Array.isArray(data.courses)) {
                 throw new Error("Ответ сервера не содержит массив курсов.");
@@ -379,10 +373,9 @@
             });
 
             renderCourses('assigned');
-            console.log('[ШАГ 8] Меню курсов успешно отрисовано.');
 
         } catch (error) {
-            console.error('[ОШИБКА НА ШАГЕ 6/7] Не удалось загрузить курсы:', error);
+            console.error('Failed to load courses:', error);
             showMessage('Не удалось загрузить список курсов.', error.message);
         }
     }
@@ -432,28 +425,15 @@
         }
 
         if (coursesToRender.length > 0) {
+            // Removed the grouping by product_line for the catalog view as the field is obsolete.
+            mainMenu.className = 'main-menu';
+            let type = 'assigned';
             if (filter === 'catalog') {
-                const groupedCourses = coursesToRender.reduce((acc, course) => {
-                    const key = course.product_line || 'Разное';
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(course);
-                    return acc;
-                }, {});
-
-                for (const groupName in groupedCourses) {
-                    const groupWrapper = document.createElement('div');
-                    groupWrapper.innerHTML = `<h3 style="color: var(--primary-color); margin-top: 20px;">${groupName}</h3>`;
-                    const courseGrid = document.createElement('div');
-                    courseGrid.className = 'main-menu';
-                    groupedCourses[groupName].forEach(course => courseGrid.appendChild(createCourseMenuItem(course, 'catalog')));
-                    groupWrapper.appendChild(courseGrid);
-                    mainMenu.appendChild(groupWrapper);
-                }
-            } else {
-                mainMenu.className = 'main-menu';
-                const type = (filter === 'future') ? 'view' : 'assigned';
-                coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course, type)));
+                type = 'catalog';
+            } else if (filter === 'future') {
+                type = 'view';
             }
+            coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course, type)));
         }
     }
 

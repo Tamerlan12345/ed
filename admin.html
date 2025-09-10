@@ -242,6 +242,7 @@
 <script>
     // --- CONSTANTS ---
     const ACTIONS = {
+        CREATE_COURSE: 'create_course',
         GET_COURSES_ADMIN: 'get_courses_admin',
         GET_COURSE_DETAILS: 'get_course_details',
         UPLOAD_AND_PROCESS: 'upload_and_process',
@@ -339,10 +340,8 @@
         }
     }
 
-    // This function is kept for backwards compatibility with existing calls, but now uses the toast system.
-    function showStatus(message, type = 'info') {
-        showToast(message, type);
-    }
+    // The showStatus function is now an alias for showToast for consistency.
+    const showStatus = showToast;
 
     function escapeHTML(str) {
         if (!str) return '';
@@ -600,7 +599,7 @@
         const { data: { session }, error } = await supabaseClient.auth.getSession();
 
         if (error) {
-            console.error("Ошибка при получении сессии:", error);
+            // The error is not critical to log to console, as UI handles it.
             showLogin();
             return;
         }
@@ -618,19 +617,19 @@
     // --- DYNAMIC FORM RENDERING ---
     function renderCourseForm(course = null) {
         const isEditing = course !== null;
-        const courseId = isEditing ? course.course_id : '';
+        const courseId = isEditing ? course.id : '';
         const title = isEditing ? course.title : '';
-        const sourceText = isEditing ? course.source_text : '';
+        const description = isEditing ? course.description : '';
         const headerText = isEditing ? `Редактирование курса: ${title}` : 'Создать новый курс';
 
-        let summary = '', questions = '', adminPrompt = '';
-        if (isEditing && course.content_html) {
-            if (typeof course.content_html === 'object' && course.content_html.summary) {
-                summary = JSON.stringify(course.content_html.summary, null, 2);
-                questions = JSON.stringify(course.content_html.questions || [], null, 2);
-                adminPrompt = course.content_html.admin_prompt || '';
-            } else {
-                summary = JSON.stringify(course.content_html, null, 2);
+        let content = '';
+        if (isEditing && course.content) {
+            try {
+                // Prettify the JSON string for editing
+                const parsedContent = JSON.parse(course.content);
+                content = JSON.stringify(parsedContent, null, 2);
+            } catch (e) {
+                content = course.content; // If it's not valid JSON, show as is
             }
         }
 
@@ -644,25 +643,24 @@
         return `
             <div id="course-form-container">
                 <h2 id="course-form-header">${headerText}</h2>
-                <input type="text" id="course-id" placeholder="ID курса (например, kasko-2025)" value="${escapeHTML(courseId)}" ${isEditing ? 'disabled' : ''}>
+                <input type="text" id="course-id" placeholder="ID Курса" value="${escapeHTML(courseId)}" disabled>
                 <input type="text" id="course-title" placeholder="Название курса" value="${escapeHTML(title)}">
 
-                <h3>Шаг 1: Загрузите файл и извлеките текст</h3>
+                <h3>Шаг 1: Загрузите файл для описания</h3>
                 <input type="file" id="file-uploader" accept=".pdf,.docx">
-                <button id="process-file-btn">Загрузить и обработать файл</button>
+                <button id="process-file-btn">Загрузить и извлечь текст</button>
 
-                <h3>Извлеченный текст (Источник для AI)</h3>
+                <h3>Описание (Источник для AI)</h3>
                 <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
-                <button id="text-to-speech-btn">Озвучить текст</button>
-                <textarea id="source-text" placeholder="После обработки файла здесь появится извлеченный текст...">${escapeHTML(sourceText)}</textarea>
+                <button id="text-to-speech-btn">Озвучить описание</button>
+                <textarea id="description" placeholder="После обработки файла здесь появится извлеченный текст...">${escapeHTML(description)}</textarea>
 
                 <h3>Шаг 2: Сгенерируйте контент</h3>
-                <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного...">${escapeHTML(adminPrompt)}</textarea>
-                <button id="generate-btn">Сгенерировать черновик по тексту</button>
+                <textarea id="custom-prompt" placeholder="Напишите свой промпт или оставьте пустым для стандартного..."></textarea>
+                <button id="generate-btn">Сгенерировать черновик по описанию</button>
 
-                <h3>Шаг 3: Проверьте и отредактируйте</h3>
-                <textarea id="generated-html" placeholder="Здесь появится сгенерированный HTML...">${escapeHTML(summary)}</textarea>
-                <textarea id="generated-questions" placeholder="Здесь появятся сгенерированные вопросы в формате JSON...">${escapeHTML(questions)}</textarea>
+                <h3>Шаг 3: Проверьте и отредактируйте контент</h3>
+                <textarea id="content" placeholder="Здесь появится сгенерированный контент в формате JSON...">${escapeHTML(content)}</textarea>
 
                 <h3>Шаг 4: Сохранение и публикация</h3>
                 <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
@@ -698,62 +696,62 @@
     async function processFileHandler() {
         const file = document.getElementById('file-uploader').files[0];
         const title = document.getElementById('course-title').value.trim();
+        if (!file || !title) return showStatus('Укажите название курса и выберите файл.', 'error');
+
         let courseId = document.getElementById('course-id').value.trim();
-        if (!file || !courseId || !title) return showStatus('Укажите ID, название курса и выберите файл.', 'error');
-        courseId = sanitizeForPath(courseId);
+
         showStatus(`Обработка файла...`, 'info');
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            try {
+
+        try {
+            // If there is no courseId, it's a new course. Create it first.
+            if (!courseId) {
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title });
+                courseId = newCourse.id;
+                document.getElementById('course-id').value = courseId; // Update UI
+                showToast(`Создан новый курс с ID: ${courseId}`, 'success');
+            }
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
                 const base64File = reader.result.split(',')[1];
-                // This now returns a job ID, not the extracted text.
                 await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
-                    course_id: courseId, title,
-                    file_name: sanitizeForPath(file.name), file_data: base64File
+                    course_id: courseId,
+                    file_name: sanitizeForPath(file.name),
+                    file_data: base64File
                 });
-                // The toast is shown by apiCall. We just clear the text area.
-                document.getElementById('source-text').value = 'Обработка файла запущена в фоновом режиме...';
+                document.getElementById('description').value = 'Обработка файла запущена в фоновом режиме...';
                 document.getElementById('course-id').disabled = true;
                 await loadCourses();
-            } catch(e) { /* Handled in apiCall */ }
-        };
+            };
+        } catch(e) { /* Handled in apiCall */ }
     }
 
     async function generateContentHandler() {
-        let courseId = document.getElementById('course-id').value.trim();
+        const courseId = document.getElementById('course-id').value.trim();
         if (!courseId) {
-            showToast('Укажите ID курса.', 'error');
+            showToast('Сначала нужно создать или загрузить курс (должен быть ID курса).', 'error');
             return;
         }
-
-        // Clear previous results and show info message
-        document.getElementById('generated-html').value = 'Генерация контента запущена в фоновом режиме...';
-        document.getElementById('generated-questions').value = 'Результаты появятся здесь после завершения задачи.';
-
+        document.getElementById('content').value = 'Генерация контента запущена в фоновом режиме...';
         try {
-            // This will now return a 202 with a jobId and trigger the poller
             await apiCall(ACTIONS.GENERATE_CONTENT, {
                 course_id: courseId,
                 custom_prompt: document.getElementById('custom-prompt').value
             });
-            // The apiCall function already shows a toast for background jobs
         } catch(e) {
-            // Error handling is also managed within apiCall, so this can be empty
-            // unless specific UI cleanup is needed on failure.
-            document.getElementById('generated-html').value = 'Ошибка при запуске генерации. Пожалуйста, проверьте консоль.';
-            document.getElementById('generated-questions').value = '';
+            document.getElementById('content').value = 'Ошибка при запуске генерации. Пожалуйста, проверьте консоль.';
         }
     }
 
     async function textToSpeechHandler() {
-        const sourceText = document.getElementById('source-text').value;
-        if (!sourceText) return showStatus('Нет текста для озвучивания.', 'error');
+        const description = document.getElementById('description').value;
+        if (!description) return showStatus('Нет текста для озвучивания.', 'error');
         showStatus('Идет генерация аудио...', 'info');
         const audioPlayerContainer = document.getElementById('audio-player-container');
         audioPlayerContainer.innerHTML = '';
         try {
-            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: sourceText });
+            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: description });
             const audio = new Audio(data.audioUrl);
             audio.controls = true;
             audioPlayerContainer.appendChild(audio);
@@ -763,21 +761,33 @@
     }
 
     async function publishCourseHandler() {
-        let courseId = document.getElementById('course-id').value.trim();
+        const courseId = document.getElementById('course-id').value.trim();
         if (!courseId) return showStatus('Укажите ID курса.', 'error');
+
+        const title = document.getElementById('course-title').value.trim();
+        const description = document.getElementById('description').value;
+        const content = document.getElementById('content').value;
+
+        if (!title || !description || !content) {
+            return showStatus('Название, описание и контент должны быть заполнены.', 'error');
+        }
+
         showStatus('Публикую курс...', 'info');
         try {
-            const content_html = JSON.parse(document.getElementById('generated-html').value);
-            const questions = JSON.parse(document.getElementById('generated-questions').value);
+            // Ensure content is valid JSON before sending
+            const parsedContent = JSON.parse(content);
+
             await apiCall(ACTIONS.PUBLISH_COURSE, {
-                course_id: courseId, content_html, questions,
-                admin_prompt: document.getElementById('custom-prompt').value
+                course_id: courseId,
+                title: title,
+                description: description,
+                content: content, // Send the raw string
             });
             showStatus('Курс успешно опубликован.', 'success');
             await loadCourses();
             clearCourseForm();
         } catch (e) {
-            showStatus('Ошибка: Неверный формат JSON или другая проблема.', 'error');
+            showStatus('Ошибка: Контент не является валидным JSON или другая проблема.', 'error');
         }
     }
 
@@ -827,11 +837,11 @@
         return courses.sort((a, b) => a.title.localeCompare(b.title)).map(course => `
             <tr>
                 <td>${escapeHTML(course.title)}</td>
-                <td>${escapeHTML(course.course_id)}</td>
-                <td class="status-${course.status}">${course.status || 'N/A'}</td>
+                <td>${escapeHTML(course.id)}</td>
+                <td class="status-published">${course.content ? 'Опубликован' : 'Черновик'}</td>
                 <td class="actions-cell">
-                    <button onclick="loadCourseForEditing('${escapeHTML(course.course_id)}')">Редактировать</button>
-                    <button style="background-color: #dc3545;" onclick="deleteCourse('${escapeHTML(course.course_id)}', '${escapeHTML(course.title)}')">Удалить</button>
+                    <button onclick="loadCourseForEditing('${escapeHTML(course.id)}')">Редактировать</button>
+                    <button style="background-color: #dc3545;" onclick="deleteCourse('${escapeHTML(course.id)}', '${escapeHTML(course.title)}')">Удалить</button>
                 </td>
             </tr>
         `).join('');
@@ -848,8 +858,8 @@
             filterCourseSelector.innerHTML = '<option value="">Все курсы</option>';
             courses.forEach(course => {
                 const option = document.createElement('option');
-                option.value = course.course_id;
-                option.textContent = `${course.title} (${course.course_id})`;
+                option.value = course.id;
+                option.textContent = `${course.title} (${course.id})`;
                 filterCourseSelector.appendChild(option);
             });
         } catch (e) { /* Handled in apiCall */ }
