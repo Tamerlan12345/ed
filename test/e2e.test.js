@@ -4,8 +4,6 @@ const { v4: uuidv4 } = require('uuid');
 const request = require('supertest');
 const app = require('../server/index.js'); // Import the Express app
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
@@ -106,6 +104,16 @@ describe('E2E System Tests with Supertest', function() {
         const assignedCourse = res2.body.courses.find(c => c.id === testCourse.id);
         assert(assignedCourse.isAssigned, 'Course should now be assigned to the user');
         assert(!res2.body.userProgress[testCourse.id]?.completed, 'Course should not be completed yet');
+    });
+
+    it('should return 404 when trying to assign a non-existent course', async () => {
+        const nonExistentCourseId = uuidv4();
+
+        await request(app)
+            .post('/api/assign-course')
+            .set('Authorization', `Bearer ${testUser.token}`)
+            .send({ course_id: nonExistentCourseId })
+            .expect(404);
     });
 
     it('should allow user to pass the test and mark the course as complete', async () => {
