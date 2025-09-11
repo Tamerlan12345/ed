@@ -15,7 +15,7 @@
         #product-nav a { margin-right: 15px; text-decoration: none; color: var(--text-light-color); font-weight: bold; }
         #product-nav a.active { color: var(--primary-color); }
         #product-nav a .lock-icon { display: inline-block; margin-left: 5px; }
-        .presentation-slider{position:relative;width:100%;margin:20px 0;box-shadow:0 8px 25px rgba(0,0,0,0.1);border-radius:12px;overflow:hidden;background:linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);min-height:450px;display:flex;flex-direction:column;justify-content:center}.presentation-slide{display:none;padding:25px 50px;animation:fadeIn .6s;height:100%}.presentation-slide.active{display:block}.presentation-slide img{max-height:220px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:10;display:flex;gap:15px}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:rgba(0,90,166,0.8);color:white;border:none;cursor:pointer;transition:all .3s ease;box-shadow:0 2px 5px rgba(0,0,0,0.2)}.slider-nav button:hover{background-color:rgba(0,174,239,1);transform:translateY(-2px)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;transform:none;opacity:0.5}.slide-counter{position:absolute;top:20px;right:25px;font-size:1em;color:var(--text-light-color);font-weight:bold;background-color:rgba(255,255,255,0.7);padding:5px 10px;border-radius:10px}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
+        .presentation-slider{width:100%;background:var(--surface-color);border:1px solid var(--border-color);border-radius:12px;min-height:450px;display:flex;flex-direction:column;margin-top:20px}.presentation-slide{display:none;padding:25px 40px;animation:fadeIn .6s;flex-grow:1}.presentation-slide.active{display:block}.presentation-slide img{max-height:220px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -531,7 +531,7 @@
     }
 
     function renderPresentation(summaryData) {
-        productContent.innerHTML = ''; // Clear previous content
+        productContent.innerHTML = '';
 
         if (!Array.isArray(summaryData) || summaryData.length === 0) {
             productContent.innerHTML = '<p>Материалы курса не найдены или генерируются. Попробуйте обновить позже.</p>';
@@ -541,46 +541,49 @@
         const slider = document.createElement('div');
         slider.className = 'presentation-slider';
 
-        summaryData.forEach((slide, index) => {
+        summaryData.forEach((slide) => {
             const slideDiv = document.createElement('div');
-            slideDiv.className = 'presentation-slide' + (index === 0 ? ' active' : '');
-            slideDiv.dataset.index = index;
-
-        let imageHtml = '';
-        if (slide.image_url) {
-            imageHtml = `<img src="${slide.image_url}" alt="${slide.slide_title || 'Slide Image'}">`;
-        }
-        slideDiv.innerHTML = `${imageHtml}<h2>${slide.slide_title || 'Слайд ' + (index + 1)}</h2>${slide.html_content || ''}`;
+            slideDiv.className = 'presentation-slide';
+            let imageHtml = slide.image_url ? `<img src="${slide.image_url}" alt="${slide.slide_title || 'Slide Image'}">` : '';
+            slideDiv.innerHTML = `${imageHtml}<h2>${slide.slide_title || ''}</h2>${slide.html_content || ''}`;
             slider.appendChild(slideDiv);
         });
 
-        const nav = document.createElement('div');
-        nav.className = 'slider-nav';
+        const slides = slider.querySelectorAll('.presentation-slide');
+        slides[0].classList.add('active');
 
-        const counter = document.createElement('div');
-        counter.className = 'slide-counter';
+        const navContainer = document.createElement('div');
+        navContainer.className = 'slider-nav-container';
 
         const prevBtn = document.createElement('button');
         prevBtn.textContent = '‹ Назад';
+
+        const counter = document.createElement('span');
+        counter.className = 'slide-counter';
+
         const nextBtn = document.createElement('button');
         nextBtn.textContent = 'Вперед ›';
 
-        nav.appendChild(prevBtn);
-        nav.appendChild(nextBtn);
-        slider.appendChild(nav);
-        slider.appendChild(counter);
+        const buttonWrapper = document.createElement('div');
+        buttonWrapper.className = 'slider-nav';
+        buttonWrapper.appendChild(prevBtn);
+        buttonWrapper.appendChild(nextBtn);
+
+        navContainer.appendChild(counter);
+        navContainer.appendChild(buttonWrapper);
 
         productContent.appendChild(slider);
+        productContent.appendChild(navContainer);
 
         let currentIndex = 0;
 
         const updateSlider = () => {
-            slider.querySelectorAll('.presentation-slide').forEach((slide, index) => {
+            slides.forEach((slide, index) => {
                 slide.classList.toggle('active', index === currentIndex);
             });
             prevBtn.disabled = currentIndex === 0;
-            nextBtn.disabled = currentIndex === summaryData.length - 1;
-            counter.textContent = `${currentIndex + 1} / ${summaryData.length}`;
+            nextBtn.disabled = currentIndex === slides.length - 1;
+            counter.textContent = `${currentIndex + 1} / ${slides.length}`;
         };
 
         prevBtn.addEventListener('click', () => {
@@ -591,7 +594,7 @@
         });
 
         nextBtn.addEventListener('click', () => {
-            if (currentIndex < summaryData.length - 1) {
+            if (currentIndex < slides.length - 1) {
                 currentIndex++;
                 updateSlider();
             }
@@ -841,7 +844,11 @@
                 body: JSON.stringify({ action: 'start', disposition })
             });
 
-            currentScenario = data.scenario;
+            if (!data.scenario || !data.first_message) {
+                throw new Error("Сервер не вернул сценарий или первое сообщение.");
+            }
+
+            currentScenario = data.scenario; // This is the critical assignment
             updateLastSimulatorMessage(data.first_message);
             simulationHistory.push({ role: 'assistant', text: data.first_message });
 
@@ -862,6 +869,9 @@
         appendSimulatorMessage('...', 'assistant', true);
 
         try {
+            if (!currentScenario) { // Defensive check
+                throw new Error("Сценарий не был начат. Пожалуйста, перезапустите тренажер.");
+            }
             const disposition = document.getElementById('disposition-slider').value;
             const data = await fetchAuthenticated('/api/dialogueSimulator', {
                 method: 'POST',
@@ -869,7 +879,7 @@
                 body: JSON.stringify({
                     history: simulationHistory,
                     disposition: disposition,
-                    scenario: currentScenario,
+                    scenario: currentScenario, // Ensure this is passed
                     action: 'chat'
                 })
             });
@@ -888,6 +898,10 @@
             alert('Сначала начните диалог.');
             return;
         }
+        if (!currentScenario) { // Defensive check
+            alert("Ошибка: сценарий не определен. Пожалуйста, перезапустите тренажер.");
+            return;
+        }
         simulatorChatArea.classList.add('hidden');
         simulatorEvaluationArea.classList.remove('hidden');
         evaluationResults.innerHTML = '<div class="loader"></div>';
@@ -901,11 +915,11 @@
                     history: simulationHistory,
                     action: 'evaluate',
                     disposition: disposition,
-                    scenario: currentScenario
+                    scenario: currentScenario // Ensure this is passed
                 })
             });
 
-            evaluationResults.innerHTML = ''; // Clear loader
+            evaluationResults.innerHTML = '';
             const evaluationData = data.answer;
 
             const downloadBtn = document.createElement('button');
