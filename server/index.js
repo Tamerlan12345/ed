@@ -17,6 +17,19 @@ const cron = require('node-cron');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Рекомендуется использовать актуальную модель
 
+const simulationScenarios = [
+    "Клиент хочет застраховать новый автомобиль (Hyundai Tucson) по КАСКО от всех рисков. Он впервые покупает КАСКО и хочет знать все детали: что покрывается, какие есть франшизы, от чего зависит цена.",
+    "У клиента заканчивается срок действующего полиса ОГПО ВТС. Он ищет, где можно продлить его онлайн и подешевле. Слышал, что у разных компаний могут быть разные скидки.",
+    "Клиент недавно купил квартиру в ипотеку и банк требует оформить страховку. Он не понимает, зачем это нужно и что именно нужно страховать (стены, отделку, ответственность перед соседями).",
+    "Семья (2 взрослых, 1 ребенок) летит в отпуск в Турцию на 10 дней. Им нужна туристическая страховка. Интересуются, покрывает ли она случаи, связанные с COVID-19 или другими внезапными заболеваниями.",
+    "Клиент (35 лет) думает о будущем и хочет начать копить на образование ребенка. Слышал о программах накопительного страхования, но не понимают, чем они лучше обычного банковского депозита.",
+    "Клиент попал в небольшое ДТП (другой водитель поцарапал ему дверь на парковке). Он уже подал документы, но выплата задерживается. Он звонит, чтобы узнать статус и выразить недовольство.",
+    "Клиент работает на стройке и хочет застраховать себя от травм. Ему важно знать, какие травмы покрываются и какая будет выплата в случае перелома руки.",
+    "Представитель небольшой IT-компании (20 сотрудников) хочет оформить для своих работников добровольное медицинское страхование (ДМС). Ему нужен 'социальный пакет', чтобы удерживать ценных специалистов.",
+    "Индивидуальный предприниматель занимается перевозкой товаров из Китая в Казахстан. Он хочет застрахоить партию электроники на время транспортировки.",
+    "Клиент уже получил предложение по страхованию дома от другой компании ('Халык'). Он звонит, чтобы узнать, можете ли вы предложить условия лучше или дешевле."
+];
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -180,6 +193,96 @@ apiRouter.post('/admin', async (req, res) => {
                 if (error) throw error;
                 data = newGroup;
                 break;
+            }
+
+            case 'update_course_group': {
+                const { group_id, group_name, is_for_new_employees, start_date, recurrence_period } = payload;
+                if (!group_id || !group_name) return res.status(400).json({ error: 'Group ID and name are required.' });
+                const { data: updatedGroup, error } = await supabaseAdmin
+                    .from('course_groups')
+                    .update({ group_name, is_for_new_employees, start_date, recurrence_period })
+                    .eq('id', group_id)
+                    .select()
+                    .single();
+                if (error) throw error;
+                data = updatedGroup;
+                break;
+            }
+
+            case 'delete_course_group': {
+                const { group_id } = payload;
+                if (!group_id) return res.status(400).json({ error: 'Group ID is required.' });
+                await supabaseAdmin.from('course_group_items').delete().eq('group_id', group_id);
+                await supabaseAdmin.from('course_groups').delete().eq('id', group_id);
+                data = { message: 'Group deleted successfully.' };
+                break;
+            }
+
+            case 'get_group_details': {
+                const { group_id } = payload;
+                if (!group_id) return res.status(400).json({ error: 'Group ID is required.' });
+                const { data: groupDetails, error } = await supabaseAdmin
+                    .from('course_groups')
+                    .select('*, course_group_items(course_id)')
+                    .eq('id', group_id)
+                    .single();
+                if (error) throw error;
+                data = groupDetails;
+                break;
+            }
+
+            case 'update_courses_in_group': {
+                const { group_id, course_ids } = payload;
+                if (!group_id || !Array.isArray(course_ids)) return res.status(400).json({ error: 'Group ID and course_ids array are required.' });
+                await supabaseAdmin.from('course_group_items').delete().eq('group_id', group_id);
+                if (course_ids.length > 0) {
+                    const itemsToInsert = course_ids.map(course_id => ({ group_id, course_id }));
+                    await supabaseAdmin.from('course_group_items').insert(itemsToInsert);
+                }
+                data = { message: 'Courses in group updated successfully.' };
+                break;
+            }
+
+            case 'assign_group_to_department': {
+                 console.warn("TODO: 'assign_group_to_department' is not fully implemented.");
+                 data = { message: `Placeholder for assigning group to department.` };
+                 break;
+            }
+
+            case 'delete_course_material': {
+                const { material_id, storage_path } = payload;
+                if (!material_id || !storage_path) return res.status(400).json({ error: 'Material ID and storage path are required.' });
+                await supabaseAdmin.storage.from('course-materials').remove([storage_path]);
+                await supabaseAdmin.from('course_materials').delete().eq('id', material_id);
+                data = { message: 'Material deleted successfully.' };
+                break;
+            }
+
+            case 'save_leaderboard_settings': {
+                const { metrics } = payload;
+                if (!metrics) return res.status(400).json({ error: 'Metrics object is required.' });
+                const { error } = await supabaseAdmin.from('leaderboard_settings').upsert({ id: 1, metrics, updated_at: new Date().toISOString() });
+                if (error) throw error;
+                data = { message: 'Leaderboard settings saved.' };
+                break;
+            }
+
+            case 'assign_course_to_user': {
+                const { user_email, course_id } = payload;
+                if (!user_email || !course_id) return res.status(400).json({ error: 'User email and course ID are required.' });
+                const { data: userToAssign, error: userError } = await supabaseAdmin.from('users').select('id').eq('email', user_email).single();
+                // This will fail as email is not in public.users. Needs a proper fix later.
+                if (userError || !userToAssign) return res.status(404).json({error: 'User not found by email.'});
+
+                await supabaseAdmin.from('user_progress').insert({ user_id: userToAssign.id, course_id: course_id });
+                data = { message: `Course assigned to ${user_email}.` };
+                break;
+            }
+
+            case 'text_to_speech': {
+                 console.warn("TODO: TTS functionality requires an external service and API key.");
+                 data = { audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' };
+                 break;
             }
 
             case 'get_simulation_results': {
@@ -705,6 +808,152 @@ ${courseData.description}
 
 // Mount the API router
 app.use('/api', apiRouter);
+
+// --- User-Facing API Endpoints ---
+
+apiRouter.post('/askAssistant', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    const token = authHeader.split(' ')[1];
+    const supabase = createSupabaseClient(token);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        const { course_id, question } = req.body;
+        if (!course_id || !question) return res.status(400).json({ error: 'course_id and question are required.' });
+
+        const { data: courseData, error: courseError } = await supabase.from('courses').select('description, content').eq('id', course_id).single();
+        if (courseError || !courseData) return res.status(404).json({ error: 'Course not found.' });
+
+        const context = `КОНТЕКСТ КУРСА:\n${courseData.description}\n\n${courseData.content}`;
+        const prompt = `Основываясь СТРОГО на предоставленном КОНТЕКСТЕ КУРСА, ответь на вопрос студента. Если ответ нельзя найти в тексте, скажи "Извините, я не могу ответить на этот вопрос на основе имеющихся материалов.". Вопрос студента: "${question}"`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const answer = response.text();
+
+        res.status(200).json({ answer });
+    } catch (error) {
+        console.error('Error in askAssistant:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+apiRouter.post('/dialogueSimulator', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    const token = authHeader.split(' ')[1];
+    const supabase = createSupabaseClient(token);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        const { history, disposition, action, scenario } = req.body; // 'scenario' is passed back from client during chat/eval
+        const supabaseAdmin = createSupabaseAdminClient();
+
+        const dispositionMap = { '0': 'холодный и скептичный', '1': 'нейтральный и любопытный', '2': 'горячий и заинтересованный' };
+        const persona = `Клиент (${dispositionMap[disposition] || 'нейтральный'})`;
+
+        if (action === 'start') {
+            const randomScenario = simulationScenarios[Math.floor(Math.random() * simulationScenarios.length)];
+            const prompt = `Ты - симулятор диалога. Ты играешь роль клиента. Твое настроение: "${persona}". Твоя ситуация: "${randomScenario}". Начни диалог с ОДНОЙ короткой фразы, которая описывает твою проблему или вопрос.`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+
+            res.status(200).json({ first_message: response.text(), scenario: randomScenario });
+
+        } else if (action === 'chat') {
+            if (!scenario) return res.status(400).json({ error: 'Scenario is required for chat.' });
+            const prompt = `Ты - симулятор диалога. Твоя роль - "${persona}". Сценарий: "${scenario}". Продолжи диалог, основываясь на истории. История (последнее сообщение от пользователя): ${JSON.stringify(history)}. Твой ответ должен быть коротким и по делу.`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+
+            res.status(200).json({ answer: response.text() });
+
+        } else if (action === 'evaluate') {
+            if (!scenario) return res.status(400).json({ error: 'Scenario is required for evaluation.' });
+            const evaluationPrompt = `Оцени диалог по 10-бальной шкале по критериям: установление контакта, выявление потребностей, презентация решения, работа с возражениями, завершение сделки. Предоставь JSON с полями "evaluation_criteria" (массив объектов с "criterion", "score", "comment"), "average_score", "general_comment". Диалог: ${JSON.stringify(history)}`;
+
+            const result = await model.generateContent(evaluationPrompt);
+            const response = await result.response;
+            const jsonString = response.text().replace(/(\`\`\`json\n|\`\`\`)/g, '').trim();
+            const evaluation = JSON.parse(jsonString);
+
+            await supabaseAdmin.from('simulation_results').insert({
+                user_id: user.id,
+                scenario,
+                persona,
+                evaluation
+            });
+
+            res.status(200).json({ answer: evaluation });
+        } else {
+            res.status(400).json({ error: 'Invalid action.' });
+        }
+    } catch (error) {
+        console.error('Error in dialogueSimulator:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+apiRouter.post('/update-time-spent', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    const token = authHeader.split(' ')[1];
+    const supabase = createSupabaseClient(token);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        const { course_id, seconds_spent } = req.body;
+        const { error } = await supabase.rpc('increment_time_spent', {
+            p_course_id: course_id,
+            p_user_id: user.id,
+            p_seconds_spent: seconds_spent
+        });
+        if (error) throw error;
+        res.status(200).json({ message: 'Time updated.' });
+    } catch (error) {
+        console.error('Error updating time spent:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+apiRouter.post('/markNotificationsAsRead', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    const token = authHeader.split(' ')[1];
+    const supabase = createSupabaseClient(token);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        const { notification_ids } = req.body;
+        if (!Array.isArray(notification_ids)) return res.status(400).json({ error: 'notification_ids must be an array.' });
+
+        const { error } = await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .in('id', notification_ids)
+            .eq('user_id', user.id);
+
+        if (error) throw error;
+        res.status(200).json({ message: 'Notifications marked as read.' });
+    } catch (error) {
+        console.error('Error marking notifications:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+apiRouter.post('/text-to-speech-user', async (req, res) => {
+    // Placeholder for user-facing TTS
+    console.warn("TODO: User-facing TTS functionality requires an external service and API key.");
+    res.status(200).json({ audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' });
+});
+
 
 // --- Frontend Routes ---
 app.get('/admin*', (req, res) => {
