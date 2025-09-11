@@ -893,7 +893,17 @@ apiRouter.post('/dialogueSimulator', async (req, res) => {
 
         } else if (action === 'chat') {
             if (!scenario) return res.status(400).json({ error: 'Scenario is required for chat.' });
-            const prompt = `Ты - симулятор диалога. Твоя роль - "${persona}". Сценарий: "${scenario}". Продолжи диалог, основываясь на истории. История (последнее сообщение от пользователя): ${JSON.stringify(history)}. Твой ответ должен быть коротким и по делу.`;
+            const formattedHistory = history.map(h => `${h.role === 'user' ? 'Менеджер' : 'Клиент'}: ${h.text}`).join('\n');
+            const prompt = `Ты — симулятор диалога в роли клиента.
+Твоя личность: ${persona}.
+Твой сценарий: "${scenario}".
+
+Продолжи диалог, основываясь на истории. Отвечай коротко, по делу и только за себя (клиента).
+
+ИСТОРИЯ ДИАЛОГА:
+${formattedHistory}
+
+Твой следующий ответ от имени клиента:`;
 
             const result = await model.generateContent(prompt);
             const response = result.response;
