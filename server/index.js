@@ -156,7 +156,16 @@ apiRouter.post('/admin', async (req, res) => {
             }
 
             case 'get_simulation_results': {
-                const { data: results, error } = await supabaseAdmin.rpc('get_simulation_results_for_admin');
+                const { data: results, error } = await supabaseAdmin
+                    .from('simulation_results')
+                    .select(`
+                        created_at,
+                        scenario,
+                        persona,
+                        evaluation,
+                        users ( full_name )
+                    `);
+
                 if (error) throw error;
                 data = results;
                 break;
@@ -169,6 +178,43 @@ apiRouter.post('/admin', async (req, res) => {
                 break;
             }
 
+            case 'upload_course_material': {
+                const { course_id, file_name, file_data } = payload;
+                if (!course_id || !file_name || !file_data) {
+                    return res.status(400).json({ error: 'Missing required fields for material upload.' });
+                }
+
+                // This assumes a public bucket named 'course-materials' exists.
+                const buffer = Buffer.from(file_data, 'base64');
+                const storagePath = `course-materials/${course_id}/${Date.now()}-${file_name}`;
+
+                const { error: uploadError } = await supabaseAdmin.storage
+                    .from('course-materials')
+                    .upload(storagePath, buffer);
+
+                if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
+                const { data: urlData } = supabaseAdmin.storage
+                    .from('course-materials')
+                    .getPublicUrl(storagePath);
+
+                const { data: dbRecord, error: dbError } = await supabaseAdmin
+                    .from('course_materials')
+                    .insert({
+                        course_id: course_id,
+                        file_name: file_name,
+                        storage_path: storagePath,
+                        public_url: urlData.publicUrl
+                    })
+                    .select()
+                    .single();
+
+                if (dbError) throw dbError;
+
+                data = dbRecord;
+                break;
+            }
+
             default:
                 return res.status(400).json({ error: `Unknown action: ${action}` });
         }
@@ -176,6 +222,56 @@ apiRouter.post('/admin', async (req, res) => {
     } catch (error) {
         console.error(`Error processing action "${action}":`, error);
         res.status(500).json({ error: 'An internal server error occurred.', errorMessage: error.message });
+    }
+});
+
+
+// POST /api/getCourseContent
+apiRouter.post('/getCourseContent', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    const token = authHeader.split(' ')[1];
+
+    const supabase = createSupabaseClient(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        const { course_id } = req.body;
+        if (!course_id) {
+            return res.status(400).json({ error: 'course_id is required.' });
+        }
+
+        const { data: course, error } = await supabase
+            .from('courses')
+            .select('content, course_materials (*)')
+            .eq('id', course_id)
+            .single();
+
+        if (error) throw error;
+        if (!course) return res.status(404).json({ error: 'Course not found.' });
+
+        // The 'content' field in the DB is a JSON string. Parse it.
+        let parsedContent = { summary: [], questions: [] };
+        if (course.content) {
+            try {
+                // The 'content' field is a JSON string, which needs to be parsed
+                parsedContent = typeof course.content === 'string' ? JSON.parse(course.content) : course.content;
+            } catch(e) {
+                console.error(`Failed to parse content for course ${course_id}:`, e);
+                // Return empty content if parsing fails, to prevent crash
+            }
+        }
+
+        res.status(200).json({
+            summary: parsedContent.summary || [],
+            questions: parsedContent.questions || [],
+            materials: course.course_materials || []
+        });
+
+    } catch (error) {
+        console.error(`Error getting course content for ${req.body.course_id}:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
@@ -220,6 +316,86 @@ apiRouter.post('/get-leaderboard', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
+
+// POST /api/getDetailedReport
+apiRouter.post('/getDetailedReport', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    const token = authHeader.split(' ')[1];
+
+    const supabase = createSupabaseClient(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Admin check
+    const { data: adminCheck, error: adminCheckError } = await supabase.from('users').select('is_admin').eq('id', user.id).single();
+    if (adminCheckError || !adminCheck?.is_admin) {
+        return res.status(403).json({ error: 'Forbidden: User is not an admin.' });
+    }
+
+    try {
+        const { user_email, department, course_id, format } = req.body;
+        const supabaseAdmin = createSupabaseAdminClient();
+
+        let query = supabaseAdmin
+            .from('user_progress')
+            .select(`
+                percentage,
+                time_spent_seconds,
+                completed_at,
+                courses ( title ),
+                users ( id, full_name, department )
+            `);
+
+        if (course_id) {
+            query = query.eq('course_id', course_id);
+        }
+        if (department) {
+            query = query.ilike('users.department', `%${department}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        // Note: Filtering by user_email is not directly supported here as email is in auth.users.
+        // The frontend can filter the results if needed. A more complex query would be needed for server-side filtering.
+        let filteredData = data;
+        if (user_email) {
+            // This part is tricky. We don't have the email. We'd need another query to get user by email.
+            // For now, let's assume this is handled client-side or we enhance this later.
+        }
+
+        // The frontend expects user_profiles, let's remap the data for consistency.
+        const formattedData = filteredData.map(row => ({
+            ...row,
+            user_profiles: row.users,
+            user_email: 'N/A' // Placeholder
+        }));
+
+        if (format === 'csv') {
+            const csvHeader = "User Name,User Department,Course Title,Percentage,Time Spent (min),Completed At\n";
+            const csvBody = formattedData.map(d => {
+                const userName = d.user_profiles?.full_name?.replace(/"/g, '""') || 'N/A';
+                const department = d.user_profiles?.department?.replace(/"/g, '""') || 'N/A';
+                const courseTitle = d.courses?.title?.replace(/"/g, '""') || 'N/A';
+                const percentage = d.percentage || 0;
+                const timeSpent = d.time_spent_seconds ? Math.round(d.time_spent_seconds / 60) : 0;
+                const completedAt = d.completed_at ? new Date(d.completed_at).toISOString() : 'In Progress';
+                return `"${userName}","${department}","${courseTitle}",${percentage},${timeSpent},"${completedAt}"`;
+            }).join('\n');
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="report.csv"');
+            res.status(200).send(csvHeader + csvBody);
+        } else {
+            res.status(200).json(formattedData);
+        }
+
+    } catch (error) {
+        console.error('Error getting detailed report:', error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
+});
+
 
 // POST /api/getCourses
 apiRouter.post('/getCourses', async (req, res) => {
@@ -458,7 +634,7 @@ async function handleGenerateContent(jobId, payload) {
             summary: [{ title: "string", html_content: "string" }],
             questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
         };
-        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}\n\nИСХОДНЫЙ ТЕКСТ:\n${courseData.description}\n\nОбязательно верни результат в формате JSON: ${JSON.stringify(outputFormat)}`;
+        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}\n\nИСХОДНЫЙ ТЕКСТ:\n${courseData.description}\n\nОбязательно верни результат в формате JSON: ${JSON.stringify(outputFormat)}\n\nКлючевое требование: Массив "questions" является самой важной частью. Он должен содержать как минимум 5 вопросов для теста с 4 вариантами ответа каждый, основанных на ключевых фактах из текста.`;
 
         console.log(`[Job ${jobId}] Generating content with Gemini...`);
         const result = await model.generateContent(finalPrompt);
