@@ -15,7 +15,7 @@
         #product-nav a { margin-right: 15px; text-decoration: none; color: var(--text-light-color); font-weight: bold; }
         #product-nav a.active { color: var(--primary-color); }
         #product-nav a .lock-icon { display: inline-block; margin-left: 5px; }
-        .presentation-slider{width:100%;background:#fff;border:1px solid var(--border-color);border-radius:12px;min-height:450px;display:flex;flex-direction:column;margin-top:20px;box-shadow:0 8px 30px rgba(0,0,0,0.12)}.presentation-slide{display:none;padding:25px 40px;animation:fadeIn .6s;flex-grow:1}.presentation-slide.active{display:block}.presentation-slide img{max-height:220px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
+        .presentation-slider{width:100%;background:#e9ecef;border:1px solid #dee2e6;border-radius:12px;display:flex;flex-direction:column;margin-top:20px;box-shadow:0 8px 30px rgba(0,0,0,0.05);transition:height .3s ease-in-out}.presentation-slide{display:none;padding:25px 40px;animation:fadeIn .6s}.presentation-slide.active{display:block}.presentation-slide img{max-height:250px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -541,43 +541,34 @@
         const slider = document.createElement('div');
         slider.className = 'presentation-slider';
 
-        summaryData.forEach((slide) => {
+        summaryData.forEach((slideData) => {
             const slideDiv = document.createElement('div');
             slideDiv.className = 'presentation-slide';
-            let imageHtml = slide.image_url ? `<img src="${slide.image_url}" alt="${slide.slide_title || 'Slide Image'}">` : '';
-            slideDiv.innerHTML = `${imageHtml}<h2>${slide.slide_title || ''}</h2>${slide.html_content || ''}`;
+            let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="${slideData.slide_title || 'Slide Image'}">` : '';
+            slideDiv.innerHTML = `${imageHtml}<h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}`;
             slider.appendChild(slideDiv);
         });
 
-        const slides = slider.querySelectorAll('.presentation-slide');
-        slides[0].classList.add('active');
-
         const navContainer = document.createElement('div');
         navContainer.className = 'slider-nav-container';
-
-        const prevBtn = document.createElement('button');
-        prevBtn.textContent = '‹ Назад';
-
-        const counter = document.createElement('span');
-        counter.className = 'slide-counter';
-
-        const nextBtn = document.createElement('button');
-        nextBtn.textContent = 'Вперед ›';
-
-        const buttonWrapper = document.createElement('div');
-        buttonWrapper.className = 'slider-nav';
-        buttonWrapper.appendChild(prevBtn);
-        buttonWrapper.appendChild(nextBtn);
-
-        navContainer.appendChild(counter);
-        navContainer.appendChild(buttonWrapper);
+        navContainer.innerHTML = `
+            <span class="slide-counter"></span>
+            <div class="slider-nav">
+                <button class="slider-prev">‹ Назад</button>
+                <button class="slider-next">Вперед ›</button>
+            </div>
+        `;
 
         productContent.appendChild(slider);
         productContent.appendChild(navContainer);
 
+        const slides = slider.querySelectorAll('.presentation-slide');
+        const prevBtn = navContainer.querySelector('.slider-prev');
+        const nextBtn = navContainer.querySelector('.slider-next');
+        const counter = navContainer.querySelector('.slide-counter');
         let currentIndex = 0;
 
-        const updateSlider = () => {
+        const updateSliderUI = () => {
             slides.forEach((slide, index) => {
                 slide.classList.toggle('active', index === currentIndex);
             });
@@ -586,21 +577,65 @@
             counter.textContent = `${currentIndex + 1} / ${slides.length}`;
         };
 
+        const setSliderHeight = () => {
+            let maxHeight = 0;
+            slider.style.height = 'auto'; // Reset height to allow shrinking
+
+            slides.forEach(slide => {
+                // To measure the true height, we must make it visible.
+                // A trick is to make it visible but keep its active state.
+                const wasActive = slide.classList.contains('active');
+                if (!wasActive) slide.classList.add('active'); // Temporarily show it
+
+                maxHeight = Math.max(maxHeight, slide.scrollHeight);
+
+                if (!wasActive) slide.classList.remove('active'); // Hide it again
+            });
+
+            if (maxHeight > 0) {
+                slider.style.height = `${maxHeight}px`;
+            }
+        };
+
         prevBtn.addEventListener('click', () => {
             if (currentIndex > 0) {
                 currentIndex--;
-                updateSlider();
+                updateSliderUI();
             }
         });
 
         nextBtn.addEventListener('click', () => {
             if (currentIndex < slides.length - 1) {
                 currentIndex++;
-                updateSlider();
+                updateSliderUI();
             }
         });
 
-        updateSlider();
+        updateSliderUI();
+
+        const images = slider.querySelectorAll('img');
+        if (images.length === 0) {
+            setTimeout(setSliderHeight, 50); // No images, just wait for render
+        } else {
+            let loadedImages = 0;
+            const onImageLoad = () => {
+                loadedImages++;
+                if (loadedImages === images.length) {
+                    setSliderHeight();
+                }
+            };
+            images.forEach(img => {
+                if (img.complete) {
+                    onImageLoad();
+                } else {
+                    img.addEventListener('load', onImageLoad);
+                    img.addEventListener('error', onImageLoad); // Also count broken images
+                }
+            });
+        }
+
+        // Recalculate on resize for responsiveness
+        window.addEventListener('resize', setSliderHeight);
     }
 
     async function showProduct(courseId, forceRegenerate = false) {
