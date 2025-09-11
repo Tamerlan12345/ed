@@ -94,9 +94,15 @@ apiRouter.post('/admin', async (req, res) => {
             }
 
             case 'get_all_users': {
-                const { data: users, error } = await supabaseAdmin.rpc('get_all_users_for_admin');
+                const { data: users, error } = await supabaseAdmin
+                    .from('users')
+                    .select('id, full_name, department');
+
                 if (error) throw error;
-                data = users;
+                // The frontend might expect an 'email' field which is in auth.users, not public.users.
+                // We can join later if needed, but for now, this prevents the crash.
+                const formattedUsers = users.map(u => ({ ...u, email: 'N/A (see full_name)' }));
+                data = formattedUsers;
                 break;
             }
 
@@ -152,6 +158,27 @@ apiRouter.post('/admin', async (req, res) => {
                 const { data: groups, error } = await supabaseAdmin.from('course_groups').select('*');
                 if (error) throw error;
                 data = groups;
+                break;
+            }
+
+            case 'create_course_group': {
+                const { group_name, is_for_new_employees, start_date, recurrence_period } = payload;
+                if (!group_name) {
+                    return res.status(400).json({ error: 'Group name is required.' });
+                }
+                const { data: newGroup, error } = await supabaseAdmin
+                    .from('course_groups')
+                    .insert({
+                        group_name,
+                        is_for_new_employees: is_for_new_employees || false,
+                        start_date: start_date || null,
+                        recurrence_period: recurrence_period || null
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                data = newGroup;
                 break;
             }
 
@@ -631,10 +658,26 @@ async function handleGenerateContent(jobId, payload) {
         }
 
         const outputFormat = {
-            summary: [{ title: "string", html_content: "string" }],
+            summary: [
+                {
+                    slide_title: "string (Заголовок слайда)",
+                    html_content: "string (HTML-контент слайда с использованием <h2>, <p>, <ul>, <li>, <strong>)"
+                }
+            ],
             questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
         };
-        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}\n\nИСХОДНЫЙ ТЕКСТ:\n${courseData.description}\n\nОбязательно верни результат в формате JSON: ${JSON.stringify(outputFormat)}\n\nКлючевое требование: Массив "questions" является самой важной частью. Он должен содержать как минимум 5 вопросов для теста с 4 вариантами ответа каждый, основанных на ключевых фактах из текста.`;
+        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}
+
+ИСХОДНЫЙ ТЕКСТ:
+${courseData.description}
+
+ТРЕБОВАНИЯ К ФОРМАТУ ВЫВОДА:
+Обязательно верни результат в формате JSON, соответствующем этой структуре: ${JSON.stringify(outputFormat)}
+
+КЛЮЧЕВЫЕ ТРЕБОВАНИЯ К КОНТЕНТУ:
+1.  **Презентация (summary):** Создай содержательную HTML-презентацию из 5-7 слайдов. Каждый слайд в массиве 'summary' должен иметь "slide_title" и "html_content". Используй теги <h2> для подзаголовков, <p> для параграфов, <ul> и <li> для списков, и <strong> для выделения ключевых мыслей. Презентация должна быть логичной и хорошо структурированной.
+2.  **Тест (questions):** Массив "questions" должен содержать как минимум 5 вопросов для теста с 4 вариантами ответа каждый, основанных на материале презентации.
+`;
 
         console.log(`[Job ${jobId}] Generating content with Gemini...`);
         const result = await model.generateContent(finalPrompt);
