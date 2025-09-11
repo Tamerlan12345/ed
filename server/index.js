@@ -891,7 +891,12 @@ apiRouter.post('/dialogueSimulator', async (req, res) => {
             const prompt = `Ты - симулятор диалога. Твоя роль - "${persona}". Сценарий: "${scenario}". Продолжи диалог, основываясь на истории. История (последнее сообщение от пользователя): ${JSON.stringify(history)}. Твой ответ должен быть коротким и по делу.`;
 
             const result = await model.generateContent(prompt);
-            const response = await result.response;
+            const response = result.response;
+
+            if (!response || !response.text) {
+                console.error('AI response was blocked, empty, or invalid. Full result:', JSON.stringify(result, null, 2));
+                return res.status(200).json({ answer: "Извините, не удалось получить ответ от AI. Возможно, ваш запрос нарушает политику безопасности или произошла временная ошибка. Попробуйте переформулировать." });
+            }
 
             res.status(200).json({ answer: response.text() });
 
