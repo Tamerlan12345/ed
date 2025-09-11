@@ -852,9 +852,14 @@ apiRouter.post('/askAssistant', async (req, res) => {
         const prompt = `Основываясь СТРОГО на предоставленном КОНТЕКСТЕ КУРСА, ответь на вопрос студента. Если ответ нельзя найти в тексте, скажи "Извините, я не могу ответить на этот вопрос на основе имеющихся материалов.". Вопрос студента: "${question}"`;
 
         const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const answer = response.text();
+        const response = result.response;
 
+        if (!response || !response.text) {
+            console.error('AI response was blocked, empty, or invalid for askAssistant. Full result:', JSON.stringify(result, null, 2));
+            return res.status(200).json({ answer: "Извините, не удалось получить ответ от AI. Возможно, ваш запрос нарушает политику безопасности или произошла временная ошибка. Попробуйте переформулировать." });
+        }
+
+        const answer = response.text();
         res.status(200).json({ answer });
     } catch (error) {
         console.error('Error in askAssistant:', error);
