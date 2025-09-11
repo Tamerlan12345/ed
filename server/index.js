@@ -8,6 +8,7 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
 const crypto = require('crypto');
@@ -15,6 +16,7 @@ const cron = require('node-cron');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env.PEXELS_API_KEY) : null;
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Рекомендуется использовать актуальную модель
 
 const simulationScenarios = [
@@ -764,7 +766,8 @@ async function handleGenerateContent(jobId, payload) {
             summary: [
                 {
                     slide_title: "string (Заголовок слайда)",
-                    html_content: "string (HTML-контент слайда с использованием <h2>, <p>, <ul>, <li>, <strong>)"
+                    html_content: "string (HTML-контент слайда...)",
+                    image_search_term: "string (1-2 слова на английском для поиска картинки на Pexels)"
                 }
             ],
             questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
@@ -778,8 +781,9 @@ ${courseData.description}
 Обязательно верни результат в формате JSON, соответствующем этой структуре: ${JSON.stringify(outputFormat)}
 
 КЛЮЧЕВЫЕ ТРЕБОВАНИЯ К КОНТЕНТУ:
-1.  **Презентация (summary):** Создай содержательную HTML-презентацию из 5-7 слайдов. Каждый слайд в массиве 'summary' должен иметь "slide_title" и "html_content". Используй теги <h2> для подзаголовков. Активно используй теги `<strong>` для выделения ключевых терминов, `<ul>` и `<li>` для списков, и разбивай информацию на короткие, легко читаемые параграфы `<p>`. Презентация должна быть логичной и хорошо структурированной.
-2.  **Тест (questions):** Массив "questions" должен содержать как минимум 5 вопросов для теста с 4 вариантами ответа каждый, основанных на материале презентации.
+1.  **Презентация (summary):** Создай содержательную HTML-презентацию из 5-7 слайдов. Каждый слайд в массиве 'summary' должен иметь "slide_title" и "html_content". Активно используй теги <h2>, <p>, <ul>, <li>, <strong>.
+2.  **Тест (questions):** Массив "questions" должен содержать как минимум 5 вопросов для теста с 4 вариантами ответа каждый.
+3.  **Поиск картинок (image_search_term):** Для каждого слайда придумай простой поисковый запрос из 1-2 слов на английском языке для поиска релевантной фотографии на сайте Pexels.
 `;
 
         console.log(`[Job ${jobId}] Generating content with Gemini...`);
@@ -787,11 +791,29 @@ ${courseData.description}
         const response = await result.response;
         const jsonString = response.text().replace(/```json\n|```/g, '').trim();
 
+        const parsedContent = JSON.parse(jsonString);
+
+        if (pexelsClient && parsedContent.summary && Array.isArray(parsedContent.summary)) {
+            for (const slide of parsedContent.summary) {
+                if (slide.image_search_term) {
+                    try {
+                        const query = slide.image_search_term;
+                        const pexelsResponse = await pexelsClient.photos.search({ query, per_page: 1 });
+                        if (pexelsResponse.photos && pexelsResponse.photos.length > 0) {
+                            slide.image_url = pexelsResponse.photos[0].src.large;
+                        }
+                    } catch (pexelsError) {
+                        console.error(`Pexels API call failed for term "${slide.image_search_term}":`, pexelsError);
+                    }
+                }
+            }
+        }
+
         // The 'content' column is TEXT, so we store the JSON as a string.
-        console.log(`[Job ${jobId}] Content generated. Saving to database...`);
+        console.log(`[Job ${jobId}] Content generated, now with images. Saving to database...`);
         const { error: dbError } = await supabaseAdmin
             .from('courses')
-            .update({ content: jsonString })
+            .update({ content: JSON.stringify(parsedContent) })
             .eq('id', course_id);
 
         if (dbError) throw new Error(`Failed to save generated content: ${dbError.message}`);
