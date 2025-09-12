@@ -282,9 +282,21 @@ apiRouter.post('/admin', async (req, res) => {
             }
 
             case 'text_to_speech': {
-                 console.warn("TODO: TTS functionality requires an external service and API key.");
-                 data = { audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' };
-                 break;
+                const { text, course_id } = payload;
+                if (!text || !course_id) {
+                    return res.status(400).json({ error: 'Text and course_id are required for TTS.' });
+                }
+                try {
+                    const ttsResponse = await axios.post('http://127.0.0.1:5001/generate-audio', {
+                        text: text,
+                        course_id: course_id
+                    });
+                    data = { audioUrl: ttsResponse.data.url };
+                } catch (ttsError) {
+                    console.error('Error calling Python TTS service:', ttsError.message);
+                    throw new Error('Failed to generate audio summary.');
+                }
+                break;
             }
 
             case 'get_simulation_results': {
@@ -991,9 +1003,23 @@ apiRouter.post('/markNotificationsAsRead', async (req, res) => {
 });
 
 apiRouter.post('/text-to-speech-user', async (req, res) => {
-    // Placeholder for user-facing TTS
-    console.warn("TODO: User-facing TTS functionality requires an external service and API key.");
-    res.status(200).json({ audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' });
+    try {
+        const { text, course_id } = req.body;
+        if (!text || !course_id) {
+            return res.status(400).json({ error: 'Text and course_id are required.' });
+        }
+
+        const ttsResponse = await axios.post('http://127.0.0.1:5001/generate-audio', {
+            text: text,
+            course_id: course_id
+        });
+
+        res.status(200).json({ audioUrl: ttsResponse.data.url });
+
+    } catch (error) {
+        console.error('Error calling TTS service for user:', error.message);
+        res.status(500).json({ error: 'Failed to generate audio summary.' });
+    }
 });
 
 
