@@ -863,7 +863,9 @@ apiRouter.post('/askAssistant', async (req, res) => {
         const { data: courseData, error: courseError } = await supabase.from('courses').select('description, content').eq('id', course_id).single();
         if (courseError || !courseData) return res.status(404).json({ error: 'Course not found.' });
 
-        const context = `КОНТЕКСТ КУРСА:\n${courseData.description}\n\n${courseData.content}`;
+        // Улучшенная сборка контекста
+        const courseContent = courseData.content || '';
+        const context = `КОНТЕКСТ КУРСА:\n${courseData.description}\n\n${courseContent}`;
         const prompt = `Основываясь СТРОГО на предоставленном КОНТЕКСТЕ КУРСА, ответь на вопрос студента. Если ответ нельзя найти в тексте, скажи "Извините, я не могу ответить на этот вопрос на основе имеющихся материалов.". Вопрос студента: "${question}"`;
 
         const result = await model.generateContent(prompt);
@@ -877,8 +879,8 @@ apiRouter.post('/askAssistant', async (req, res) => {
         const answer = response.text();
         res.status(200).json({ answer });
     } catch (error) {
-        console.error('Error in askAssistant:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Detailed error in /api/askAssistant:', error);
+        res.status(503).json({ error: 'AI service is currently unavailable.', details: error.message });
     }
 });
 
@@ -951,8 +953,8 @@ ${formattedHistory}
             res.status(400).json({ error: 'Invalid action.' });
         }
     } catch (error) {
-        console.error('Error in dialogueSimulator:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Detailed error in /api/dialogueSimulator:', error);
+        res.status(503).json({ error: 'AI service is currently unavailable.', details: error.message });
     }
 });
 
