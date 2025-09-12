@@ -296,7 +296,7 @@ apiRouter.post('/admin', async (req, res) => {
                     });
                     data = { audioUrl: ttsResponse.data.url };
                 } catch (ttsError) {
-                    console.error('Error calling Python TTS service:', ttsError.message);
+                    console.error('Error calling Python TTS service:', ttsError);
                     throw new Error('Failed to generate audio summary.');
                 }
                 break;
@@ -1020,7 +1020,7 @@ apiRouter.post('/text-to-speech-user', async (req, res) => {
         res.status(200).json({ audioUrl: ttsResponse.data.url });
 
     } catch (error) {
-        console.error('Error calling TTS service for user:', error.message);
+        console.error('Error calling TTS service for user:', error);
         res.status(500).json({ error: 'Failed to generate audio summary.' });
     }
 });
