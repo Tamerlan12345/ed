@@ -708,7 +708,29 @@
                 listenBtn.disabled = true;
                 listenBtn.textContent = 'Генерация аудио...';
                 try {
-                    const response = await fetchAuthenticated('/api/text-to-speech-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id }) });
+                    let summaryText = '';
+                    if (currentCourse && Array.isArray(currentCourse.summary)) {
+                        const tempDiv = document.createElement('div');
+                        summaryText = currentCourse.summary.map(slide => {
+                            // Вставляем HTML в временный элемент, чтобы извлечь чистый текст
+                            tempDiv.innerHTML = slide.html_content;
+                            return tempDiv.textContent || tempDiv.innerText || '';
+                        }).join('\\n\\n'); // Соединяем текст слайдов с паузами
+                    }
+
+                    if (!summaryText) {
+                        throw new Error('Текст саммари для озвучивания не найден.');
+                    }
+
+                    const response = await fetchAuthenticated('/api/text-to-speech-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            course_id: currentCourse.id,
+                            text: summaryText
+                        })
+                    });
+
                     const audio = new Audio(response.audioUrl);
                     audio.controls = true;
                     audio.autoplay = true;
@@ -717,7 +739,10 @@
                     listenBtn.textContent = 'Аудио готово';
                 } catch (error) {
                     console.error('Audio generation failed:', error);
+                    alert(`Не удалось создать аудио: ${error.message}`);
                     listenBtn.textContent = 'Ошибка генерации';
+                } finally {
+                    listenBtn.disabled = false;
                 }
             };
             productContent.appendChild(listenBtn);
