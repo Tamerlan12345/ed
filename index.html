@@ -7,7 +7,7 @@
     <title>AI-Платформа Обучения | Centras Insurance</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
-        :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:1300px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area--presentation{height:auto;overflow-y:hidden}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"],input[type="password"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:8px;transition:border-color .3s,box-shadow .3s}input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,166,0.2)}button,.btn{background:var(--primary-color);border:none;color:#fff;padding:12px 25px;cursor:pointer;transition:all .3s ease;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:10px;font-weight:700;font-family:'Lato',sans-serif;letter-spacing:.2px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,90,166,0.2);background:var(--secondary-color)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}.menu-item{padding:20px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:8px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
+        :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:1300px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"],input[type="password"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:8px;transition:border-color .3s,box-shadow .3s}input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,166,0.2)}button,.btn{background:var(--primary-color);border:none;color:#fff;padding:12px 25px;cursor:pointer;transition:all .3s ease;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:10px;font-weight:700;font-family:'Lato',sans-serif;letter-spacing:.2px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,90,166,0.2);background:var(--secondary-color)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}.menu-item{padding:20px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:8px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
     </style>
     <style>
         /* Card UI Overrides for .menu-item */
@@ -35,7 +35,7 @@
         #product-nav a { margin-right: 15px; text-decoration: none; color: var(--text-light-color); font-weight: bold; }
         #product-nav a.active { color: var(--primary-color); }
         #product-nav a .lock-icon { display: inline-block; margin-left: 5px; }
-        .presentation-slider{width:100%;background:#e9ecef;border:1px solid #dee2e6;border-radius:12px;display:flex;flex-direction:column;margin-top:20px;box-shadow:0 8px 30px rgba(0,0,0,0.05);transition:height .3s ease-in-out}.presentation-slide{display:none;padding:40px 60px;animation:fadeIn .6s;word-wrap:break-word}.presentation-slide.active{display:block}.presentation-slide img{max-height:250px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
+        .presentation-slider{width:100%;background:#e9ecef;border:1px solid #dee2e6;border-radius:12px;display:flex;flex-direction:column;margin-top:20px;box-shadow:0 8px 30px rgba(0,0,0,0.05);transition:height .3s ease-in-out;height:55vh}.presentation-slide{display:none;padding:40px 60px;animation:fadeIn .6s;word-wrap:break-word}.presentation-slide.active{display:block;height:100%;overflow-y:auto}.presentation-slide img{max-height:250px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -353,7 +353,6 @@
         stopTimeTracking();
         windowTitle.textContent = 'Главное Меню';
 
-        contentArea.classList.remove('content-area--presentation');
         document.getElementById('leaderboard-container').classList.remove('hidden');
         document.getElementById('main-content-wrapper').classList.remove('hidden');
 
@@ -603,26 +602,6 @@
             counter.textContent = `${currentIndex + 1} / ${slides.length}`;
         };
 
-        const setSliderHeight = () => {
-            let maxHeight = 0;
-            slider.style.height = 'auto'; // Reset height to allow shrinking
-
-            slides.forEach(slide => {
-                // To measure the true height, we must make it visible.
-                // A trick is to make it visible but keep its active state.
-                const wasActive = slide.classList.contains('active');
-                if (!wasActive) slide.classList.add('active'); // Temporarily show it
-
-                maxHeight = Math.max(maxHeight, slide.scrollHeight);
-
-                if (!wasActive) slide.classList.remove('active'); // Hide it again
-            });
-
-            if (maxHeight > 0) {
-                slider.style.height = `${maxHeight + 50}px`;
-            }
-        };
-
         prevBtn.addEventListener('click', () => {
             if (currentIndex > 0) {
                 currentIndex--;
@@ -638,30 +617,6 @@
         });
 
         updateSliderUI();
-
-        const images = slider.querySelectorAll('img');
-        if (images.length === 0) {
-            setTimeout(setSliderHeight, 50); // No images, just wait for render
-        } else {
-            let loadedImages = 0;
-            const onImageLoad = () => {
-                loadedImages++;
-                if (loadedImages === images.length) {
-                    setSliderHeight();
-                }
-            };
-            images.forEach(img => {
-                if (img.complete) {
-                    onImageLoad();
-                } else {
-                    img.addEventListener('load', onImageLoad);
-                    img.addEventListener('error', onImageLoad); // Also count broken images
-                }
-            });
-        }
-
-        // Recalculate on resize for responsiveness
-        window.addEventListener('resize', setSliderHeight);
     }
 
     async function showProduct(courseId, forceRegenerate = false) {
@@ -673,7 +628,6 @@
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('extra-tools').classList.add('hidden');
 
-        contentArea.classList.add('content-area--presentation');
         productContent.classList.remove('hidden');
         assistantContainer.classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
@@ -792,7 +746,6 @@
     };
 
     function startTest(courseId) {
-        contentArea.classList.remove('content-area--presentation');
         currentCourse = courses.find(c => c.id === courseId);
         const progress = userProgress[courseId];
         const attempts = progress ? progress.attempts : 0;
