@@ -19,6 +19,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env.PEXELS_API_KEY) : null;
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Рекомендуется использовать актуальную модель
 
+// --- Service URLs ---
+const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'http://127.0.0.1:5001/generate-audio';
+
 const simulationScenarios = [
     "Клиент хочет застраховать новый автомобиль (Hyundai Tucson) по КАСКО от всех рисков. Он впервые покупает КАСКО и хочет знать все детали: что покрывается, какие есть франшизы, от чего зависит цена.",
     "У клиента заканчивается срок действующего полиса ОГПО ВТС. Он ищет, где можно продлить его онлайн и подешевле. Слышал, что у разных компаний могут быть разные скидки.",
@@ -287,7 +290,7 @@ apiRouter.post('/admin', async (req, res) => {
                     return res.status(400).json({ error: 'Text and course_id are required for TTS.' });
                 }
                 try {
-                    const ttsResponse = await axios.post('http://127.0.0.1:5001/generate-audio', {
+                    const ttsResponse = await axios.post(TTS_SERVICE_URL, {
                         text: text,
                         course_id: course_id
                     });
@@ -1009,7 +1012,7 @@ apiRouter.post('/text-to-speech-user', async (req, res) => {
             return res.status(400).json({ error: 'Text and course_id are required.' });
         }
 
-        const ttsResponse = await axios.post('http://127.0.0.1:5001/generate-audio', {
+        const ttsResponse = await axios.post(TTS_SERVICE_URL, {
             text: text,
             course_id: course_id
         });
