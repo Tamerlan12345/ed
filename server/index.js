@@ -20,7 +20,7 @@ const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Рекомендуется использовать актуальную модель
 
 // --- Service URLs ---
-const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'http://127.0.0.1:5001/generate-audio';
+const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
 
 const simulationScenarios = [
     "Клиент хочет застраховать новый автомобиль (Hyundai Tucson) по КАСКО от всех рисков. Он впервые покупает КАСКО и хочет знать все детали: что покрывается, какие есть франшизы, от чего зависит цена.",
@@ -36,7 +36,7 @@ const simulationScenarios = [
 ];
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // --- Middlewares ---
 app.use(cors());
