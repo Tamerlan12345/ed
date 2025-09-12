@@ -120,11 +120,22 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Функция для заполнения таблицы public.users при регистрации нового пользователя.
+-- Функция для заполнения таблицы public.users и назначения курсов при регистрации нового пользователя.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Вставляем запись в публичную таблицу users
   INSERT INTO public.users (id, full_name)
   VALUES (new.id, new.raw_user_meta_data->>'full_name');
+
+  -- Назначаем курсы из групп "для новых сотрудников"
+  INSERT INTO public.user_progress (user_id, course_id)
+  SELECT new.id, cgi.course_id
+  FROM public.course_groups cg
+  JOIN public.course_group_items cgi ON cg.id = cgi.group_id
+  WHERE cg.is_for_new_employees = true
+  ON CONFLICT (user_id, course_id) DO NOTHING;
+
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

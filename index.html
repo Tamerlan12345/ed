@@ -35,7 +35,39 @@
         #product-nav a { margin-right: 15px; text-decoration: none; color: var(--text-light-color); font-weight: bold; }
         #product-nav a.active { color: var(--primary-color); }
         #product-nav a .lock-icon { display: inline-block; margin-left: 5px; }
-        .presentation-slider{width:100%;background:#e9ecef;border:1px solid #dee2e6;border-radius:12px;display:flex;flex-direction:column;margin-top:20px;box-shadow:0 8px 30px rgba(0,0,0,0.05);transition:height .3s ease-in-out}.presentation-slide{display:none;padding:40px 60px;animation:fadeIn .6s;word-wrap:break-word}.presentation-slide.active{display:block}.presentation-slide img{max-height:250px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
+        /* New styles for fullscreen presentation mode */
+        #app-view.presentation-active .window-header,
+        #app-view.presentation-active .window-footer,
+        #app-view.presentation-active #leaderboard-container,
+        #app-view.presentation-active .header-controls,
+        #app-view.presentation-active .logo,
+        #app-view.presentation-active #logout-btn {
+            display: none !important;
+        }
+        #app-view.presentation-active .window {
+            padding: 0;
+            height: 100%;
+            max-width: 100%;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
+        }
+        #app-view.presentation-active .content-area {
+            height: 100%;
+            padding: 0;
+        }
+        #app-view.presentation-active #product-content {
+            height: 100%;
+        }
+
+        .presentation-slider{width:100%;height:100%;background:var(--surface-color);border-radius:0;display:flex;flex-direction:column;margin-top:0;box-shadow:none;transition:none}
+        .presentation-slide{flex-grow:1;padding:40px 60px;animation:fadeIn .6s;word-wrap:break-word;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden}
+        .presentation-slide.active{display:flex}
+        .presentation-slide img{max-height:50vh;max-width:80%;width:auto;object-fit:contain;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}
+        .slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa;flex-shrink:0}
+        .slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}
+        #close-presentation-btn{position:absolute;top:20px;right:30px;background:transparent;border:none;font-size:2em;color:#333;cursor:pointer;z-index:10;padding:0;margin:0;line-height:1}
+        @keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -350,6 +382,7 @@
     }
 
     async function showMainMenu() {
+        document.getElementById('app-view').classList.remove('presentation-active');
         stopTimeTracking();
         windowTitle.textContent = 'Главное Меню';
 
@@ -566,6 +599,12 @@
         const slider = document.createElement('div');
         slider.className = 'presentation-slider';
 
+        const closeBtn = document.createElement('button');
+        closeBtn.id = 'close-presentation-btn';
+        closeBtn.innerHTML = '✕';
+        closeBtn.addEventListener('click', showMainMenu);
+        slider.appendChild(closeBtn);
+
         summaryData.forEach((slideData) => {
             const slideDiv = document.createElement('div');
             slideDiv.className = 'presentation-slide';
@@ -584,8 +623,9 @@
             </div>
         `;
 
+        // The navContainer is appended to the slider, not productContent
+        slider.appendChild(navContainer);
         productContent.appendChild(slider);
-        productContent.appendChild(navContainer);
 
         const slides = slider.querySelectorAll('.presentation-slide');
         const prevBtn = navContainer.querySelector('.slider-prev');
@@ -600,26 +640,6 @@
             prevBtn.disabled = currentIndex === 0;
             nextBtn.disabled = currentIndex === slides.length - 1;
             counter.textContent = `${currentIndex + 1} / ${slides.length}`;
-        };
-
-        const setSliderHeight = () => {
-            let maxHeight = 0;
-            slider.style.height = 'auto'; // Reset height to allow shrinking
-
-            slides.forEach(slide => {
-                // To measure the true height, we must make it visible.
-                // A trick is to make it visible but keep its active state.
-                const wasActive = slide.classList.contains('active');
-                if (!wasActive) slide.classList.add('active'); // Temporarily show it
-
-                maxHeight = Math.max(maxHeight, slide.scrollHeight);
-
-                if (!wasActive) slide.classList.remove('active'); // Hide it again
-            });
-
-            if (maxHeight > 0) {
-                slider.style.height = `${maxHeight + 50}px`;
-            }
         };
 
         prevBtn.addEventListener('click', () => {
@@ -637,33 +657,10 @@
         });
 
         updateSliderUI();
-
-        const images = slider.querySelectorAll('img');
-        if (images.length === 0) {
-            setTimeout(setSliderHeight, 50); // No images, just wait for render
-        } else {
-            let loadedImages = 0;
-            const onImageLoad = () => {
-                loadedImages++;
-                if (loadedImages === images.length) {
-                    setSliderHeight();
-                }
-            };
-            images.forEach(img => {
-                if (img.complete) {
-                    onImageLoad();
-                } else {
-                    img.addEventListener('load', onImageLoad);
-                    img.addEventListener('error', onImageLoad); // Also count broken images
-                }
-            });
-        }
-
-        // Recalculate on resize for responsiveness
-        window.addEventListener('resize', setSliderHeight);
     }
 
     async function showProduct(courseId, forceRegenerate = false) {
+        document.getElementById('app-view').classList.add('presentation-active');
         currentCourse = courses.find(c => c.id === courseId);
         if (!currentCourse) return;
         windowTitle.textContent = currentCourse.title;
