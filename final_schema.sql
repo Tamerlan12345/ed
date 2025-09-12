@@ -129,11 +129,16 @@ BEGIN
   VALUES (new.id, new.raw_user_meta_data->>'full_name');
 
   -- Назначаем курсы из групп "для новых сотрудников"
+  -- Используем CTE (Common Table Expression) для ясности и надежности
+  WITH courses_to_assign AS (
+    SELECT cgi.course_id
+    FROM public.course_groups cg
+    JOIN public.course_group_items cgi ON cg.id = cgi.group_id
+    WHERE cg.is_for_new_employees = true
+  )
   INSERT INTO public.user_progress (user_id, course_id)
-  SELECT new.id, cgi.course_id
-  FROM public.course_groups cg
-  JOIN public.course_group_items cgi ON cg.id = cgi.group_id
-  WHERE cg.is_for_new_employees = true
+  SELECT new.id, cta.course_id
+  FROM courses_to_assign cta
   ON CONFLICT (user_id, course_id) DO NOTHING;
 
   RETURN new;
