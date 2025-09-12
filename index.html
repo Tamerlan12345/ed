@@ -1046,16 +1046,6 @@
         }
     });
 
-    function appendSimulatorMessage(text, role) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `chat-message ${role}-message`;
-        const textSpan = document.createElement('span');
-        textSpan.textContent = text;
-        messageDiv.appendChild(textSpan);
-        simulatorChatBox.appendChild(messageDiv);
-        simulatorChatBox.scrollTop = simulatorChatBox.scrollHeight;
-    }
-
 </script>
 </body>
 </html>
