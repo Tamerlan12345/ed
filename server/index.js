@@ -124,6 +124,19 @@ apiRouter.post('/admin', async (req, res) => {
                 break;
             }
 
+            case 'get_departments': {
+                const { data: users, error } = await supabaseAdmin
+                    .from('users')
+                    .select('department');
+
+                if (error) throw error;
+
+                // Get unique, non-empty department names
+                const departmentNames = [...new Set(users.map(u => u.department).filter(d => d && d.trim() !== ''))];
+                data = departmentNames.sort(); // Sort them alphabetically
+                break;
+            }
+
             case 'get_course_details': {
                 const { course_id } = payload;
                 if (!course_id) return res.status(400).json({ error: 'A valid course_id is required.' });
