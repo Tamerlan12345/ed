@@ -38,6 +38,84 @@
         .presentation-view{height:100%;display:flex;flex-direction:column}
         .presentation-slider{width:100%;background:#e9ecef;border:1px solid #dee2e6;border-radius:12px;margin-top:20px;box-shadow:0 8px 30px rgba(0,0,0,0.05);flex:1 1 auto;overflow-y:auto}.presentation-slide{display:none;padding:40px 60px;animation:fadeIn .6s;word-wrap:break-word}.presentation-slide.active{display:block}.presentation-slide img{max-height:250px;width:100%;object-fit:cover;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 10px rgba(0,0,0,0.1)}.slider-nav-container{display:flex;justify-content:space-between;align-items:center;padding:15px 40px;border-top:1px solid var(--border-color);background-color:#f8f9fa;flex-shrink:0}.slider-nav button{width:auto;padding:10px 22px;font-size:1em;border-radius:50px;background-color:var(--primary-color);color:white;border:none;cursor:pointer;transition:all .3s ease}.slider-nav button:hover{background-color:var(--secondary-color)}.slider-nav button:disabled{background-color:#ccc;cursor:not-allowed;opacity:0.6}.slide-counter{font-size:1em;color:var(--text-color);font-weight:bold}@keyframes fadeIn{from{opacity:0.2}to{opacity:1}}
     </style>
+    <style>
+        /* Floating Chat Button Styles */
+        #floating-chat-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            border: none;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: all .3s ease;
+        }
+        #floating-chat-btn:hover {
+            transform: scale(1.1);
+            background-color: var(--secondary-color);
+        }
+        #floating-chat-btn svg {
+            width: 30px;
+            height: 30px;
+            fill: white;
+        }
+
+        /* Override for Assistant Container to be a floating panel */
+        #assistant-container {
+            position: fixed;
+            bottom: 90px;
+            left: 20px;
+            width: 370px;
+            max-width: 90vw;
+            background: var(--surface-color);
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            z-index: 999;
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-top: 0; /* Override */
+            border-top: none; /* Override */
+            animation: fadeIn .3s;
+        }
+        #assistant-container h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        #chat-box {
+            height: 250px;
+        }
+
+        /* Responsive Layout for Presentation View */
+        .presentation-active {
+            flex-wrap: nowrap !important; /* Prevent wrapping when presentation is active */
+        }
+        .presentation-active #leaderboard-container {
+            flex: 0 0 320px !important; /* Fixed width sidebar */
+        }
+        .presentation-active #main-content-wrapper {
+            flex: 1 1 auto !important; /* Grow to fill remaining space */
+        }
+        .presentation-active .presentation-slider {
+            height: 68vh; /* Make the slider taller */
+        }
+
+        @media (max-width: 950px) {
+            .presentation-active {
+                flex-wrap: wrap !important;
+            }
+            .presentation-active #leaderboard-container,
+            .presentation-active #main-content-wrapper {
+                flex: 1 1 100% !important; /* Stack them on smaller screens */
+            }
+        }
+    </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
     
@@ -80,7 +158,7 @@
             </div>
             <div id="content-loader" class="hidden" style="display: flex; justify-content: center; align-items: center; height: 60vh;"><div class="loader"></div></div>
             <div class="content-area" id="content-area">
-                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div id="main-flex-container" style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <div id="leaderboard-container" style="flex: 1 1 300px; min-width: 280px; padding: 15px; background-color: #e9f7fe; border-radius: 8px; align-self: flex-start;">
                         <h3 style="margin-top: 0; color: var(--primary-color);">🏆 Топ Учеников Недели</h3>
                         <div id="leaderboard-content"></div>
@@ -354,6 +432,7 @@
         stopTimeTracking();
         windowTitle.textContent = 'Главное Меню';
 
+        document.getElementById('main-flex-container').classList.remove('presentation-active');
         document.getElementById('leaderboard-container').classList.remove('hidden');
         document.getElementById('main-content-wrapper').classList.remove('hidden');
 
@@ -362,6 +441,7 @@
         testView.classList.add('hidden');
         testResultsView.classList.add('hidden');
         assistantContainer.classList.add('hidden');
+        document.getElementById('floating-chat-btn').classList.add('hidden');
         simulatorView.classList.add('hidden');
         
         mainMenu.classList.remove('hidden');
@@ -626,13 +706,15 @@
         if (!currentCourse) return;
         windowTitle.textContent = currentCourse.title;
 
+        document.getElementById('main-flex-container').classList.add('presentation-active');
         document.getElementById('main-menu-tabs').classList.add('hidden');
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('extra-tools').classList.add('hidden');
 
         productContent.classList.remove('hidden');
         productContent.classList.add('presentation-view');
-        assistantContainer.classList.remove('hidden');
+        assistantContainer.classList.add('hidden'); // The container itself is now hidden by default
+        document.getElementById('floating-chat-btn').classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
 
         productContent.innerHTML = '<div class="loader"></div>';
@@ -825,6 +907,19 @@
         // Hide app view initially
         appView.classList.add('hidden');
         authView.classList.add('hidden');
+
+        // --- Create and set up the floating chat button ---
+        const chatBtn = document.createElement('button');
+        chatBtn.id = 'floating-chat-btn';
+        chatBtn.classList.add('hidden');
+        chatBtn.title = "AI-Ассистент";
+        chatBtn.innerHTML = `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20,2H4C2.9,2,2,2.9,2,4v18l4-4h14c1.1,0,2-0.9,2-2V4C22,2.9,21.1,2,20,2z M18,14H6v-2h12V14z M18,11H6V9h12V11z M18,8H6V6h12V8z"/></svg>`;
+        document.body.appendChild(chatBtn);
+
+        chatBtn.addEventListener('click', () => {
+            assistantContainer.classList.toggle('hidden');
+        });
+        // --- End of chat button setup ---
 
         checkSession();
 
