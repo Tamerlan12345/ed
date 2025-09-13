@@ -232,7 +232,7 @@
             <button id="save-courses-in-group-btn">Сохранить состав группы</button>
             <hr>
             <h3>Назначить группу подразделению</h3>
-            <input type="text" id="assign-department-name" placeholder="Название подразделения">
+            <select id="assign-department-select" style="width: 100%;"><option value="">Выберите подразделение...</option></select>
             <button id="assign-group-btn">Назначить</button>
 
             <hr style="margin-top: 25px; margin-bottom: 25px;">
@@ -325,6 +325,7 @@
         ASSIGN_GROUP_TO_DEPARTMENT: 'assign_group_to_department',
         UPLOAD_COURSE_MATERIAL: 'upload_course_material',
         DELETE_COURSE_MATERIAL: 'delete_course_material',
+        GET_DEPARTMENTS: 'get_departments',
         GET_LEADERBOARD_SETTINGS: 'get_leaderboard_settings',
         SAVE_LEADERBOARD_SETTINGS: 'save_leaderboard_settings',
         GET_SIMULATION_RESULTS: 'get_simulation_results',
@@ -339,6 +340,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let adminToken = null;
     let allCoursesData = []; // Cache for all courses
+    let allDepartments = []; // Cache for all departments
     let currentEditingCourseId = null;
     let currentEditingGroupId = null;
 
@@ -700,13 +702,15 @@
     }
 
     allBtns.forEach((btn, index) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             switchTab(allViews[index], btn);
             // Load data for the activated tab
             if (allViews[index].id === 'courses-view') loadCourses();
             if (allViews[index].id === 'groups-view') {
                 loadGroups();
                 loadAllCoursesForGrouping();
+                await loadDepartments(); // Ensure departments are loaded
+                populateDepartmentDropdown(); // Then populate the dropdown
             }
             if (allViews[index].id === 'results-view') loadResults();
             if (allViews[index].id === 'leaderboard-view') loadLeaderboardSettings();
@@ -1132,6 +1136,34 @@
         } catch (e) { /* Handled in apiCall */ }
     }
 
+    async function loadDepartments() {
+        try {
+            // Use cache if available
+            if (allDepartments.length > 0) return;
+            const departments = await apiCall(ACTIONS.GET_DEPARTMENTS);
+            allDepartments = departments; // Cache the list
+        } catch (e) {
+            showToast('Не удалось загрузить список подразделений.', 'error');
+        }
+    }
+
+    function populateDepartmentDropdown() {
+        const select = document.getElementById('assign-department-select');
+        if (!select) return;
+
+        // Clear existing options except the first placeholder
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+
+        allDepartments.forEach(dep => {
+            const option = document.createElement('option');
+            option.value = dep;
+            option.textContent = dep;
+            select.appendChild(option);
+        });
+    }
+
     async function loadGroupForEditing(groupId) {
         showStatus(`Загрузка группы ${groupId}...`, 'info');
         try {
@@ -1225,12 +1257,12 @@
     });
 
     document.getElementById('assign-group-btn').addEventListener('click', async () => {
-        const department = document.getElementById('assign-department-name').value.trim();
-        if (!currentEditingGroupId || !department) return showStatus('Выберите группу и укажите название подразделения.', 'error');
+        const department = document.getElementById('assign-department-select').value;
+        if (!currentEditingGroupId || !department) return showStatus('Выберите группу и подразделение из списка.', 'error');
         try {
             await apiCall(ACTIONS.ASSIGN_GROUP_TO_DEPARTMENT, { group_id: currentEditingGroupId, department: department });
             showStatus(`Группа успешно назначена подразделению "${department}".`, 'success');
-            document.getElementById('assign-department-name').value = '';
+            document.getElementById('assign-department-select').value = ''; // Reset dropdown to default
         } catch (e) { /* Handled in apiCall */ }
     });
 
