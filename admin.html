@@ -40,6 +40,73 @@
         .toast-error { background-color: #dc3545; }
         .toast-success { background-color: #28a745; }
         .toast-info { background-color: #00AEEF; }
+
+        /* WYSIWYG Editor Styles */
+        #wysiwyg-editor {
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+            min-height: 200px;
+        }
+        .wysiwyg-slide {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background-color: #fcfcfc;
+        }
+        .wysiwyg-slide-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #005A9C;
+            padding-bottom: 10px;
+            color: #005A9C;
+        }
+        .wysiwyg-slide-content, .wysiwyg-question-text, .wysiwyg-option-label {
+            min-height: 30px;
+            padding: 8px;
+            border: 1px dashed #ced4da;
+        }
+        .wysiwyg-slide-content:focus, .wysiwyg-question-text:focus, .wysiwyg-option-label:focus {
+            outline: 1px solid #00AEEF;
+            border: 1px solid #00AEEF;
+            background-color: #f8f9fa;
+        }
+        .wysiwyg-questions-container h4 {
+            margin-top: 25px;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+        .wysiwyg-question {
+            background-color: #f1f3f5;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #00AEEF;
+        }
+        .wysiwyg-options {
+            list-style-type: none;
+            padding-left: 0;
+            margin-top: 10px;
+        }
+        .wysiwyg-option-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            background-color: #fff;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .wysiwyg-option-item input[type="radio"] {
+            width: auto;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .wysiwyg-option-label {
+            flex-grow: 1;
+        }
     </style>
 </head>
 <body>
@@ -308,6 +375,119 @@
     const groupCoursesList = document.getElementById('group-courses-list');
 
     // --- UTILITY FUNCTIONS ---
+    function updateJsonFromWysiwyg() {
+        const editor = document.getElementById('wysiwyg-editor');
+        const contentTextarea = document.getElementById('content');
+        if (!editor || !contentTextarea) return;
+
+        const data = { summary: [], questions: [] };
+
+        // Update summary from slides
+        editor.querySelectorAll('.wysiwyg-slide').forEach(slideEl => {
+            const slideData = {
+                slide_title: slideEl.querySelector('.wysiwyg-slide-title').textContent,
+                html_content: slideEl.querySelector('.wysiwyg-slide-content').innerHTML,
+            };
+            data.summary.push(slideData);
+        });
+
+        // Update questions
+        editor.querySelectorAll('.wysiwyg-question').forEach(qEl => {
+            const questionData = {
+                question: qEl.querySelector('.wysiwyg-question-text').textContent,
+                options: [],
+                correct_option_index: 0
+            };
+            let correctIndex = -1;
+            qEl.querySelectorAll('.wysiwyg-option-item').forEach((optEl, oIndex) => {
+                questionData.options.push(optEl.querySelector('.wysiwyg-option-label').textContent);
+                if (optEl.querySelector('input[type="radio"]').checked) {
+                    correctIndex = oIndex;
+                }
+            });
+            questionData.correct_option_index = correctIndex;
+            data.questions.push(questionData);
+        });
+
+        // We need to merge back non-editable fields like image_search_term and image_url
+        try {
+            const originalData = JSON.parse(contentTextarea.value);
+            if (originalData.summary) {
+                data.summary.forEach((slide, index) => {
+                    if (originalData.summary[index]) {
+                        slide.image_search_term = originalData.summary[index].image_search_term;
+                        slide.image_url = originalData.summary[index].image_url;
+                    }
+                });
+            }
+        } catch(e) {
+            console.warn("Could not merge non-editable fields, original JSON might be invalid.");
+        }
+
+        contentTextarea.value = JSON.stringify(data, null, 2);
+    }
+
+    function renderWysiwygEditor() {
+        const editor = document.getElementById('wysiwyg-editor');
+        const contentTextarea = document.getElementById('content');
+        if (!editor || !contentTextarea) return;
+
+        editor.innerHTML = ''; // Clear previous content
+        const jsonString = contentTextarea.value;
+
+        if (!jsonString) {
+            editor.innerHTML = '<p style="color: #888;">Нет контента для отображения. Сгенерируйте его на Шаге 2.</p>';
+            return;
+        }
+
+        try {
+            const data = JSON.parse(jsonString);
+            if (!data || (!data.summary && !data.questions)) {
+                 editor.innerHTML = '<p style="color: #888;">Контент не в ожидаемом формате. Попробуйте пересоздать его.</p>';
+                 return;
+            }
+
+            // Render slides
+            const slidesHtml = (data.summary || []).map((slide, index) => `
+                <div class="wysiwyg-slide" data-index="${index}">
+                    <div class="wysiwyg-slide-title" contenteditable="true">${slide.slide_title || 'Новый слайд'}</div>
+                    <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || '<p>Начните вводить текст...</p>'}</div>
+                    ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
+                </div>
+            `).join('');
+            editor.innerHTML += slidesHtml;
+
+            // Render questions
+            const questionsHtml = (data.questions || []).map((q, qIndex) => `
+                <div class="wysiwyg-question" data-index="${qIndex}">
+                    <div class="wysiwyg-question-text" contenteditable="true">${q.question || 'Текст вопроса'}</div>
+                    <ul class="wysiwyg-options">
+                        ${(q.options || []).map((opt, oIndex) => `
+                            <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${qIndex}" ${oIndex === q.correct_option_index ? 'checked' : ''}>
+                                <span class="wysiwyg-option-label" contenteditable="true">${escapeHTML(opt)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `).join('');
+
+            if(questionsHtml) {
+                editor.innerHTML += `<div class="wysiwyg-questions-container"><h4>Тестовые вопросы</h4>${questionsHtml}</div>`;
+            }
+
+            // Attach a single event listener to the editor
+            editor.addEventListener('input', updateJsonFromWysiwyg);
+            editor.addEventListener('change', updateJsonFromWysiwyg); // For radio buttons
+
+        } catch (e) {
+            console.error("Error parsing content JSON for WYSIWYG editor:", e);
+            editor.innerHTML = `<p class="error">Ошибка: Не удалось разобрать JSON контент. Проверьте его валидность. <br><small>${escapeHTML(e.message)}</small></p>`;
+            contentTextarea.style.display = 'block'; // Make textarea visible for manual correction
+        }
+    }
+
+
     function showToast(message, type = 'info') {
         const toastContainer = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -669,7 +849,8 @@
                 <button id="generate-btn">Сгенерировать черновик по описанию</button>
 
                 <h3>Шаг 3: Проверьте и отредактируйте контент</h3>
-                <textarea id="content" placeholder="Здесь появится сгенерированный контент в формате JSON...">${escapeHTML(content)}</textarea>
+                <div id="wysiwyg-editor"></div>
+                <textarea id="content" style="display: none;" placeholder="Здесь появится сгенерированный контент в формате JSON...">${escapeHTML(content)}</textarea>
 
                 <h3>Шаг 4: Сохранение и публикация</h3>
                 <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
@@ -836,6 +1017,7 @@
         const wrapper = document.getElementById('course-form-wrapper');
         wrapper.innerHTML = renderCourseForm();
         attachCourseFormListeners();
+        renderWysiwygEditor(); // Initialize editor for a new course
         document.getElementById('course-id').focus();
     });
 
@@ -883,6 +1065,7 @@
             const wrapper = document.getElementById('course-form-wrapper');
             wrapper.innerHTML = renderCourseForm(course);
             attachCourseFormListeners();
+            renderWysiwygEditor(); // Render the editor with the loaded content
 
             showStatus(`Курс ${course.title} успешно загружен.`, 'success');
             window.scrollTo(0, wrapper.offsetTop);
