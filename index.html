@@ -194,15 +194,19 @@
         .presentation-active .presentation-slider {
             height: auto !important;
         }
-        /* Hide the slide's internal scrollbar */
+        /* Allow slide to scroll if content is too long */
         .presentation-slider {
-            overflow-y: hidden !important;
+            overflow-y: auto !important;
+            flex-basis: 0; /* Ensure it shrinks properly */
         }
         /* New styles for sidebar layout */
         .presentation-wrapper {
             display: flex;
             gap: 20px;
             height: 100%;
+            padding: 20px;
+            background-color: var(--bg-color);
+            border-radius: 12px;
         }
         .presentation-column {
             display: flex;
@@ -925,8 +929,6 @@
                     audio.autoplay = true;
                     audioPlayerContainerUser.innerHTML = '';
                     audioPlayerContainerUser.appendChild(audio);
-                    // Append the audio player to the sidebar now
-                    actionsSidebar.appendChild(audioPlayerContainerUser);
                     listenBtn.textContent = 'Аудио готово';
                 } catch (error) {
                     console.error('Audio generation failed:', error);
@@ -947,6 +949,9 @@
                 startTest(currentCourse.id);
             };
             actionsSidebar.appendChild(startTestBtn);
+
+            // Move the audio player container into the sidebar from the start
+            actionsSidebar.appendChild(audioPlayerContainerUser);
 
             const presentationWrapper = document.createElement('div');
             presentationWrapper.className = 'presentation-wrapper';
