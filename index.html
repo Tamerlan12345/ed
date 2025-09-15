@@ -184,73 +184,64 @@
         }
     </style>
     <style id="jules-overrides">
-        /* Make presentation fill the screen */
-        .content-area.presentation-mode {
-            height: calc(100vh - 210px) !important; /* Full viewport height minus header/footer/padding */
+        body.presentation-active-fullscreen {
+            overflow: hidden;
+        }
+        body.presentation-active-fullscreen #app-view.container {
+            padding: 0;
+            max-width: 100%;
+        }
+        body.presentation-active-fullscreen #app-view .window {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            max-width: 100%;
+            height: 100vh;
+            background: var(--bg-color);
+        }
+        body.presentation-active-fullscreen .window-header,
+        body.presentation-active-fullscreen .window-footer,
+        body.presentation-active-fullscreen #leaderboard-container,
+        body.presentation-active-fullscreen .actions-sidebar {
+            display: none !important;
+        }
+        body.presentation-active-fullscreen #back-to-menu-btn {
+            display: block !important;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+        }
+        body.presentation-active-fullscreen .content-area.presentation-mode {
+            height: 100% !important;
+            padding: 0 !important;
             overflow: hidden !important;
-            padding-right: 0 !important;
         }
-        /* Ensure the slider container grows to fill the new space */
-        .presentation-active .presentation-slider {
-            height: auto !important;
-        }
-        /* Allow slide to scroll if content is too long */
-        .presentation-slider {
-            overflow-y: auto !important;
-            flex-basis: 0; /* Ensure it shrinks properly */
-        }
-        /* New styles for sidebar layout */
-        .presentation-wrapper {
-            display: flex;
-            gap: 20px;
+        body.presentation-active-fullscreen .presentation-wrapper {
+            padding: 0;
+            gap: 0;
             height: 100%;
-            padding: 20px;
-            background-color: var(--bg-color);
-            border-radius: 12px;
+            border-radius: 0;
         }
-        .presentation-column {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            min-width: 0; /* Important for flex-shrink */
-        }
-        .actions-sidebar {
-            flex-basis: 280px;
-            flex-shrink: 0;
-            padding: 20px;
-            background-color: var(--surface-color);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            overflow-y: auto;
+        body.presentation-active-fullscreen .presentation-column {
             height: 100%;
         }
-        .actions-sidebar h3 {
-            margin-top: 0;
-            font-size: 1.2em;
-            color: var(--primary-color);
+        body.presentation-active-fullscreen .presentation-slider {
+            border-radius: 0;
+            border: none;
+            height: 100% !important;
         }
-        .actions-sidebar button {
+        body.presentation-active-fullscreen .presentation-slide {
+            padding: 40px 80px !important;
+        }
+        body.presentation-active-fullscreen .slider-nav-container {
+            position: absolute;
+            bottom: 0;
             width: 100%;
-            margin-top: 10px;
-            padding: 12px;
-        }
-        .actions-sidebar ul {
-            padding-left: 20px;
-            margin-bottom: 20px;
-        }
-        #audio-player-container-user {
-            margin-top: 15px;
-        }
-        /* Animation for the tooltip */
-        @keyframes pop-in {
-            0% { transform: scale(0.5) translateX(-20px); opacity: 0; }
-            70% { transform: scale(1.05) translateX(0); opacity: 1; }
-            100% { transform: scale(1) translateX(0); opacity: 1; }
-        }
-        .chat-tooltip.show-me {
-            animation: pop-in 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-            visibility: visible !important;
-            opacity: 1 !important;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-top: 1px solid var(--border-color);
+            z-index: 10;
         }
     </style>
     
@@ -566,6 +557,7 @@
     }
 
     async function showMainMenu() {
+        document.body.classList.remove('presentation-active-fullscreen');
         stopTimeTracking();
         contentArea.classList.remove('presentation-mode');
         windowTitle.textContent = 'Главное Меню';
@@ -840,6 +832,7 @@
     }
 
     async function showProduct(courseId, forceRegenerate = false) {
+        document.body.classList.add('presentation-active-fullscreen');
         currentCourse = courses.find(c => c.id === courseId);
         if (!currentCourse) return;
         windowTitle.textContent = currentCourse.title;
