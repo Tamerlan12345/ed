@@ -271,9 +271,21 @@ const adminActionHandlers = {
     assign_course_to_user: async ({ payload, supabaseAdmin }) => {
         const { user_email, course_id } = payload;
         if (!user_email || !course_id) throw { status: 400, message: 'User email and course ID are required.' };
-        const { data: users, error: userError } = await supabaseAdmin.rpc('get_all_users_with_details').eq('email', user_email);
-        if (userError || !users || users.length === 0) throw { status: 404, message: 'User not found by email.' };
-        await supabaseAdmin.from('user_progress').insert({ user_id: users[0].id, course_id: course_id });
+
+        // Correctly fetch all users from the RPC, then filter in code.
+        // The .eq() filter cannot be chained to an rpc() call this way.
+        const { data: allUsers, error: rpcError } = await supabaseAdmin.rpc('get_all_users_with_details');
+        if (rpcError) throw rpcError;
+
+        const targetUser = allUsers.find(u => u.email === user_email);
+
+        if (!targetUser) {
+            throw { status: 404, message: `User with email ${user_email} not found.` };
+        }
+
+        const { error: insertError } = await supabaseAdmin.from('user_progress').insert({ user_id: targetUser.id, course_id: course_id });
+        if (insertError) throw insertError;
+
         return { message: `Course assigned to ${user_email}.` };
     },
     text_to_speech: async ({ payload }) => {
