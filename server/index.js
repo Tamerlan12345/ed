@@ -67,35 +67,7 @@ const createSupabaseAdminClient = () => {
 };
 
 
-// --- Middleware for Admin Auth ---
-const adminAuthMiddleware = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Authorization header is missing.' });
-    }
-    const token = authHeader.split(' ')[1];
-
-    const supabase = createSupabaseClient(token);
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { data: adminCheck, error: adminCheckError } = await supabase
-        .from('users')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
-
-    if (adminCheckError || !adminCheck?.is_admin) {
-        return res.status(403).json({ error: 'Forbidden: User is not an admin.' });
-    }
-
-    req.user = user;
-    req.token = token; // Pass token for background jobs
-    next();
-};
+const adminAuthMiddleware = require('./middleware/adminAuth');
 
 // --- Admin Action Handlers ---
 const adminActionHandlers = {
@@ -1167,5 +1139,5 @@ if (require.main === module) {
     });
 }
 
-module.exports = app;
+module.exports = { app, createSupabaseClient, createSupabaseAdminClient };
 // --- Конец ИСПРАВЛЕННОГО файла /server/index.js ---
