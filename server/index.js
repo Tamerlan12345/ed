@@ -538,101 +538,108 @@ apiRouter.post('/getCourses', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-        const { data: userProfile, error: profileError } = await supabase.from('users').select('department').eq('id', user.id).single();
-        if (profileError) throw profileError;
+        // 1. Get ALL courses the user is assigned to from their progress records.
+        // This is the definitive source of all assigned courses, individual or group.
+        const { data: allProgress, error: progressError } = await supabase
+            .from('user_progress')
+            .select('course_id, completed_at, score, percentage, deadline_date')
+            .eq('user_id', user.id);
 
-        if (!userProfile.department) {
-            return res.status(200).json([]); // User has no department, so no department-assigned groups
+        if (progressError) throw progressError;
+        if (!allProgress || allProgress.length === 0) {
+            return res.status(200).json([]); // User has no assigned courses at all.
         }
 
-        const { data: assignments, error: assignmentError } = await supabase
-            .from('group_assignments')
-            .select('group_id')
-            .eq('department', userProfile.department);
+        const allCourseIds = allProgress.map(p => p.course_id);
+        const userProgressMap = new Map(allProgress.map(p => [p.course_id, p]));
 
-        if (assignmentError) throw assignmentError;
-        const assignedGroupIds = assignments.map(a => a.group_id);
-
-        if (assignedGroupIds.length === 0) {
-            return res.status(200).json([]); // No groups assigned to this department
-        }
-
-        // 1. Получаем все группы, назначенные департаменту пользователя
-        const { data: groups, error: groupsError } = await supabase
-            .from('course_groups')
+        // 2. Fetch details for all assigned courses, including their group info (if any).
+        const { data: coursesWithGroups, error: coursesError } = await supabase
+            .from('courses')
             .select(`
                 id,
-                group_name,
-                enforce_order,
-                course_group_items!inner(
+                title,
+                description,
+                course_group_items (
                     order_index,
-                    courses!inner(
+                    course_groups (
                         id,
-                        title,
-                        description,
-                        status
+                        group_name,
+                        enforce_order
                     )
                 )
             `)
-            .in('id', assignedGroupIds)
-            // .eq('is_visible', true) // BUG: Убрано. Назначенный курс должен быть виден всегда.
-            // .eq('course_group_items.courses.is_visible', true) // BUG: Убрано. Назначенный курс должен быть виден всегда.
-            .eq('course_group_items.courses.status', 'published') // Курс должен быть опубликован
-            .order('order_index', { referencedTable: 'course_group_items', ascending: true });
+            .in('id', allCourseIds)
+            .eq('status', 'published');
 
-        if (groupsError) throw groupsError;
+        if (coursesError) throw coursesError;
 
-        // 2. Преобразуем данные в нужный формат
-        const visibleGroupsAndCourses = groups.map(group => ({
-            id: group.id,
-            group_name: group.group_name,
-            enforce_order: group.enforce_order,
-            // Сортируем курсы по order_index еще раз на всякий случай
-            courses: group.course_group_items
-                .sort((a, b) => a.order_index - b.order_index)
-                .map(item => item.courses)
-        })).filter(group => group.courses.length > 0);
+        // 3. Process the flat list of courses into the grouped structure the client expects.
+        const groupsMap = new Map();
+        const individualCourses = [];
 
-        const allCourseIds = visibleGroupsAndCourses.flatMap(g => g.courses.map(c => c.id));
-        if (allCourseIds.length === 0) {
-            return res.status(200).json([]);
+        for (const course of coursesWithGroups) {
+            // Strip the raw group data from the final course object to avoid circular references
+            const { course_group_items, ...courseDetails } = course;
+
+            const courseWithProgress = {
+                ...courseDetails,
+                progress: userProgressMap.get(course.id) || null,
+                is_locked: false, // We'll calculate this later
+                // Keep a reference to the original group item for sorting
+                _group_item: course_group_items && course_group_items.length > 0 ? course_group_items[0] : null
+            };
+
+            if (course.course_group_items && course.course_group_items.length > 0) {
+                // Course belongs to one or more groups.
+                for (const item of course.course_group_items) {
+                    const group = item.course_groups;
+                    if (!groupsMap.has(group.id)) {
+                        groupsMap.set(group.id, {
+                            ...group,
+                            courses: []
+                        });
+                    }
+                    groupsMap.get(group.id).courses.push(courseWithProgress);
+                }
+            } else {
+                // Course is assigned individually.
+                individualCourses.push(courseWithProgress);
+            }
         }
 
-        const { data: progressData, error: progressError } = await supabase
-            .from('user_progress')
-            .select('course_id, completed_at, score, percentage, deadline_date')
-            .eq('user_id', user.id)
-            .in('course_id', allCourseIds);
+        // 4. Add individually assigned courses into a special virtual group if they exist.
+        if (individualCourses.length > 0) {
+            groupsMap.set('individual', {
+                id: 'individual',
+                group_name: 'Индивидуальные курсы',
+                enforce_order: false, // Individual courses can't have a forced order among them.
+                courses: individualCourses
+            });
+        }
 
-        if (progressError) throw progressError;
-
-        const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
-
-        const finalResult = visibleGroupsAndCourses.map(group => {
-            let isPreviousCourseCompleted = true;
-
-            const coursesWithStatus = group.courses.map(course => {
-                const progress = userProgressMap.get(course.id);
-                let isLocked = false;
-
-                if (group.enforce_order) {
-                    if (!isPreviousCourseCompleted) {
-                        isLocked = true;
-                    }
-                    isPreviousCourseCompleted = !!progress?.completed_at;
-                }
-
-                const { status, is_visible, ...courseDetails } = course;
-
-                return {
-                    ...courseDetails,
-                    progress: progress || null,
-                    is_locked: isLocked
-                };
+        // 5. Sort courses within each group and apply locking logic.
+        for (const group of groupsMap.values()) {
+            // Sort courses by their order_index if it exists
+            group.courses.sort((a, b) => {
+                const orderA = a._group_item?.order_index ?? 0;
+                const orderB = b._group_item?.order_index ?? 0;
+                return orderA - orderB;
             });
 
-            return { ...group, courses: coursesWithStatus };
-        });
+            // Apply locking logic if the group enforces order
+            if (group.enforce_order) {
+                let isPreviousCourseCompleted = true;
+                group.courses.forEach(course => {
+                    if (!isPreviousCourseCompleted) {
+                        course.is_locked = true;
+                    }
+                    isPreviousCourseCompleted = !!course.progress?.completed_at;
+                });
+            }
+        }
+
+        const finalResult = Array.from(groupsMap.values());
 
         res.status(200).json(finalResult);
 
