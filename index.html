@@ -256,6 +256,67 @@
             border-top: 1px solid var(--border-color);
             z-index: 10;
         }
+        .course-actions-menu {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            justify-content: center;
+        }
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 25px;
+            border-radius: 12px;
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .action-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+            border-color: var(--primary-color);
+        }
+        .action-btn .icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+        .actions-sidebar {
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .actions-sidebar h3 {
+            margin-top: 0;
+            font-size: 1.2em;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .actions-sidebar button {
+            width: 100%;
+        }
+        .presentation-wrapper {
+            display: flex;
+            height: 100%;
+        }
+        .presentation-column {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -714,7 +775,6 @@
                     <span class="menu-item-icon">${course.is_locked ? '🔒' : '📖'}</span>
                     ${course.title}
                 </h3>
-                <p style="font-size: 0.9em; color: var(--text-light-color);">${course.description || ''}</p>
             </div>
             <div>
                 ${progressBarHtml}
@@ -793,11 +853,13 @@
     }
 
     function renderPresentation(summaryData) {
-        productContent.innerHTML = '';
+        const fragment = document.createDocumentFragment();
 
         if (!Array.isArray(summaryData) || summaryData.length === 0) {
-            productContent.innerHTML = '<p>Материалы курса не найдены или генерируются. Попробуйте обновить позже.</p>';
-            return;
+            const p = document.createElement('p');
+            p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
+            fragment.appendChild(p);
+            return fragment;
         }
 
         const slider = document.createElement('div');
@@ -821,9 +883,6 @@
             </div>
         `;
 
-        productContent.appendChild(slider);
-        productContent.appendChild(navContainer);
-
         const slides = slider.querySelectorAll('.presentation-slide');
         const prevBtn = navContainer.querySelector('.slider-prev');
         const nextBtn = navContainer.querySelector('.slider-next');
@@ -839,47 +898,172 @@
             counter.textContent = `${currentIndex + 1} / ${slides.length}`;
         };
 
-        prevBtn.addEventListener('click', () => {
-            if (currentIndex > 0) {
-                currentIndex--;
-                updateSliderUI();
-            }
-        });
+        prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateSliderUI(); } });
+        nextBtn.addEventListener('click', () => { if (currentIndex < slides.length - 1) { currentIndex++; updateSliderUI(); } });
 
-        nextBtn.addEventListener('click', () => {
-            if (currentIndex < slides.length - 1) {
-                currentIndex++;
-                updateSliderUI();
-            }
-        });
+        updateSliderUI(); // Initial setup
 
-        updateSliderUI();
+        fragment.appendChild(slider);
+        fragment.appendChild(navContainer);
+
+        return fragment;
+    }
+
+    function renderCourseActions() {
+        productContent.innerHTML = '';
+        productContent.classList.remove('presentation-view');
+        document.body.classList.remove('presentation-active-fullscreen');
+        contentArea.classList.remove('presentation-mode');
+
+        const menu = document.createElement('div');
+        menu.className = 'course-actions-menu';
+
+        // 1. Study Material Button
+        const studyBtn = document.createElement('div');
+        studyBtn.className = 'action-btn';
+        studyBtn.innerHTML = `<span class="icon">📖</span> Изучить материал`;
+        studyBtn.onclick = () => showPresentationView();
+        menu.appendChild(studyBtn);
+
+        // 2. Start Test Button
+        const testBtn = document.createElement('div');
+        testBtn.className = 'action-btn';
+        testBtn.innerHTML = `<span class="icon">🎯</span> Начать тестирование`;
+        testBtn.onclick = () => {
+            stopTimeTracking();
+            startTest(currentCourse.id);
+        };
+        menu.appendChild(testBtn);
+
+        // 3. Simulator Button
+        const simulatorBtn = document.createElement('div');
+        simulatorBtn.className = 'action-btn';
+        simulatorBtn.innerHTML = `<span class="icon">💬</span> Диалоговый тренажер`;
+        simulatorBtn.onclick = () => showSimulatorView();
+        menu.appendChild(simulatorBtn);
+
+        // 4. Listen to Material Button
+        const listenBtn = document.createElement('div');
+        listenBtn.className = 'action-btn';
+        listenBtn.innerHTML = `<span class="icon">🎧</span> Прослушать материал`;
+        listenBtn.onclick = async () => {
+            const icon = listenBtn.querySelector('.icon');
+            const originalIcon = icon.innerHTML;
+            icon.innerHTML = '⏳';
+            listenBtn.style.cursor = 'wait';
+
+            try {
+                let summaryText = '';
+                if (currentCourse && Array.isArray(currentCourse.summary)) {
+                    const tempDiv = document.createElement('div');
+                    summaryText = currentCourse.summary.map(slide => {
+                        tempDiv.innerHTML = slide.html_content;
+                        return tempDiv.textContent || tempDiv.innerText || '';
+                    }).join('\n\n');
+                }
+
+                if (!summaryText) throw new Error('Текст саммари для озвучивания не найден.');
+
+                const response = await fetchAuthenticated('/api/text-to-speech-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_id: currentCourse.id, text: summaryText })
+                });
+
+                audioPlayerContainerUser.innerHTML = '';
+                const audio = new Audio(response.audioUrl);
+                audio.controls = true;
+                audio.autoplay = true;
+                audioPlayerContainerUser.appendChild(audio);
+                icon.innerHTML = '✅';
+
+            } catch (error) {
+                console.error('Audio generation failed:', error);
+                alert(`Не удалось создать аудио: ${error.message}`);
+                icon.innerHTML = '❌';
+            } finally {
+                 setTimeout(() => {
+                    icon.innerHTML = originalIcon;
+                    listenBtn.style.cursor = 'pointer';
+                }, 3000);
+            }
+        };
+        menu.appendChild(listenBtn);
+
+        productContent.appendChild(menu);
+        productContent.appendChild(audioPlayerContainerUser);
+
+        // 5. Downloadable Materials
+        if (currentCourse.materials && currentCourse.materials.length > 0) {
+            const materialsDiv = document.createElement('div');
+            materialsDiv.style.marginTop = '30px';
+            materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>';
+            const materialsList = document.createElement('ul');
+            currentCourse.materials.forEach(m => {
+                const li = document.createElement('li');
+                li.innerHTML = `<a href="${m.public_url}" target="_blank" download>${m.file_name}</a>`;
+                materialsList.appendChild(li);
+            });
+            materialsDiv.appendChild(materialsList);
+            productContent.appendChild(materialsDiv);
+        }
+    }
+
+    function showPresentationView() {
+        document.body.classList.add('presentation-active-fullscreen');
+        productContent.classList.add('presentation-view');
+        contentArea.classList.add('presentation-mode');
+        assistantContainer.classList.add('hidden');
+        document.getElementById('floating-chat-container').classList.remove('hidden');
+
+        // 1. Clear previous content
+        productContent.innerHTML = '';
+
+        // 2. Get presentation elements from the refactored function
+        const presentationContent = renderPresentation(currentCourse.summary);
+
+        // 3. Create the layout structure
+        const presentationColumn = document.createElement('div');
+        presentationColumn.className = 'presentation-column';
+        presentationColumn.appendChild(presentationContent);
+
+        const presentationWrapper = document.createElement('div');
+        presentationWrapper.className = 'presentation-wrapper';
+        presentationWrapper.appendChild(presentationColumn);
+
+        // 4. Append the final structure to the DOM
+        productContent.appendChild(presentationWrapper);
+
+        // 5. Start time tracking
+        if (timeTrackingInterval) clearInterval(timeTrackingInterval);
+        secondsSinceLastUpdate = 0;
+        timeTrackingInterval = setInterval(() => {
+            secondsSinceLastUpdate += 30;
+            sendTimeUpdate(currentCourse.id, 30);
+        }, 30000);
     }
 
     async function showProduct(courseId, forceRegenerate = false) {
-        document.body.classList.add('presentation-active-fullscreen');
-        currentCourse = courses.find(c => c.id === courseId);
-        if (!currentCourse) return;
-        windowTitle.textContent = currentCourse.title;
+        // Find the course from the locally cached list
+        const courseGroup = courses.find(group => group.courses.some(c => c.id === courseId));
+        if (courseGroup) {
+            currentCourse = courseGroup.courses.find(c => c.id === courseId);
+        }
 
-        document.getElementById('main-flex-container').classList.add('presentation-active');
+        if (!currentCourse) {
+            console.error("Course not found for ID:", courseId);
+            showMessage("Не удалось найти выбранный курс.");
+            return;
+        }
+
+        windowTitle.textContent = currentCourse.title;
         document.getElementById('main-menu-tabs').classList.add('hidden');
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('extra-tools').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
 
         productContent.classList.remove('hidden');
-        productContent.classList.add('presentation-view');
-        assistantContainer.classList.add('hidden'); // The container itself is now hidden by default
-        document.getElementById('floating-chat-container').classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
-        contentArea.classList.add('presentation-mode');
-
-        // --- Animate tooltip ---
-        const tooltip = document.querySelector('.chat-tooltip');
-        if (tooltip) {
-            setTimeout(() => { tooltip.classList.add('show-me'); }, 500);
-            setTimeout(() => { tooltip.classList.remove('show-me'); }, 5000);
-        }
 
         productContent.innerHTML = '<div class="loader"></div>';
         audioPlayerContainerUser.innerHTML = '';
@@ -887,104 +1071,20 @@
         chatBox.innerHTML = savedChat || '';
 
         try {
-            const data = await fetchAuthenticated('/api/getCourseContent', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ course_id: currentCourse.id, force_regenerate: forceRegenerate })
-            });
-            currentCourse.summary = data.summary;
-            currentCourse.questions = data.questions;
-            currentCourse.materials = data.materials;
-
-            renderPresentation(currentCourse.summary);
-
-            // --- Create Sidebar Layout ---
-            const slider = productContent.querySelector('.presentation-slider');
-            const navContainer = productContent.querySelector('.slider-nav-container');
-
-            const presentationColumn = document.createElement('div');
-            presentationColumn.className = 'presentation-column';
-            if(slider) presentationColumn.appendChild(slider);
-            if(navContainer) presentationColumn.appendChild(navContainer);
-
-            const actionsSidebar = document.createElement('div');
-            actionsSidebar.className = 'actions-sidebar';
-
-            if (currentCourse.materials && currentCourse.materials.length > 0) {
-                const materialsDiv = document.createElement('div');
-                materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>';
-                const materialsList = document.createElement('ul');
-                currentCourse.materials.forEach(m => { materialsList.innerHTML += `<li><a href="${m.public_url}" target="_blank" download>${m.file_name}</a></li>`; });
-                materialsDiv.appendChild(materialsList);
-                actionsSidebar.appendChild(materialsDiv);
+            // Check if content is already loaded
+            if (!currentCourse.summary || forceRegenerate) {
+                const data = await fetchAuthenticated('/api/getCourseContent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_id: currentCourse.id, force_regenerate: forceRegenerate })
+                });
+                currentCourse.summary = data.summary;
+                currentCourse.questions = data.questions;
+                currentCourse.materials = data.materials;
             }
 
-            const listenBtn = document.createElement('button');
-            listenBtn.textContent = 'Озвучить саммари';
-            listenBtn.onclick = async () => {
-                listenBtn.disabled = true;
-                listenBtn.textContent = 'Генерация аудио...';
-                try {
-                    let summaryText = '';
-                    if (currentCourse && Array.isArray(currentCourse.summary)) {
-                        const tempDiv = document.createElement('div');
-                        summaryText = currentCourse.summary.map(slide => {
-                            tempDiv.innerHTML = slide.html_content;
-                            return tempDiv.textContent || tempDiv.innerText || '';
-                        }).join('\n\n');
-                    }
+            renderCourseActions();
 
-                    if (!summaryText) throw new Error('Текст саммари для озвучивания не найден.');
-
-                    const response = await fetchAuthenticated('/api/text-to-speech-user', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ course_id: currentCourse.id, text: summaryText })
-                    });
-
-                    const audio = new Audio(response.audioUrl);
-                    audio.controls = true;
-                    audio.autoplay = true;
-                    audioPlayerContainerUser.innerHTML = '';
-                    audioPlayerContainerUser.appendChild(audio);
-                    listenBtn.textContent = 'Аудио готово';
-                } catch (error) {
-                    console.error('Audio generation failed:', error);
-                    alert(`Не удалось создать аудио: ${error.message}`);
-                    listenBtn.textContent = 'Ошибка генерации';
-                } finally {
-                    listenBtn.disabled = false;
-                }
-            };
-            actionsSidebar.appendChild(listenBtn);
-
-            const startTestBtn = document.createElement('button');
-            startTestBtn.id = 'start-test-btn';
-            startTestBtn.textContent = 'Начать тестирование';
-            startTestBtn.style.backgroundColor = 'var(--success-color)';
-            startTestBtn.onclick = () => {
-                stopTimeTracking();
-                startTest(currentCourse.id);
-            };
-            actionsSidebar.appendChild(startTestBtn);
-
-            // Move the audio player container into the sidebar from the start
-            actionsSidebar.appendChild(audioPlayerContainerUser);
-
-            const presentationWrapper = document.createElement('div');
-            presentationWrapper.className = 'presentation-wrapper';
-            presentationWrapper.appendChild(presentationColumn);
-            presentationWrapper.appendChild(actionsSidebar);
-
-            productContent.innerHTML = '';
-            productContent.appendChild(presentationWrapper);
-
-            if (timeTrackingInterval) clearInterval(timeTrackingInterval);
-            secondsSinceLastUpdate = 0;
-            timeTrackingInterval = setInterval(() => {
-                secondsSinceLastUpdate += 30;
-                sendTimeUpdate(currentCourse.id, 30);
-            }, 30000);
         } catch (error) {
             console.error('Не удалось загрузить контент курса:', error);
             showMessage('Ошибка при генерации контента курса.', error.message);
@@ -1013,7 +1113,10 @@
     };
 
     function startTest(courseId) {
-        currentCourse = courses.find(c => c.id === courseId);
+        const courseGroup = courses.find(group => group.courses.some(c => c.id === courseId));
+        if (courseGroup) {
+            currentCourse = courseGroup.courses.find(c => c.id === courseId);
+        }
         const progress = userProgress[courseId];
         const attempts = progress ? progress.attempts : 0;
 
