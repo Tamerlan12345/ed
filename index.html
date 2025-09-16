@@ -608,11 +608,16 @@
             courses = courseGroups; // This is now an array of groups
 
             const tabsContainer = document.getElementById('main-menu-tabs');
-            tabsContainer.onclick = (e) => { // Use a single onclick handler
+            tabsContainer.onclick = (e) => {
                 if (e.target.matches('.tab-btn')) {
                     tabsContainer.querySelector('.active').classList.remove('active');
                     e.target.classList.add('active');
-                    renderCourseGroups(e.target.dataset.filter);
+                    const filter = e.target.dataset.filter;
+                    if (filter === 'catalog') {
+                        renderCatalog();
+                    } else {
+                        renderCourseGroups(filter);
+                    }
                 }
             };
 
@@ -722,6 +727,43 @@
         menuItem.style.justifyContent = 'space-between';
 
         return menuItem;
+    }
+
+    function createCatalogMenuItem(course) {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'menu-item';
+        menuItem.innerHTML = `
+            <div>
+                <h3>
+                    <span class="menu-item-icon">📚</span>
+                    ${course.title}
+                </h3>
+                <p style="font-size: 0.9em; color: var(--text-light-color);">${course.description || 'Нет описания.'}</p>
+            </div>
+            <button class="btn assign-course-btn" data-course-id="${course.id}" style="margin-top: 15px;">Начать изучение</button>
+        `;
+        return menuItem;
+    }
+
+    async function renderCatalog() {
+        mainMenu.innerHTML = '';
+        mainMenu.style.display = 'grid'; // Use grid for catalog items
+        mainMenu.innerHTML = '<div class="loader"></div>';
+        try {
+            const catalogCourses = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
+            mainMenu.innerHTML = '';
+            if (!catalogCourses || catalogCourses.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
+                return;
+            }
+            catalogCourses.forEach(course => {
+                const menuItem = createCatalogMenuItem(course);
+                mainMenu.appendChild(menuItem);
+            });
+        } catch (error) {
+            console.error('Failed to load course catalog:', error);
+            mainMenu.innerHTML = `<p class="message" style="color: var(--error-color);">Не удалось загрузить каталог курсов.</p>`;
+        }
     }
     
     let timeTrackingInterval = null;
@@ -1044,6 +1086,33 @@
         }
     }
     document.addEventListener('DOMContentLoaded', () => {
+        mainMenu.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('assign-course-btn')) {
+                const courseId = e.target.dataset.courseId;
+                if (!courseId) return;
+
+                const button = e.target;
+                button.disabled = true;
+                button.textContent = 'Запись...';
+
+                try {
+                    await fetchAuthenticated('/api/assign-course', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ course_id: courseId })
+                    });
+                    alert('Вы успешно записаны на курс! Он появится в ваших назначенных курсах.');
+                    // Switch to the "Assigned" tab and re-render the view
+                    document.querySelector('.tab-btn[data-filter="assigned"]').click();
+                } catch (error) {
+                    console.error('Failed to assign course:', error);
+                    alert(`Не удалось записаться на курс: ${error.message}`);
+                    button.disabled = false;
+                    button.textContent = 'Начать изучение';
+                }
+            }
+        });
+
         // Hide app view initially
         appView.classList.add('hidden');
         authView.classList.add('hidden');
