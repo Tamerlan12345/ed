@@ -569,15 +569,16 @@ apiRouter.post('/getCourses', async (req, res) => {
             return res.status(200).json([]); // No groups assigned to this department
         }
 
+        // 1. Получаем все группы, назначенные департаменту пользователя, которые видимы
         const { data: groups, error: groupsError } = await supabase
             .from('course_groups')
             .select(`
                 id,
                 group_name,
                 enforce_order,
-                course_group_items (
+                course_group_items!inner(
                     order_index,
-                    courses (
+                    courses!inner(
                         id,
                         title,
                         description,
@@ -587,23 +588,23 @@ apiRouter.post('/getCourses', async (req, res) => {
                 )
             `)
             .in('id', assignedGroupIds)
-            .eq('is_visible', true)
+            .eq('is_visible', true) // Группа должна быть видимой
+            .eq('course_group_items.courses.is_visible', true) // Курс должен быть видимым
+            .eq('course_group_items.courses.status', 'published') // Курс должен быть опубликован
             .order('order_index', { referencedTable: 'course_group_items', ascending: true });
 
         if (groupsError) throw groupsError;
 
-        const visibleGroupsAndCourses = groups.map(group => {
-            const filteredItems = group.course_group_items
-                .filter(item => item.courses && item.courses.status === 'published' && item.courses.is_visible)
-                .sort((a, b) => a.order_index - b.order_index);
-
-            return {
-                id: group.id,
-                group_name: group.group_name,
-                enforce_order: group.enforce_order,
-                courses: filteredItems.map(item => item.courses)
-            };
-        }).filter(group => group.courses.length > 0);
+        // 2. Преобразуем данные в нужный формат
+        const visibleGroupsAndCourses = groups.map(group => ({
+            id: group.id,
+            group_name: group.group_name,
+            enforce_order: group.enforce_order,
+            // Сортируем курсы по order_index еще раз на всякий случай
+            courses: group.course_group_items
+                .sort((a, b) => a.order_index - b.order_index)
+                .map(item => item.courses)
+        })).filter(group => group.courses.length > 0);
 
         const allCourseIds = visibleGroupsAndCourses.flatMap(g => g.courses.map(c => c.id));
         if (allCourseIds.length === 0) {

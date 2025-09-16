@@ -727,10 +727,15 @@
         const courseId = isEditing ? course.id : '';
         const title = isEditing ? course.title || '' : '';
         const description = isEditing ? course.description || '' : '';
-        const isVisible = isEditing ? course.is_visible : false;
         const headerText = isEditing ? `Редактирование: ${title}` : 'Создать новый курс';
+
         let content = isEditing ? course.draft_content || course.content : null;
-        content = content ? JSON.stringify(content, null, 2) : '';
+        // The content can be an object or a string from the DB. Let's ensure it's a string for the textarea.
+        if (typeof content === 'object' && content !== null) {
+            content = JSON.stringify(content, null, 2);
+        } else if (content === null) {
+            content = '';
+        }
 
         let materialsHtml = 'Материалы не загружены.';
         if (isEditing && course.course_materials && course.course_materials.length > 0) {
@@ -756,7 +761,7 @@
                 <button id="generate-btn">Сгенерировать черновик</button>
                 <h3>Шаг 3: Проверьте и отредактируйте контент</h3>
                 <div id="wysiwyg-editor"></div>
-                <textarea id="content" style="display: none;">${escapeHTML(content)}</textarea>
+                <textarea id="content" style="display: none;">${content}</textarea>
                 <h3>Шаг 4: Сохранение и публикация</h3>
                 <p>При нажатии на "Опубликовать", курс станет видимым для пользователей.</p>
                 <p id="autosave-status" style="font-style: italic; color: #666;"></p>
@@ -861,18 +866,49 @@
 
     async function publishCourseHandler() {
         const courseId = document.getElementById('course-id').value;
-        if (!courseId) return showStatus('Нет ID курса.', 'error');
+        if (!courseId) {
+            showToast('Сначала необходимо создать или загрузить курс.', 'error');
+            return;
+        }
         if (autosaveTimer) clearTimeout(autosaveTimer);
-        await handleAutosave(); // Final save before publishing
+
+        // 1. Синхронизировать WYSIWYG с textarea
+        updateJsonFromWysiwyg(false); // false - не запускать автосохранение
+
+        // 2. Собрать все данные из формы
+        const title = document.getElementById('course-title').value;
+        const description = document.getElementById('description').value;
+        const contentString = document.getElementById('content').value;
+
+        if (!title || !contentString) {
+            showToast('Название курса и контент не могут быть пустыми.', 'error');
+            return;
+        }
+
+        let content;
         try {
-            await apiCall(ACTIONS.PUBLISH_COURSE, {
-                course_id: courseId,
-                is_visible: document.getElementById('course-is-visible').checked,
-            });
-            showStatus('Курс успешно опубликован.', 'success');
+            content = JSON.parse(contentString);
+        } catch (e) {
+            showToast('Ошибка в формате JSON контента. Публикация невозможна.', 'error');
+            return;
+        }
+
+        const payload = {
+            course_id: courseId,
+            title,
+            description,
+            content
+        };
+
+        try {
+            // 3. Отправить полный payload на сервер
+            await apiCall(ACTIONS.PUBLISH_COURSE, payload);
+            showToast('Курс успешно опубликован!', 'success');
             await loadCourses();
             clearCourseForm();
-        } catch (e) { /* Handled */ }
+        } catch (e) {
+            // Ошибки уже обрабатываются в apiCall
+        }
     }
 
     async function uploadMaterialHandler() {
