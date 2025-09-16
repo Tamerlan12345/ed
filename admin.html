@@ -758,7 +758,7 @@
                 <div id="wysiwyg-editor"></div>
                 <textarea id="content" style="display: none;">${escapeHTML(content)}</textarea>
                 <h3>Шаг 4: Сохранение и публикация</h3>
-                <label><input type="checkbox" id="course-is-visible" ${isVisible ? 'checked' : ''}> <b>Сделать курс видимым после публикации</b></label>
+                <p>При нажатии на "Опубликовать", курс станет видимым для пользователей.</p>
                 <p id="autosave-status" style="font-style: italic; color: #666;"></p>
                 <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
                 <button id="cancel-edit-btn" style="background-color: #6c757d;">Отмена</button>
@@ -942,14 +942,29 @@
 
     async function loadCourseForEditing(courseId) {
         try {
-            const course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
+            let course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
             currentEditingCourseId = courseId;
+
+            // If a published course has content but no draft, create a draft from the published content.
+            // This prevents the editor from opening empty and accidentally wiping content.
+            if (course.status === 'published' && course.content && !course.draft_content) {
+                showToast('Создается черновик из опубликованной версии...', 'info');
+                const draftData = {
+                    title: course.title,
+                    description: course.description,
+                    content: course.content
+                };
+                await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
+                // Re-fetch the course to get the newly created draft
+                course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
+            }
+
             const wrapper = document.getElementById('course-form-wrapper');
             wrapper.innerHTML = renderCourseForm(course);
             attachCourseFormListeners();
             renderWysiwygEditor();
             window.scrollTo(0, wrapper.offsetTop);
-        } catch (e) { /* Handled */ }
+        } catch (e) { /* Handled in apiCall */ }
     }
 
     async function deleteCourse(courseId, courseTitle) {
