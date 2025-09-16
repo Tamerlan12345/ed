@@ -567,7 +567,6 @@
         document.getElementById('main-content-wrapper').classList.remove('hidden');
 
         productContent.classList.add('hidden');
-        productContent.classList.remove('presentation-view');
         testView.classList.add('hidden');
         testResultsView.classList.add('hidden');
         assistantContainer.classList.add('hidden');
@@ -575,39 +574,28 @@
         simulatorView.classList.add('hidden');
         
         mainMenu.classList.remove('hidden');
-        document.getElementById('main-menu-tabs').classList.remove('hidden');
+        document.getElementById('main-menu-tabs').classList.add('hidden'); // Hide old tabs
         extraToolsDiv.classList.remove('hidden');
         backToMenuBtn.classList.add('hidden');
 
         loadLeaderboard();
-        mainMenu.innerHTML = ''; // Clear previous content
-        for (let i = 0; i < 6; i++) {
+        mainMenu.innerHTML = '';
+        for (let i = 0; i < 3; i++) { // Fewer skeletons for group view
             const skeleton = document.createElement('div');
             skeleton.className = 'skeleton-card';
             mainMenu.appendChild(skeleton);
         }
 
         try {
-            const data = await fetchAuthenticated(`/api/getCourses`, { method: 'POST' });
+            const courseGroups = await fetchAuthenticated(`/api/getCourses`, { method: 'POST' });
             
-            if (!data || !Array.isArray(data.courses)) {
-                throw new Error("Ответ сервера не содержит массив курсов.");
+            if (!Array.isArray(courseGroups)) {
+                throw new Error("Ответ сервера не является массивом групп курсов.");
             }
 
-            courses = data.courses;
-            userProgress = data.userProgress;
-
-            const tabsContainer = document.getElementById('main-menu-tabs');
-            tabsContainer.addEventListener('click', (e) => {
-                if (e.target.matches('.tab-btn')) {
-                    tabsContainer.querySelector('.active').classList.remove('active');
-                    e.target.classList.add('active');
-                    const filter = e.target.dataset.filter;
-                    renderCourses(filter);
-                }
-            });
-
-            renderCourses('assigned');
+            // The global 'courses' variable will now store a nested structure.
+            courses = courseGroups;
+            renderCourseGroups();
 
         } catch (error) {
             console.error('Failed to load courses:', error);
@@ -615,129 +603,87 @@
         }
     }
 
-    function renderCourses(filter) {
-        mainMenu.innerHTML = '';
-        let coursesToRender;
-        const now = new Date();
-        now.setHours(0, 0, 0, 0); // Set to start of today for date comparison
+    function renderCourseGroups() {
+        mainMenu.innerHTML = ''; // Clear skeletons
+        mainMenu.style.display = 'block'; // Change from grid to block for group layout
 
-        switch (filter) {
-            case 'assigned':
-                coursesToRender = courses.filter(c => {
-                    const progress = userProgress[c.id];
-                    const isCompleted = progress && progress.completed;
-                    const startDate = c.startDate ? new Date(c.startDate) : null;
-                    const isFuture = startDate && startDate > now;
-                    return c.isAssigned && !isCompleted && !isFuture;
-                });
-                if (coursesToRender.length === 0) {
-                    mainMenu.innerHTML = '<p class="message">У вас нет активных назначенных курсов.</p>';
-                }
-                break;
-            case 'completed':
-                coursesToRender = courses.filter(c => c.isAssigned && userProgress[c.id]?.completed);
-                if (coursesToRender.length === 0) {
-                    mainMenu.innerHTML = '<p class="message">Вы еще не завершили ни одного курса.</p>';
-                }
-                break;
-            case 'future':
-                coursesToRender = courses.filter(c => {
-                    const startDate = c.startDate ? new Date(c.startDate) : null;
-                    return c.isAssigned && startDate && startDate > now;
-                });
-                if (coursesToRender.length === 0) {
-                    mainMenu.innerHTML = '<p class="message">У вас нет запланированных будущих курсов.</p>';
-                }
-                break;
-            case 'catalog':
-                coursesToRender = courses.filter(c => !c.isAssigned);
-                 if (coursesToRender.length === 0) {
-                    mainMenu.innerHTML = '<p class="message">В каталоге пока нет доступных курсов.</p>';
-                }
-                break;
-            default:
-                coursesToRender = [];
+        if (courses.length === 0) {
+            mainMenu.innerHTML = '<p class="message">Вам пока не назначено ни одного курса.</p>';
+            return;
         }
 
-        if (coursesToRender.length > 0) {
-            // Removed the grouping by product_line for the catalog view as the field is obsolete.
-            mainMenu.className = 'main-menu';
-            let type = 'assigned';
-            if (filter === 'catalog') {
-                type = 'catalog';
-            } else if (filter === 'future') {
-                type = 'view';
-            }
-            coursesToRender.forEach(course => mainMenu.appendChild(createCourseMenuItem(course, type)));
-        }
+        courses.forEach(group => {
+            const groupContainer = document.createElement('div');
+            groupContainer.className = 'course-group-container';
+            groupContainer.style.marginBottom = '30px';
+
+            const groupHeader = document.createElement('h3');
+            groupHeader.textContent = group.group_name;
+            groupHeader.style.color = 'var(--primary-color)';
+            groupHeader.style.borderBottom = '2px solid var(--border-color)';
+            groupHeader.style.paddingBottom = '10px';
+            groupContainer.appendChild(groupHeader);
+
+            const coursesGrid = document.createElement('div');
+            coursesGrid.className = 'main-menu'; // Reuse grid styles
+            group.courses.forEach(course => {
+                coursesGrid.appendChild(createCourseMenuItem(course));
+            });
+            groupContainer.appendChild(coursesGrid);
+            mainMenu.appendChild(groupContainer);
+        });
     }
 
-    function createCourseMenuItem(course, type) {
+    function createCourseMenuItem(course) {
         const menuItem = document.createElement('div');
         menuItem.className = 'menu-item';
+
+        if (course.is_locked) {
+            menuItem.style.opacity = '0.6';
+            menuItem.style.cursor = 'not-allowed';
+            menuItem.title = 'Этот курс будет доступен после прохождения предыдущего';
+        } else {
+            menuItem.style.cursor = 'pointer';
+            menuItem.addEventListener('click', () => showProduct(course.id));
+        }
+
+        if (course.progress?.completed_at) {
+             menuItem.classList.add('completed');
+        }
+
+        let deadlineHtml = '';
+        if (course.progress?.deadline_date) {
+            const deadline = new Date(course.progress.deadline_date);
+            const today = new Date();
+            const isOverdue = deadline < today;
+            deadlineHtml = `<p style="font-size: 0.85em; color: ${isOverdue ? 'var(--error-color)' : 'var(--text-light-color)'}; margin-top: 10px;">
+                Срок сдачи: ${deadline.toLocaleDateString('ru-RU')} ${isOverdue ? '(Просрочено)' : ''}
+            </p>`;
+        }
+
+        let progressBarHtml = '';
+        if(course.progress?.percentage > 0 && !course.progress?.completed_at) {
+            progressBarHtml = `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${course.progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
+        }
+
+        menuItem.innerHTML = `
+            <div>
+                <h3>
+                    <span class="menu-item-icon">${course.is_locked ? '🔒' : '📖'}</span>
+                    ${course.title}
+                </h3>
+                <p style="font-size: 0.9em; color: var(--text-light-color);">${course.description || ''}</p>
+            </div>
+            <div>
+                ${progressBarHtml}
+                ${deadlineHtml}
+            </div>
+        `;
+
         menuItem.style.display = 'flex';
         menuItem.style.flexDirection = 'column';
         menuItem.style.justifyContent = 'space-between';
 
-        const contentDiv = document.createElement('div');
-        const progress = userProgress[course.id];
-        if (progress && progress.completed) {
-             menuItem.classList.add('completed');
-        }
-        contentDiv.dataset.courseId = course.id;
-        contentDiv.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3>`;
-
-        if (course.startDate) {
-            const startDate = new Date(course.startDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            if (startDate >= today) {
-                 contentDiv.innerHTML += `<p style="color: var(--primary-color); font-weight: bold;">Начало: ${startDate.toLocaleDateString('ru-RU')}</p>`;
-            }
-        }
-
-        if (type === 'assigned') {
-            contentDiv.innerHTML += `<p>Перейти к учебному модулю...</p>`;
-            if(progress && progress.percentage > 0 && !progress.completed) {
-                contentDiv.innerHTML += `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
-            }
-            contentDiv.style.cursor = 'pointer';
-            contentDiv.addEventListener('click', () => showProduct(course.id));
-        } else if (type === 'view') {
-            // A view-only type for future courses that are not clickable to start
-            contentDiv.style.cursor = 'default';
-        }
-
-        menuItem.appendChild(contentDiv);
-
-        if (type === 'catalog') {
-            const assignBtn = document.createElement('button');
-            assignBtn.textContent = 'Записаться на курс';
-            assignBtn.className = 'btn';
-            assignBtn.style.marginTop = '15px';
-            assignBtn.dataset.courseId = course.id;
-            assignBtn.onclick = async (e) => {
-                e.stopPropagation();
-                const button = e.target;
-                const courseId = button.dataset.courseId;
-                button.disabled = true;
-                button.textContent = 'Запись...';
-                try {
-                    await fetchAuthenticated('/api/assign-course', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ course_id: courseId })
-                    });
-                    await showMainMenu();
-                } catch (error) {
-                    console.error('Failed to self-assign course:', error);
-                    alert(`Не удалось записаться на курс: ${error.message}`);
-                    button.disabled = false;
-                    button.textContent = 'Записаться на курс';
-                }
-            };
-            menuItem.appendChild(assignBtn);
-        }
         return menuItem;
     }
     
