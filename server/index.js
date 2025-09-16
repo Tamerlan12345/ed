@@ -226,7 +226,12 @@ const adminActionHandlers = {
     get_group_details: async ({ payload, supabaseAdmin }) => {
         const { group_id } = payload;
         if (!group_id) throw { status: 400, message: 'Group ID is required.' };
-        const { data, error } = await supabaseAdmin.from('course_groups').select('*, course_group_items(course_id)').eq('id', group_id).single();
+        const { data, error } = await supabaseAdmin
+            .from('course_groups')
+            .select('*, course_group_items!inner(course_id, order_index)')
+            .eq('id', group_id)
+            .order('order_index', { referencedTable: 'course_group_items', ascending: true })
+            .single();
         if (error) throw error;
         return data;
     },
