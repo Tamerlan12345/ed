@@ -316,7 +316,146 @@
             display: flex;
             flex-direction: column;
         }
+    </style>
+    <style>
+        /* --- Presentation Redesign & Mobile Optimization --- */
+        .presentation-slide {
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
 
+        .presentation-slide h2 {
+            font-size: 2.2rem;
+            margin-bottom: 25px !important;
+            color: var(--primary-color);
+        }
+
+        .presentation-slide p, .presentation-slide li, .presentation-slide ul {
+            font-size: 1.1rem !important;
+            line-height: 1.7 !important;
+            color: var(--text-color);
+        }
+
+        .presentation-slide ul {
+            padding-left: 40px;
+        }
+
+        .presentation-slide li {
+            margin-bottom: 12px;
+        }
+
+        /* Mobile Optimizations for Presentation */
+        @media (max-width: 768px) {
+            body.presentation-active-fullscreen .presentation-slide {
+                padding: 30px 25px !important;
+            }
+
+            .presentation-slide h2 {
+                font-size: 1.8rem;
+            }
+
+            .presentation-slide p, .presentation-slide li, .presentation-slide ul {
+                font-size: 1rem !important;
+                line-height: 1.6 !important;
+            }
+
+            .slider-nav-container {
+                padding: 10px 20px;
+            }
+
+            .slider-nav button {
+                padding: 10px 18px;
+                font-size: 0.9em;
+            }
+        }
+
+        /* --- General Visual Enhancements --- */
+        .window {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+        }
+
+        .menu-item:hover {
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-color: var(--secondary-color);
+        }
+
+        .tab-btn {
+            transition: all 0.2s ease-in-out;
+            border-radius: 6px 6px 0 0;
+            padding: 12px 22px;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background-color: rgba(0, 90, 156, 0.05);
+            color: var(--primary-color);
+        }
+
+        .action-btn {
+            border-radius: 16px;
+            font-size: 1em;
+            background-color: var(--bg-color);
+            border: 2px dashed var(--border-color);
+            box-shadow: none;
+            color: var(--text-light-color);
+        }
+        .action-btn:hover {
+            background-color: var(--surface-color);
+            border-style: solid;
+            border-color: var(--secondary-color);
+            color: var(--secondary-color);
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: var(--shadow);
+        }
+
+        /* --- Main Page Mobile Optimizations --- */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .window {
+                padding: 20px 15px;
+            }
+
+            .window-header {
+                flex-wrap: wrap;
+                gap: 15px;
+                justify-content: center;
+            }
+
+            .window-header h2 {
+                width: 100%;
+                text-align: center;
+                order: -1;
+            }
+
+            #main-flex-container {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .window-header h2 {
+                font-size: 1.4em;
+            }
+
+            #main-menu {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .menu-item h3 {
+                font-size: 1.1em;
+            }
+
+            button, .btn {
+                padding: 12px 18px;
+                font-size: 0.9em;
+            }
+        }
     </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -442,6 +581,7 @@
     let currentCourse = null;
     let userProgress = {};
     let simulationHistory = [];
+    let backButtonAction = null;
     
     const authView = document.getElementById('auth-view');
     const appView = document.getElementById('app-view');
@@ -631,6 +771,7 @@
 
     async function showMainMenu() {
         document.body.classList.remove('presentation-active-fullscreen');
+        backButtonAction = null; // No action needed when at main menu
         stopTimeTracking();
         contentArea.classList.remove('presentation-mode');
         windowTitle.textContent = 'Главное Меню';
@@ -910,6 +1051,9 @@
     }
 
     function renderCourseActions() {
+        stopTimeTracking();
+        backToMenuBtn.textContent = '❮ Назад в меню';
+        backButtonAction = showMainMenu;
         productContent.innerHTML = '';
         productContent.classList.remove('presentation-view');
         document.body.classList.remove('presentation-active-fullscreen');
@@ -1010,6 +1154,8 @@
     }
 
     function showPresentationView() {
+        backToMenuBtn.textContent = '❮ Назад к курсу';
+        backButtonAction = renderCourseActions;
         document.body.classList.add('presentation-active-fullscreen');
         productContent.classList.add('presentation-view');
         contentArea.classList.add('presentation-mode');
@@ -1064,6 +1210,8 @@
 
         productContent.classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
+        backToMenuBtn.textContent = '❮ Назад в меню';
+        backButtonAction = showMainMenu;
 
         productContent.innerHTML = '<div class="loader"></div>';
         audioPlayerContainerUser.innerHTML = '';
@@ -1205,8 +1353,8 @@
                         body: JSON.stringify({ course_id: courseId })
                     });
                     alert('Вы успешно записаны на курс! Он появится в ваших назначенных курсах.');
-                    // Switch to the "Assigned" tab and re-render the view
-                    document.querySelector('.tab-btn[data-filter="assigned"]').click();
+                    // Force a full refresh of the main menu to show the new course
+                    showMainMenu();
                 } catch (error) {
                     console.error('Failed to assign course:', error);
                     alert(`Не удалось записаться на курс: ${error.message}`);
@@ -1245,7 +1393,11 @@
 
         checkSession();
 
-        backToMenuBtn.addEventListener('click', showMainMenu);
+        backToMenuBtn.addEventListener('click', () => {
+            if (typeof backButtonAction === 'function') {
+                backButtonAction();
+            }
+        });
         backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
     });
 
