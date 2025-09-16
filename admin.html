@@ -789,9 +789,8 @@
         document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
         document.getElementById('upload-material-btn').addEventListener('click', uploadMaterialHandler);
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
-        ['input', 'change'].forEach(evt => {
-            document.getElementById('course-form-container').addEventListener(evt, handleAutosave);
-        });
+        // The autosave listener is now only attached to the WYSIWYG editor in renderWysiwygEditor
+        // to prevent saving on title/description changes, which was causing data structure issues.
     }
 
     // --- COURSE MANAGEMENT ---
@@ -808,14 +807,12 @@
         autosaveTimer = setTimeout(async () => {
             const courseId = document.getElementById('course-id').value;
             if (!courseId) return;
-            const draftData = {
-                title: document.getElementById('course-title').value,
-                description: document.getElementById('description').value,
-                content: JSON.parse(document.getElementById('content').value || '{}')
-            };
+            // Autosave should only save the content part (summary and questions)
+            // Title and description changes are saved on "Publish"
+            const draftData = JSON.parse(document.getElementById('content').value || '{}');
             try {
                 await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
-                if (statusEl) statusEl.textContent = `Черновик сохранен в ${new Date().toLocaleTimeString()}`;
+                if (statusEl) statusEl.textContent = `Черновик контента сохранен в ${new Date().toLocaleTimeString()}`;
             } catch (e) {
                 if (statusEl) statusEl.textContent = 'Ошибка сохранения черновика.';
             }
@@ -992,11 +989,8 @@
             // This prevents the editor from opening empty and accidentally wiping content.
             if (course.status === 'published' && course.content && !course.draft_content) {
                 showToast('Создается черновик из опубликованной версии...', 'info');
-                const draftData = {
-                    title: course.title,
-                    description: course.description,
-                    content: course.content
-                };
+                // The draft should only contain the content object itself to be consistent.
+                const draftData = course.content;
                 await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
                 // Re-fetch the course to get the newly created draft
                 course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
