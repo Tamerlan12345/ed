@@ -1,2 +1,4 @@
 Flask
 gTTS
+pytest
+Werkzeug
