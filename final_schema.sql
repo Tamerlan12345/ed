@@ -2,14 +2,10 @@
 -- # Финальный Сводный Скрипт Схемы для Supabase #
 -- ##############################################
 
--- Этот скрипт содержит все необходимые таблицы, функции, триггеры
--- и политики для воссоздания базы данных с нуля.
-
 -- =========
 -- # ТАБЛИЦЫ #
 -- =========
 
--- Таблица пользователей: хранит публичную информацию профиля.
 CREATE TABLE public.users (
     id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name text NULL,
@@ -17,17 +13,18 @@ CREATE TABLE public.users (
     is_admin boolean DEFAULT false NOT NULL
 );
 
--- Таблица курсов: хранит информацию о курсах.
 CREATE TABLE public.courses (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     title text NOT NULL,
     description text NULL,
-    content jsonb NULL
+    content jsonb NULL,
+    status text DEFAULT 'draft'::text NOT NULL, -- 'draft', 'published', 'archived'
+    draft_content jsonb NULL, -- Для автосохранения черновиков
+    is_visible boolean DEFAULT false NOT NULL -- Видимость в каталоге
 );
 
--- Таблица материалов курса: хранит файлы и ссылки, относящиеся к курсам.
 CREATE TABLE public.course_materials (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -37,7 +34,6 @@ CREATE TABLE public.course_materials (
     public_url text NULL
 );
 
--- Таблица прогресса пользователей: отслеживает прохождение курсов.
 CREATE TABLE public.user_progress (
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -47,10 +43,10 @@ CREATE TABLE public.user_progress (
     percentage numeric NULL,
     attempts integer DEFAULT 0 NOT NULL,
     time_spent_seconds integer DEFAULT 0 NOT NULL,
+    deadline_date timestamp with time zone NULL, -- Дедлайн для прохождения
     PRIMARY KEY (user_id, course_id)
 );
 
--- Таблица фоновых задач: для обработки длительных асинхронных операций.
 CREATE TABLE public.background_jobs (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -61,7 +57,6 @@ CREATE TABLE public.background_jobs (
     last_error text NULL
 );
 
--- Таблица уведомлений: для уведомлений пользователям.
 CREATE TABLE public.notifications (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -70,7 +65,6 @@ CREATE TABLE public.notifications (
     is_read boolean DEFAULT false NOT NULL
 );
 
--- Таблица настроек лидерборда: единая таблица для настроек.
 CREATE TABLE public.leaderboard_settings (
     id integer PRIMARY KEY DEFAULT 1,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -78,7 +72,6 @@ CREATE TABLE public.leaderboard_settings (
     CONSTRAINT leaderboard_settings_singleton CHECK (id = 1)
 );
 
--- Таблица результатов симулятора: хранит результаты диалогового тренажера.
 CREATE TABLE public.simulation_results (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -88,30 +81,38 @@ CREATE TABLE public.simulation_results (
     evaluation jsonb NULL
 );
 
--- Таблица групп курсов: для объединения курсов в блоки.
 CREATE TABLE public.course_groups (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     group_name text NOT NULL,
     is_for_new_employees boolean DEFAULT false NOT NULL,
     start_date date NULL,
-    recurrence_period integer NULL -- Период в месяцах
+    recurrence_period integer NULL, -- Период в месяцах
+    enforce_order boolean DEFAULT false NOT NULL, -- Принудительный порядок прохождения
+    deadline_days integer NULL, -- Срок на прохождение в днях
+    is_visible boolean DEFAULT false NOT NULL -- Видимость в каталоге
 );
 
--- Таблица элементов групп курсов: связующая таблица для курсов и групп (многие-ко-многим).
 CREATE TABLE public.course_group_items (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     group_id uuid NOT NULL REFERENCES public.course_groups(id) ON DELETE CASCADE,
     course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+    order_index integer DEFAULT 0 NOT NULL, -- Порядковый номер в группе
     CONSTRAINT unique_course_in_group UNIQUE (group_id, course_id)
 );
 
+CREATE TABLE public.group_assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    group_id uuid NOT NULL REFERENCES public.course_groups(id) ON DELETE CASCADE,
+    department text NOT NULL,
+    CONSTRAINT unique_department_assignment UNIQUE (group_id, department)
+);
 
 -- ===========
 -- # ФУНКЦИИ #
 -- ===========
 
--- Функция для проверки, является ли текущий пользователь администратором.
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean AS $$
 BEGIN
@@ -119,17 +120,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Функция для заполнения таблицы public.users при регистрации нового пользователя.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  group_record RECORD;
+  course_record RECORD;
+  deadline_val TIMESTAMP WITH TIME ZONE;
 BEGIN
-  INSERT INTO public.users (id, full_name)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name');
+  -- Insert user into public.users table, capturing department from metadata
+  INSERT INTO public.users (id, full_name, department)
+  VALUES (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'department');
+
+  -- Assign courses from groups marked for new employees
+  FOR group_record IN
+    SELECT id, deadline_days FROM public.course_groups WHERE is_for_new_employees = true AND is_visible = true
+  LOOP
+    -- Calculate deadline if specified
+    IF group_record.deadline_days IS NOT NULL THEN
+      deadline_val := now() + (group_record.deadline_days || ' days')::interval;
+    ELSE
+      deadline_val := NULL;
+    END IF;
+
+    -- Insert into user_progress for each course in the group for the new user
+    INSERT INTO public.user_progress (user_id, course_id, deadline_date)
+    SELECT new.id, ci.course_id, deadline_val
+    FROM public.course_group_items ci
+    WHERE ci.group_id = group_record.id
+    ON CONFLICT (user_id, course_id) DO NOTHING; -- Avoid errors if the user is somehow already assigned the course
+  END LOOP;
+
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Функция для получения данных для лидерборда.
 DROP FUNCTION IF EXISTS public.get_leaderboard_data();
 CREATE OR REPLACE FUNCTION public.get_leaderboard_data()
 RETURNS TABLE(user_id uuid, full_name text, total_score bigint, courses_completed bigint) AS $$
@@ -151,7 +175,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Функция для увеличения времени, проведенного в курсе.
 CREATE OR REPLACE FUNCTION public.increment_time_spent(p_course_id uuid, p_user_id uuid, p_seconds_spent integer)
 RETURNS void AS $$
 BEGIN
@@ -161,22 +184,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION get_all_users_with_details()
+RETURNS TABLE(id uuid, full_name text, department text, email text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+      u.id,
+      u.full_name,
+      u.department,
+      au.email
+  FROM
+      public.users AS u
+  JOIN
+      auth.users AS au ON u.id = au.id;
+END;
+$$;
 
 -- ============
 -- # ТРИГГЕРЫ #
 -- ============
 
--- Триггер, вызывающий handle_new_user при создании нового пользователя в auth.users.
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-
 
 -- ==========================================
 -- # БЕЗОПАСНОСТЬ НА УРОВНЕ СТРОК (RLS) #
 -- ==========================================
 
--- --- Включение RLS для всех таблиц ---
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_materials ENABLE ROW LEVEL SECURITY;
@@ -187,30 +225,14 @@ ALTER TABLE public.leaderboard_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.simulation_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_group_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_assignments ENABLE ROW LEVEL SECURITY;
 
--- --- Политики RLS ---
+CREATE POLICY "Enable read access for user on their own user record" ON public.users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Enable read access for visible and published courses" ON public.courses FOR SELECT USING (auth.role() = 'authenticated' AND status = 'published'::text AND is_visible = true);
+CREATE POLICY "Enable access for users based on user_id" ON public.user_progress FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Enable access for users based on user_id" ON public.notifications FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Enable access for users based on user_id" ON public.simulation_results FOR ALL USING (auth.uid() = user_id);
 
--- Пользователи могут видеть свои собственные данные.
-CREATE POLICY "Enable read access for user on their own user record"
-ON public.users FOR SELECT USING (auth.uid() = id);
-
--- Авторизованные пользователи могут видеть все курсы.
-CREATE POLICY "Enable read access for all authenticated users"
-ON public.courses FOR SELECT USING (auth.role() = 'authenticated');
-
--- Пользователи могут управлять своим собственным прогрессом.
-CREATE POLICY "Enable access for users based on user_id"
-ON public.user_progress FOR ALL USING (auth.uid() = user_id);
-
--- Пользователи могут управлять своими собственными уведомлениями.
-CREATE POLICY "Enable access for users based on user_id"
-ON public.notifications FOR ALL USING (auth.uid() = user_id);
-
--- Пользователи могут управлять своими собственными результатами симулятора.
-CREATE POLICY "Enable access for users based on user_id"
-ON public.simulation_results FOR ALL USING (auth.uid() = user_id);
-
--- Администраторы получают полный доступ ко всему.
 CREATE POLICY "Admins have full access to users" ON public.users FOR ALL USING (is_admin());
 CREATE POLICY "Admins have full access to courses" ON public.courses FOR ALL USING (is_admin());
 CREATE POLICY "Admins have full access to course materials" ON public.course_materials FOR ALL USING (is_admin());
@@ -221,7 +243,8 @@ CREATE POLICY "Admins have full access to leaderboard_settings" ON public.leader
 CREATE POLICY "Admins have full access to simulation_results" ON public.simulation_results FOR ALL USING (is_admin());
 CREATE POLICY "Admins have full access to course groups" ON public.course_groups FOR ALL USING (is_admin());
 CREATE POLICY "Admins have full access to course group items" ON public.course_group_items FOR ALL USING (is_admin());
+CREATE POLICY "Admins have full access to group assignments" ON public.group_assignments FOR ALL USING (is_admin());
 
--- Авторизованные пользователи могут читать информацию о группах (необходимо для некоторой логики на клиенте).
-CREATE POLICY "Authenticated users can read course groups" ON public.course_groups FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users can read visible course groups" ON public.course_groups FOR SELECT USING (auth.role() = 'authenticated' AND is_visible = true);
 CREATE POLICY "Authenticated users can read course group items" ON public.course_group_items FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users can read group assignments" ON public.group_assignments FOR SELECT USING (auth.role() = 'authenticated');
