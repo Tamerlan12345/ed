@@ -138,12 +138,11 @@ const adminActionHandlers = {
         return data;
     },
     publish_course: async ({ payload, supabaseAdmin }) => {
-        const { course_id, title, description, content, is_visible } = payload;
+        const { course_id, title, description, content } = payload;
         if (!course_id || !title || !content) {
             throw { status: 400, message: 'Course ID, title, and content are required for publishing.' };
         }
 
-        // Ensure content is valid JSON before saving
         try {
             JSON.parse(JSON.stringify(content));
         } catch (e) {
@@ -157,8 +156,8 @@ const adminActionHandlers = {
                 description,
                 content,
                 status: 'published',
-                is_visible: !!is_visible,
-                draft_content: null, // Clear the draft upon successful publishing
+                is_visible: true, // Publishing always makes the course visible.
+                draft_content: null,
                 updated_at: new Date().toISOString()
             })
             .eq('id', course_id);
