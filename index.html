@@ -25,6 +25,19 @@
             background-color: rgba(0,0,0,0.03);
             border-bottom-color: var(--border-color);
         }
+        .course-group-container {
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+        }
+        .course-group-container h3 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
         .skeleton-card { background-color: #e0e0e0; border-radius: 12px; height: 150px; position: relative; overflow: hidden; }
         .skeleton-card::after { content: ''; position: absolute; top: 0; left: -150%; width: 150%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); animation: shimmer 1.5s infinite; }
         @keyframes shimmer { 0% { left: -150%; } 100% { left: 150%; } }
@@ -295,7 +308,6 @@
                         <div id="main-menu-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
                             <button class="tab-btn active" data-filter="assigned">📥 Назначенные</button>
                             <button class="tab-btn" data-filter="completed">✅ Пройденные</button>
-                            <button class="tab-btn" data-filter="future">🗓️ Будущие</button>
                             <button class="tab-btn" data-filter="catalog">📚 Каталог</button>
                         </div>
                         <div id="main-menu"></div>
@@ -574,13 +586,13 @@
         simulatorView.classList.add('hidden');
         
         mainMenu.classList.remove('hidden');
-        document.getElementById('main-menu-tabs').classList.add('hidden'); // Hide old tabs
+        document.getElementById('main-menu-tabs').classList.remove('hidden'); // Show tabs
         extraToolsDiv.classList.remove('hidden');
         backToMenuBtn.classList.add('hidden');
 
         loadLeaderboard();
         mainMenu.innerHTML = '';
-        for (let i = 0; i < 3; i++) { // Fewer skeletons for group view
+        for (let i = 0; i < 3; i++) {
             const skeleton = document.createElement('div');
             skeleton.className = 'skeleton-card';
             mainMenu.appendChild(skeleton);
@@ -593,9 +605,19 @@
                 throw new Error("Ответ сервера не является массивом групп курсов.");
             }
 
-            // The global 'courses' variable will now store a nested structure.
-            courses = courseGroups;
-            renderCourseGroups();
+            courses = courseGroups; // This is now an array of groups
+
+            const tabsContainer = document.getElementById('main-menu-tabs');
+            tabsContainer.onclick = (e) => { // Use a single onclick handler
+                if (e.target.matches('.tab-btn')) {
+                    tabsContainer.querySelector('.active').classList.remove('active');
+                    e.target.classList.add('active');
+                    renderCourseGroups(e.target.dataset.filter);
+                }
+            };
+
+            // Initial render with the 'assigned' filter
+            renderCourseGroups('assigned');
 
         } catch (error) {
             console.error('Failed to load courses:', error);
@@ -603,29 +625,44 @@
         }
     }
 
-    function renderCourseGroups() {
-        mainMenu.innerHTML = ''; // Clear skeletons
-        mainMenu.style.display = 'block'; // Change from grid to block for group layout
+    function renderCourseGroups(filter = 'assigned') {
+        mainMenu.innerHTML = '';
+        mainMenu.style.display = 'block';
 
-        if (courses.length === 0) {
-            mainMenu.innerHTML = '<p class="message">Вам пока не назначено ни одного курса.</p>';
+        let hasContent = false;
+
+        const filteredGroups = courses.map(group => {
+            const filteredCourses = group.courses.filter(course => {
+                const progress = course.progress;
+                const isCompleted = progress?.completed_at;
+
+                if (filter === 'assigned') return !isCompleted;
+                if (filter === 'completed') return isCompleted;
+                return false; // Default case, though we only have two tabs now
+            });
+
+            // Return a new group object with the filtered courses
+            return { ...group, courses: filteredCourses };
+        }).filter(group => group.courses.length > 0); // Only keep groups that have courses matching the filter
+
+        if (filteredGroups.length === 0) {
+            let message = 'Нет данных для отображения.';
+            if (filter === 'assigned') message = 'У вас нет активных назначенных курсов. Так держать!';
+            if (filter === 'completed') message = 'Вы еще не завершили ни одного курса.';
+            mainMenu.innerHTML = `<p class="message">${message}</p>`;
             return;
         }
 
-        courses.forEach(group => {
+        filteredGroups.forEach(group => {
             const groupContainer = document.createElement('div');
             groupContainer.className = 'course-group-container';
-            groupContainer.style.marginBottom = '30px';
 
             const groupHeader = document.createElement('h3');
             groupHeader.textContent = group.group_name;
-            groupHeader.style.color = 'var(--primary-color)';
-            groupHeader.style.borderBottom = '2px solid var(--border-color)';
-            groupHeader.style.paddingBottom = '10px';
             groupContainer.appendChild(groupHeader);
 
             const coursesGrid = document.createElement('div');
-            coursesGrid.className = 'main-menu'; // Reuse grid styles
+            coursesGrid.className = 'main-menu';
             group.courses.forEach(course => {
                 coursesGrid.appendChild(createCourseMenuItem(course));
             });

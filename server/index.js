@@ -138,29 +138,32 @@ const adminActionHandlers = {
         return data;
     },
     publish_course: async ({ payload, supabaseAdmin }) => {
-        const { course_id, is_visible } = payload;
-        if (!course_id) {
-            throw { status: 400, message: 'course_id is required.' };
+        const { course_id, title, description, content, is_visible } = payload;
+        if (!course_id || !title || !content) {
+            throw { status: 400, message: 'Course ID, title, and content are required for publishing.' };
         }
-        const { data: course, error: fetchError } = await supabaseAdmin.from('courses').select('draft_content').eq('id', course_id).single();
-        if (fetchError || !course) throw { status: 404, message: 'Course not found.' };
-        if (!course.draft_content) throw { status: 400, message: 'No draft content to publish.' };
 
-        const { title, description, content } = course.draft_content;
+        // Ensure content is valid JSON before saving
+        try {
+            JSON.parse(JSON.stringify(content));
+        } catch (e) {
+            throw { status: 400, message: 'Content must be valid JSON.' };
+        }
 
-        const { error: updateError } = await supabaseAdmin
+        const { error } = await supabaseAdmin
             .from('courses')
             .update({
                 title,
                 description,
                 content,
                 status: 'published',
-                draft_content: null,
                 is_visible: !!is_visible,
+                draft_content: null, // Clear the draft upon successful publishing
                 updated_at: new Date().toISOString()
             })
             .eq('id', course_id);
-        if (updateError) throw updateError;
+
+        if (error) throw error;
         return { message: `Course ${course_id} successfully published.` };
     },
     delete_course: async ({ payload, supabaseAdmin }) => {
@@ -916,6 +919,56 @@ ${courseData.description}
 app.use('/api', apiRouter);
 
 // --- User-Facing API Endpoints ---
+
+apiRouter.post('/getCourseCatalog', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+        const token = authHeader.split(' ')[1];
+
+        const supabase = createSupabaseClient(token);
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+        // 1. Get IDs of courses the user is already assigned to
+        const { data: progressData, error: progressError } = await supabase
+            .from('user_progress')
+            .select('course_id')
+            .eq('user_id', user.id);
+        if (progressError) throw progressError;
+        const assignedCourseIds = progressData.map(p => p.course_id);
+
+        // 2. Get all visible groups with their visible, published courses
+        const { data: allVisibleGroups, error: groupsError } = await supabase
+            .from('course_groups')
+            .select(`
+                id,
+                group_name,
+                courses (
+                    id,
+                    title,
+                    description
+                )
+            `)
+            .eq('is_visible', true)
+            .eq('courses.is_visible', true)
+            .eq('courses.status', 'published');
+
+        if (groupsError) throw groupsError;
+
+        // 3. Filter out courses the user is already assigned to, and groups that become empty
+        const catalog = allVisibleGroups.map(group => {
+            const unassignedCourses = group.courses.filter(course => !assignedCourseIds.includes(course.id));
+            return { ...group, courses: unassignedCourses };
+        }).filter(group => group.courses.length > 0);
+
+        res.status(200).json(catalog);
+
+    } catch (error) {
+        console.error('Error in /api/getCourseCatalog:', error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
+});
 
 apiRouter.post('/askAssistant', async (req, res) => {
     const authHeader = req.headers.authorization;
