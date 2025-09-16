@@ -110,12 +110,16 @@ const adminActionHandlers = {
         return data;
     },
     publish_course: async ({ payload, supabaseAdmin }) => {
-        const { course_id, title, description, content } = payload;
+        const { course_id, title, description, content, is_visible } = payload;
         if (!course_id || !title || !content) {
             throw { status: 400, message: 'Course ID, title, and content are required for publishing.' };
         }
+        if (typeof is_visible !== 'boolean') {
+            throw { status: 400, message: 'A boolean value for is_visible is required.' };
+        }
 
         try {
+            // Ensure content is valid JSON, or at least a JSON-compatible object
             JSON.parse(JSON.stringify(content));
         } catch (e) {
             throw { status: 400, message: 'Content must be valid JSON.' };
@@ -128,8 +132,8 @@ const adminActionHandlers = {
                 description,
                 content,
                 status: 'published',
-                is_visible: true, // Publishing always makes the course visible.
-                draft_content: null,
+                is_visible: is_visible, // Use the value from the payload
+                draft_content: null, // Clear the draft upon publishing
                 updated_at: new Date().toISOString()
             })
             .eq('id', course_id);
@@ -541,7 +545,7 @@ apiRouter.post('/getCourses', async (req, res) => {
             return res.status(200).json([]); // No groups assigned to this department
         }
 
-        // 1. Получаем все группы, назначенные департаменту пользователя, которые видимы
+        // 1. Получаем все группы, назначенные департаменту пользователя
         const { data: groups, error: groupsError } = await supabase
             .from('course_groups')
             .select(`
@@ -554,14 +558,13 @@ apiRouter.post('/getCourses', async (req, res) => {
                         id,
                         title,
                         description,
-                        status,
-                        is_visible
+                        status
                     )
                 )
             `)
             .in('id', assignedGroupIds)
-            .eq('is_visible', true) // Группа должна быть видимой
-            .eq('course_group_items.courses.is_visible', true) // Курс должен быть видимым
+            // .eq('is_visible', true) // BUG: Убрано. Назначенный курс должен быть виден всегда.
+            // .eq('course_group_items.courses.is_visible', true) // BUG: Убрано. Назначенный курс должен быть виден всегда.
             .eq('course_group_items.courses.status', 'published') // Курс должен быть опубликован
             .order('order_index', { referencedTable: 'course_group_items', ascending: true });
 
@@ -910,31 +913,19 @@ apiRouter.post('/getCourseCatalog', async (req, res) => {
         if (progressError) throw progressError;
         const assignedCourseIds = progressData.map(p => p.course_id);
 
-        // 2. Get all visible groups with their visible, published courses
-        const { data: allVisibleGroups, error: groupsError } = await supabase
-            .from('course_groups')
-            .select(`
-                id,
-                group_name,
-                courses (
-                    id,
-                    title,
-                    description
-                )
-            `)
-            .eq('is_visible', true)
-            .eq('courses.is_visible', true)
-            .eq('courses.status', 'published');
+        // 2. Get all courses that are published and visible in the catalog
+        const { data: allEligibleCourses, error: coursesError } = await supabase
+            .from('courses')
+            .select('id, title, description')
+            .eq('status', 'published')
+            .eq('is_visible', true);
 
-        if (groupsError) throw groupsError;
+        if (coursesError) throw coursesError;
 
-        // 3. Filter out courses the user is already assigned to, and groups that become empty
-        const catalog = allVisibleGroups.map(group => {
-            const unassignedCourses = group.courses.filter(course => !assignedCourseIds.includes(course.id));
-            return { ...group, courses: unassignedCourses };
-        }).filter(group => group.courses.length > 0);
+        // 3. Filter out courses the user is already assigned to
+        const catalogCourses = allEligibleCourses.filter(course => !assignedCourseIds.includes(course.id));
 
-        res.status(200).json(catalog);
+        res.status(200).json(catalogCourses);
 
     } catch (error) {
         console.error('Error in /api/getCourseCatalog:', error);

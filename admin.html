@@ -727,6 +727,7 @@
         const courseId = isEditing ? course.id : '';
         const title = isEditing ? course.title || '' : '';
         const description = isEditing ? course.description || '' : '';
+        const isVisible = isEditing ? course.is_visible : false;
         const headerText = isEditing ? `Редактирование: ${title}` : 'Создать новый курс';
 
         let content = isEditing ? course.draft_content || course.content : null;
@@ -763,7 +764,11 @@
                 <div id="wysiwyg-editor"></div>
                 <textarea id="content" style="display: none;">${content}</textarea>
                 <h3>Шаг 4: Сохранение и публикация</h3>
-                <p>При нажатии на "Опубликовать", курс станет видимым для пользователей.</p>
+                <p>При нажатии на "Опубликовать", курс станет видимым для пользователей, если установлен флажок ниже.</p>
+                <label style="display: block; margin: 15px 0; background-color: #e9f7fe; padding: 10px; border-radius: 8px;">
+                    <input type="checkbox" id="course-is-visible" style="width: auto; margin-right: 10px; vertical-align: middle;" ${isVisible ? 'checked' : ''}>
+                    <b style="vertical-align: middle;">Видимость в каталоге:</b> Курс доступен для самостоятельного выбора пользователями.
+                </label>
                 <p id="autosave-status" style="font-style: italic; color: #666;"></p>
                 <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
                 <button id="cancel-edit-btn" style="background-color: #6c757d;">Отмена</button>
@@ -879,6 +884,7 @@
         const title = document.getElementById('course-title').value;
         const description = document.getElementById('description').value;
         const contentString = document.getElementById('content').value;
+        const isVisible = document.getElementById('course-is-visible').checked;
 
         if (!title || !contentString) {
             showToast('Название курса и контент не могут быть пустыми.', 'error');
@@ -897,7 +903,8 @@
             course_id: courseId,
             title,
             description,
-            content
+            content,
+            is_visible: isVisible
         };
 
         try {
@@ -998,6 +1005,7 @@
             const wrapper = document.getElementById('course-form-wrapper');
             wrapper.innerHTML = renderCourseForm(course);
             attachCourseFormListeners();
+            // Вызываем редактор WYSIWYG сразу после отрисовки формы, чтобы он корректно инициализировался с данными.
             renderWysiwygEditor();
             window.scrollTo(0, wrapper.offsetTop);
         } catch (e) { /* Handled in apiCall */ }
