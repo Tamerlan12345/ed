@@ -67,321 +67,296 @@ const createSupabaseAdminClient = () => {
 };
 
 
-// Главный эндпоинт админки
-apiRouter.post('/admin', async (req, res) => {
+// --- Middleware for Admin Auth ---
+const adminAuthMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Authorization header is missing.' });
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Authorization header is missing.' });
+    }
     const token = authHeader.split(' ')[1];
 
     const supabase = createSupabaseClient(token);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
+    if (authError || !user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-    // Проверка, является ли пользователь админом
-    const { data: adminCheck, error: adminCheckError } = await supabase.from('users').select('is_admin').eq('id', user.id).single();
+    const { data: adminCheck, error: adminCheckError } = await supabase
+        .from('users')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single();
+
     if (adminCheckError || !adminCheck?.is_admin) {
         return res.status(403).json({ error: 'Forbidden: User is not an admin.' });
     }
 
+    req.user = user;
+    req.token = token; // Pass token for background jobs
+    next();
+};
+
+// --- Admin Action Handlers ---
+const adminActionHandlers = {
+    create_course: async ({ payload, supabaseAdmin }) => {
+        const { title } = payload;
+        if (!title) throw { status: 400, message: 'Title is required to create a course.' };
+        const { data, error } = await supabaseAdmin.from('courses').insert({ title }).select().single();
+        if (error) throw error;
+        return data;
+    },
+    get_courses_admin: async ({ supabaseAdmin }) => {
+        const { data, error } = await supabaseAdmin.from('courses').select('*');
+        if (error) throw error;
+        return data;
+    },
+    get_all_users: async ({ supabaseAdmin }) => {
+        const { data, error } = await supabaseAdmin.rpc('get_all_users_with_details');
+        if (error) throw error;
+        return data;
+    },
+    get_departments: async ({ supabaseAdmin }) => {
+        const { data: users, error } = await supabaseAdmin.from('users').select('department');
+        if (error) throw error;
+        return [...new Set(users.map(u => u.department).filter(d => d && d.trim() !== ''))].sort();
+    },
+    get_course_details: async ({ payload, supabaseAdmin }) => {
+        const { course_id } = payload;
+        if (!course_id) throw { status: 400, message: 'A valid course_id is required.' };
+        const { data, error } = await supabaseAdmin.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
+        if (error) throw error;
+        return data;
+    },
+    save_course_draft: async ({ payload, supabaseAdmin }) => {
+        const { course_id, draft_data } = payload;
+        if (!course_id || !draft_data) {
+            throw { status: 400, message: 'course_id and draft_data are required.' };
+        }
+        const { data, error } = await supabaseAdmin.from('courses').update({ draft_content: draft_data, updated_at: new Date().toISOString() }).eq('id', course_id).select('updated_at').single();
+        if (error) throw error;
+        return data;
+    },
+    publish_course: async ({ payload, supabaseAdmin }) => {
+        const { course_id, is_visible } = payload;
+        if (!course_id) {
+            throw { status: 400, message: 'course_id is required.' };
+        }
+        const { data: course, error: fetchError } = await supabaseAdmin.from('courses').select('draft_content').eq('id', course_id).single();
+        if (fetchError || !course) throw { status: 404, message: 'Course not found.' };
+        if (!course.draft_content) throw { status: 400, message: 'No draft content to publish.' };
+
+        const { title, description, content } = course.draft_content;
+
+        const { error: updateError } = await supabaseAdmin
+            .from('courses')
+            .update({
+                title,
+                description,
+                content,
+                status: 'published',
+                draft_content: null,
+                is_visible: !!is_visible,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', course_id);
+        if (updateError) throw updateError;
+        return { message: `Course ${course_id} successfully published.` };
+    },
+    delete_course: async ({ payload, supabaseAdmin }) => {
+        const { course_id } = payload;
+        if (!course_id) throw { status: 400, message: 'course_id is required.' };
+        await supabaseAdmin.from('course_materials').delete().eq('course_id', course_id);
+        await supabaseAdmin.from('user_progress').delete().eq('course_id', course_id);
+        await supabaseAdmin.from('courses').delete().eq('id', course_id);
+        return { message: `Course ${course_id} deleted.` };
+    },
+    upload_and_process: async ({ payload, token, res }) => {
+        const jobId = crypto.randomUUID();
+        const supabaseAdmin = createSupabaseAdminClient();
+        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'file_upload', status: 'pending', payload });
+        handleUploadAndProcess(jobId, payload, token).catch(console.error); // Fire and forget
+        res.status(202).json({ jobId });
+        return null; // Signal that response has been sent
+    },
+    generate_content: async ({ payload, token, res }) => {
+        const jobId = crypto.randomUUID();
+        const supabaseAdmin = createSupabaseAdminClient();
+        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'content_generation', status: 'pending', payload });
+        handleGenerateContent(jobId, payload, token).catch(console.error); // Fire and forget
+        res.status(202).json({ jobId });
+        return null; // Signal that response has been sent
+    },
+    get_course_groups: async ({ supabaseAdmin }) => {
+        const { data, error } = await supabaseAdmin.from('course_groups').select('*');
+        if (error) throw error;
+        return data;
+    },
+    create_course_group: async ({ payload, supabaseAdmin }) => {
+        const { group_name, is_for_new_employees, start_date, recurrence_period, enforce_order, deadline_days, is_visible } = payload;
+        if (!group_name) throw { status: 400, message: 'Group name is required.' };
+        const insertData = {
+            group_name,
+            is_for_new_employees: !!is_for_new_employees,
+            start_date: start_date || null,
+            recurrence_period: recurrence_period || null,
+            enforce_order: !!enforce_order,
+            deadline_days: deadline_days || null,
+            is_visible: !!is_visible
+        };
+        const { data, error } = await supabaseAdmin.from('course_groups').insert(insertData).select().single();
+        if (error) throw error;
+        return data;
+    },
+    update_course_group: async ({ payload, supabaseAdmin }) => {
+        const { group_id, group_name, is_for_new_employees, start_date, recurrence_period, enforce_order, deadline_days, is_visible } = payload;
+        if (!group_id || !group_name) throw { status: 400, message: 'Group ID and name are required.' };
+        const updateData = { group_name, is_for_new_employees, start_date, recurrence_period, enforce_order, deadline_days, is_visible };
+        const { data, error } = await supabaseAdmin.from('course_groups').update(updateData).eq('id', group_id).select().single();
+        if (error) throw error;
+        return data;
+    },
+    delete_course_group: async ({ payload, supabaseAdmin }) => {
+        const { group_id } = payload;
+        if (!group_id) throw { status: 400, message: 'Group ID is required.' };
+        await supabaseAdmin.from('course_group_items').delete().eq('group_id', group_id);
+        await supabaseAdmin.from('course_groups').delete().eq('id', group_id);
+        return { message: 'Group deleted successfully.' };
+    },
+    get_group_details: async ({ payload, supabaseAdmin }) => {
+        const { group_id } = payload;
+        if (!group_id) throw { status: 400, message: 'Group ID is required.' };
+        const { data, error } = await supabaseAdmin.from('course_groups').select('*, course_group_items(course_id)').eq('id', group_id).single();
+        if (error) throw error;
+        return data;
+    },
+    update_courses_in_group: async ({ payload, supabaseAdmin }) => {
+        const { group_id, course_ids } = payload;
+        if (!group_id || !Array.isArray(course_ids)) throw { status: 400, message: 'Group ID and ordered course_ids array are required.' };
+
+        await supabaseAdmin.from('course_group_items').delete().eq('group_id', group_id);
+
+        if (course_ids.length > 0) {
+            const itemsToInsert = course_ids.map((course_id, index) => ({
+                group_id,
+                course_id,
+                order_index: index
+            }));
+            await supabaseAdmin.from('course_group_items').insert(itemsToInsert);
+        }
+        return { message: 'Courses in group updated successfully.' };
+    },
+    assign_group_to_department: async ({ payload, supabaseAdmin }) => {
+        const { group_id, department } = payload;
+        if (!group_id || !department) {
+            throw { status: 400, message: 'group_id and department are required.' };
+        }
+        await supabaseAdmin.from('group_assignments').upsert({ group_id, department }, { onConflict: 'group_id, department' });
+        const { data: group, error: groupError } = await supabaseAdmin.from('course_groups').select('deadline_days, course_group_items(course_id)').eq('id', group_id).single();
+        if (groupError || !group) throw { status: 404, message: 'Course group not found.' };
+        const courseIds = group.course_group_items.map(item => item.course_id);
+        if (courseIds.length === 0) return { message: 'Group has no courses to assign.' };
+        const { data: users, error: usersError } = await supabaseAdmin.from('users').select('id').eq('department', department);
+        if (usersError) throw usersError;
+        if (users.length === 0) return { message: `No users found in department: ${department}` };
+        let deadlineDate = null;
+        if (group.deadline_days) {
+            const deadline = new Date();
+            deadline.setDate(deadline.getDate() + group.deadline_days);
+            deadlineDate = deadline.toISOString();
+        }
+        const progressRecords = users.flatMap(user => courseIds.map(courseId => ({ user_id: user.id, course_id: courseId, deadline_date: deadlineDate })));
+        if (progressRecords.length > 0) {
+            await supabaseAdmin.from('user_progress').upsert(progressRecords, { onConflict: 'user_id, course_id' });
+        }
+        return { message: `Group assigned to department ${department}. ${progressRecords.length} course assignments created/updated.` };
+    },
+    delete_course_material: async ({ payload, supabaseAdmin }) => {
+        const { material_id, storage_path } = payload;
+        if (!material_id || !storage_path) throw { status: 400, message: 'Material ID and storage path are required.' };
+        await supabaseAdmin.storage.from('course-materials').remove([storage_path]);
+        await supabaseAdmin.from('course_materials').delete().eq('id', material_id);
+        return { message: 'Material deleted successfully.' };
+    },
+    save_leaderboard_settings: async ({ payload, supabaseAdmin }) => {
+        const { metrics } = payload;
+        if (!metrics) throw { status: 400, message: 'Metrics object is required.' };
+        const { error } = await supabaseAdmin.from('leaderboard_settings').upsert({ id: 1, metrics, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return { message: 'Leaderboard settings saved.' };
+    },
+    assign_course_to_user: async ({ payload, supabaseAdmin }) => {
+        const { user_email, course_id } = payload;
+        if (!user_email || !course_id) throw { status: 400, message: 'User email and course ID are required.' };
+        const { data: users, error: userError } = await supabaseAdmin.rpc('get_all_users_with_details').eq('email', user_email);
+        if (userError || !users || users.length === 0) throw { status: 404, message: 'User not found by email.' };
+        await supabaseAdmin.from('user_progress').insert({ user_id: users[0].id, course_id: course_id });
+        return { message: `Course assigned to ${user_email}.` };
+    },
+    text_to_speech: async ({ payload }) => {
+        const { text, course_id } = payload;
+        if (!text || !course_id) throw { status: 400, message: 'Text and course_id are required for TTS.' };
+        try {
+            const ttsResponse = await axios.post(TTS_SERVICE_URL, { text, course_id });
+            return { audioUrl: ttsResponse.data.url };
+        } catch (ttsError) {
+            console.error('Error calling Python TTS service:', ttsError);
+            throw new Error('Failed to generate audio summary.');
+        }
+    },
+    get_simulation_results: async ({ supabaseAdmin }) => {
+        const { data, error } = await supabaseAdmin.from('simulation_results').select('created_at, scenario, persona, evaluation, users(full_name)');
+        if (error) throw error;
+        return data;
+    },
+    get_leaderboard_settings: async ({ supabaseAdmin }) => {
+        const { data, error } = await supabaseAdmin.from('leaderboard_settings').select('*');
+        if (error) throw error;
+        return data;
+    },
+    upload_course_material: async ({ payload, supabaseAdmin }) => {
+        const { course_id, file_name, file_data } = payload;
+        if (!course_id || !file_name || !file_data) throw { status: 400, message: 'Missing required fields for material upload.' };
+        const buffer = Buffer.from(file_data, 'base64');
+        const storagePath = `course-materials/${course_id}/${Date.now()}-${file_name}`;
+        const { error: uploadError } = await supabaseAdmin.storage.from('course-materials').upload(storagePath, buffer);
+        if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+        const { data: urlData } = supabaseAdmin.storage.from('course-materials').getPublicUrl(storagePath);
+        const { data: dbRecord, error: dbError } = await supabaseAdmin.from('course_materials').insert({ course_id, file_name, storage_path: storagePath, public_url: urlData.publicUrl }).select().single();
+        if (dbError) throw dbError;
+        return dbRecord;
+    },
+};
+
+// Главный эндпоинт админки
+apiRouter.post('/admin', adminAuthMiddleware, async (req, res) => {
     const { action, ...payload } = req.body;
+    const handler = adminActionHandlers[action];
+
+    if (!handler) {
+        return res.status(400).json({ error: `Unknown action: ${action}` });
+    }
 
     try {
-        let data;
-        // Используем админский клиент для операций, требующих полных прав
         const supabaseAdmin = createSupabaseAdminClient();
+        const handlerPayload = {
+            payload,
+            supabaseAdmin,
+            user: req.user,
+            token: req.token,
+            res // Pass response object for handlers that need to send a response early
+        };
+        const data = await handler(handlerPayload);
 
-        switch (action) {
-            case 'create_course': {
-                const { title } = payload;
-                if (!title) return res.status(400).json({ error: 'Title is required to create a course.' });
-                const { data: newCourse, error } = await supabaseAdmin
-                    .from('courses')
-                    .insert({ title })
-                    .select()
-                    .single();
-                if (error) throw error;
-                data = newCourse;
-                break;
-            }
-            case 'get_courses_admin': {
-                const { data: courses, error } = await supabaseAdmin.from('courses').select('*');
-                if (error) throw error;
-                data = courses;
-                break;
-            }
-
-            case 'get_all_users': {
-                const { data: users, error } = await supabaseAdmin
-                    .from('users')
-                    .select('id, full_name, department');
-
-                if (error) throw error;
-                // The frontend might expect an 'email' field which is in auth.users, not public.users.
-                // We can join later if needed, but for now, this prevents the crash.
-                const formattedUsers = users.map(u => ({ ...u, email: 'N/A (see full_name)' }));
-                data = formattedUsers;
-                break;
-            }
-
-            case 'get_departments': {
-                const { data: users, error } = await supabaseAdmin
-                    .from('users')
-                    .select('department');
-
-                if (error) throw error;
-
-                // Get unique, non-empty department names
-                const departmentNames = [...new Set(users.map(u => u.department).filter(d => d && d.trim() !== ''))];
-                data = departmentNames.sort(); // Sort them alphabetically
-                break;
-            }
-
-            case 'get_course_details': {
-                const { course_id } = payload;
-                if (!course_id) return res.status(400).json({ error: 'A valid course_id is required.' });
-                const { data: courseDetails, error } = await supabaseAdmin.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
-                if (error) throw error;
-                data = courseDetails;
-                break;
-            }
-
-             case 'publish_course': {
-                const { course_id, title, description, content } = payload;
-                if (!course_id || !title || !description || !content) {
-                    return res.status(400).json({ error: 'Missing required fields for publishing.' });
-                }
-                const { error } = await supabaseAdmin
-                    .from('courses')
-                    .update({ title, description, content, updated_at: new Date().toISOString() })
-                    .eq('id', course_id);
-                if (error) throw error;
-                data = { message: `Course ${course_id} successfully published.` };
-                break;
-            }
-
-
-            case 'delete_course': {
-                const { course_id } = payload;
-                if (!course_id) return res.status(400).json({ error: 'course_id is required.' });
-                await supabaseAdmin.from('course_materials').delete().eq('course_id', course_id);
-                await supabaseAdmin.from('user_progress').delete().eq('course_id', course_id);
-                await supabaseAdmin.from('courses').delete().eq('id', course_id);
-                data = { message: `Course ${course_id} deleted.` };
-                break;
-            }
-
-            case 'upload_and_process': {
-                const jobId = crypto.randomUUID();
-                await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'file_upload', status: 'pending', payload });
-                handleUploadAndProcess(jobId, payload, token).catch(console.error); // Fire and forget
-                return res.status(202).json({ jobId });
-            }
-
-            case 'generate_content': {
-                const jobId = crypto.randomUUID();
-                await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'content_generation', status: 'pending', payload });
-                handleGenerateContent(jobId, payload, token).catch(console.error); // Fire and forget
-                return res.status(202).json({ jobId });
-            }
-
-            case 'get_course_groups': {
-                const { data: groups, error } = await supabaseAdmin.from('course_groups').select('*');
-                if (error) throw error;
-                data = groups;
-                break;
-            }
-
-            case 'create_course_group': {
-                const { group_name, is_for_new_employees, start_date, recurrence_period } = payload;
-                if (!group_name) {
-                    return res.status(400).json({ error: 'Group name is required.' });
-                }
-                const { data: newGroup, error } = await supabaseAdmin
-                    .from('course_groups')
-                    .insert({
-                        group_name,
-                        is_for_new_employees: is_for_new_employees || false,
-                        start_date: start_date || null,
-                        recurrence_period: recurrence_period || null
-                    })
-                    .select()
-                    .single();
-
-                if (error) throw error;
-                data = newGroup;
-                break;
-            }
-
-            case 'update_course_group': {
-                const { group_id, group_name, is_for_new_employees, start_date, recurrence_period } = payload;
-                if (!group_id || !group_name) return res.status(400).json({ error: 'Group ID and name are required.' });
-                const { data: updatedGroup, error } = await supabaseAdmin
-                    .from('course_groups')
-                    .update({ group_name, is_for_new_employees, start_date, recurrence_period })
-                    .eq('id', group_id)
-                    .select()
-                    .single();
-                if (error) throw error;
-                data = updatedGroup;
-                break;
-            }
-
-            case 'delete_course_group': {
-                const { group_id } = payload;
-                if (!group_id) return res.status(400).json({ error: 'Group ID is required.' });
-                await supabaseAdmin.from('course_group_items').delete().eq('group_id', group_id);
-                await supabaseAdmin.from('course_groups').delete().eq('id', group_id);
-                data = { message: 'Group deleted successfully.' };
-                break;
-            }
-
-            case 'get_group_details': {
-                const { group_id } = payload;
-                if (!group_id) return res.status(400).json({ error: 'Group ID is required.' });
-                const { data: groupDetails, error } = await supabaseAdmin
-                    .from('course_groups')
-                    .select('*, course_group_items(course_id)')
-                    .eq('id', group_id)
-                    .single();
-                if (error) throw error;
-                data = groupDetails;
-                break;
-            }
-
-            case 'update_courses_in_group': {
-                const { group_id, course_ids } = payload;
-                if (!group_id || !Array.isArray(course_ids)) return res.status(400).json({ error: 'Group ID and course_ids array are required.' });
-                await supabaseAdmin.from('course_group_items').delete().eq('group_id', group_id);
-                if (course_ids.length > 0) {
-                    const itemsToInsert = course_ids.map(course_id => ({ group_id, course_id }));
-                    await supabaseAdmin.from('course_group_items').insert(itemsToInsert);
-                }
-                data = { message: 'Courses in group updated successfully.' };
-                break;
-            }
-
-            case 'assign_group_to_department': {
-                 console.warn("TODO: 'assign_group_to_department' is not fully implemented.");
-                 data = { message: `Placeholder for assigning group to department.` };
-                 break;
-            }
-
-            case 'delete_course_material': {
-                const { material_id, storage_path } = payload;
-                if (!material_id || !storage_path) return res.status(400).json({ error: 'Material ID and storage path are required.' });
-                await supabaseAdmin.storage.from('course-materials').remove([storage_path]);
-                await supabaseAdmin.from('course_materials').delete().eq('id', material_id);
-                data = { message: 'Material deleted successfully.' };
-                break;
-            }
-
-            case 'save_leaderboard_settings': {
-                const { metrics } = payload;
-                if (!metrics) return res.status(400).json({ error: 'Metrics object is required.' });
-                const { error } = await supabaseAdmin.from('leaderboard_settings').upsert({ id: 1, metrics, updated_at: new Date().toISOString() });
-                if (error) throw error;
-                data = { message: 'Leaderboard settings saved.' };
-                break;
-            }
-
-            case 'assign_course_to_user': {
-                const { user_email, course_id } = payload;
-                if (!user_email || !course_id) return res.status(400).json({ error: 'User email and course ID are required.' });
-                const { data: userToAssign, error: userError } = await supabaseAdmin.from('users').select('id').eq('email', user_email).single();
-                // This will fail as email is not in public.users. Needs a proper fix later.
-                if (userError || !userToAssign) return res.status(404).json({error: 'User not found by email.'});
-
-                await supabaseAdmin.from('user_progress').insert({ user_id: userToAssign.id, course_id: course_id });
-                data = { message: `Course assigned to ${user_email}.` };
-                break;
-            }
-
-            case 'text_to_speech': {
-                const { text, course_id } = payload;
-                if (!text || !course_id) {
-                    return res.status(400).json({ error: 'Text and course_id are required for TTS.' });
-                }
-                try {
-                    const ttsResponse = await axios.post(TTS_SERVICE_URL, {
-                        text: text,
-                        course_id: course_id
-                    });
-                    data = { audioUrl: ttsResponse.data.url };
-                } catch (ttsError) {
-                    console.error('Error calling Python TTS service:', ttsError);
-                    throw new Error('Failed to generate audio summary.');
-                }
-                break;
-            }
-
-            case 'get_simulation_results': {
-                const { data: results, error } = await supabaseAdmin
-                    .from('simulation_results')
-                    .select(`
-                        created_at,
-                        scenario,
-                        persona,
-                        evaluation,
-                        users ( full_name )
-                    `);
-
-                if (error) throw error;
-                data = results;
-                break;
-            }
-
-            case 'get_leaderboard_settings': { // Исправлено под реальную схему
-                const { data: settings, error } = await supabaseAdmin.from('leaderboard_settings').select('*');
-                if (error) throw error;
-                data = settings;
-                break;
-            }
-
-            case 'upload_course_material': {
-                const { course_id, file_name, file_data } = payload;
-                if (!course_id || !file_name || !file_data) {
-                    return res.status(400).json({ error: 'Missing required fields for material upload.' });
-                }
-
-                // This assumes a public bucket named 'course-materials' exists.
-                const buffer = Buffer.from(file_data, 'base64');
-                const storagePath = `course-materials/${course_id}/${Date.now()}-${file_name}`;
-
-                const { error: uploadError } = await supabaseAdmin.storage
-                    .from('course-materials')
-                    .upload(storagePath, buffer);
-
-                if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
-
-                const { data: urlData } = supabaseAdmin.storage
-                    .from('course-materials')
-                    .getPublicUrl(storagePath);
-
-                const { data: dbRecord, error: dbError } = await supabaseAdmin
-                    .from('course_materials')
-                    .insert({
-                        course_id: course_id,
-                        file_name: file_name,
-                        storage_path: storagePath,
-                        public_url: urlData.publicUrl
-                    })
-                    .select()
-                    .single();
-
-                if (dbError) throw dbError;
-
-                data = dbRecord;
-                break;
-            }
-
-            default:
-                return res.status(400).json({ error: `Unknown action: ${action}` });
+        // If handler returns null, it means the response was already sent (e.g., for background jobs)
+        if (data !== null) {
+            res.status(200).json(data);
         }
-        res.status(200).json(data);
     } catch (error) {
         console.error(`Error processing action "${action}":`, error);
-        res.status(500).json({ error: 'An internal server error occurred.', errorMessage: error.message });
+        const status = error.status || 500;
+        const message = error.message || 'An internal server error occurred.';
+        res.status(status).json({ error: message });
     }
 });
 
@@ -565,34 +540,110 @@ apiRouter.post('/getCourses', async (req, res) => {
         const token = authHeader.split(' ')[1];
 
         const supabase = createSupabaseClient(token);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return res.status(401).json({ error: 'Unauthorized' });
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-        // Запрос курсов, доступных пользователю через группы
-        const { data: courses, error: coursesError } = await supabase.from('courses').select('id, title');
-        if (coursesError) throw coursesError;
+        const { data: userProfile, error: profileError } = await supabase.from('users').select('department').eq('id', user.id).single();
+        if (profileError) throw profileError;
+
+        if (!userProfile.department) {
+            return res.status(200).json([]); // User has no department, so no department-assigned groups
+        }
+
+        const { data: assignments, error: assignmentError } = await supabase
+            .from('group_assignments')
+            .select('group_id')
+            .eq('department', userProfile.department);
+
+        if (assignmentError) throw assignmentError;
+        const assignedGroupIds = assignments.map(a => a.group_id);
+
+        if (assignedGroupIds.length === 0) {
+            return res.status(200).json([]); // No groups assigned to this department
+        }
+
+        const { data: groups, error: groupsError } = await supabase
+            .from('course_groups')
+            .select(`
+                id,
+                group_name,
+                enforce_order,
+                course_group_items (
+                    order_index,
+                    courses (
+                        id,
+                        title,
+                        description,
+                        status,
+                        is_visible
+                    )
+                )
+            `)
+            .in('id', assignedGroupIds)
+            .eq('is_visible', true)
+            .order('order_index', { referencedTable: 'course_group_items', ascending: true });
+
+        if (groupsError) throw groupsError;
+
+        const visibleGroupsAndCourses = groups.map(group => {
+            const filteredItems = group.course_group_items
+                .filter(item => item.courses && item.courses.status === 'published' && item.courses.is_visible)
+                .sort((a, b) => a.order_index - b.order_index);
+
+            return {
+                id: group.id,
+                group_name: group.group_name,
+                enforce_order: group.enforce_order,
+                courses: filteredItems.map(item => item.courses)
+            };
+        }).filter(group => group.courses.length > 0);
+
+        const allCourseIds = visibleGroupsAndCourses.flatMap(g => g.courses.map(c => c.id));
+        if (allCourseIds.length === 0) {
+            return res.status(200).json([]);
+        }
 
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
-            .select('course_id, score, attempts, completed_at')
-            .eq('user_id', user.id);
+            .select('course_id, completed_at, score, percentage, deadline_date')
+            .eq('user_id', user.id)
+            .in('course_id', allCourseIds);
+
         if (progressError) throw progressError;
 
-        const userProgress = {};
-        progressData.forEach(p => {
-            userProgress[p.course_id] = { completed: !!p.completed_at, score: p.score, attempts: p.attempts };
+        const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
+
+        const finalResult = visibleGroupsAndCourses.map(group => {
+            let isPreviousCourseCompleted = true;
+
+            const coursesWithStatus = group.courses.map(course => {
+                const progress = userProgressMap.get(course.id);
+                let isLocked = false;
+
+                if (group.enforce_order) {
+                    if (!isPreviousCourseCompleted) {
+                        isLocked = true;
+                    }
+                    isPreviousCourseCompleted = !!progress?.completed_at;
+                }
+
+                const { status, is_visible, ...courseDetails } = course;
+
+                return {
+                    ...courseDetails,
+                    progress: progress || null,
+                    is_locked: isLocked
+                };
+            });
+
+            return { ...group, courses: coursesWithStatus };
         });
 
-        const formattedCourses = courses.map(course => ({
-            id: course.id,
-            title: course.title,
-            isAssigned: userProgress.hasOwnProperty(course.id), // Проверяем, есть ли прогресс
-        }));
+        res.status(200).json(finalResult);
 
-        res.status(200).json({ courses: formattedCourses, userProgress });
     } catch (error) {
-        console.error('Error getting courses:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Error in /api/getCourses:', error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
