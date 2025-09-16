@@ -858,8 +858,15 @@
 
     async function showProduct(courseId, forceRegenerate = false) {
         document.body.classList.add('presentation-active-fullscreen');
-        currentCourse = courses.find(c => c.id === courseId);
-        if (!currentCourse) return;
+
+        // Correctly find the course within the nested group structure
+        currentCourse = courses.flatMap(g => g.courses).find(c => c.id === courseId);
+
+        if (!currentCourse) {
+            console.error(`Course with ID ${courseId} not found in any group.`);
+            showMessage('Не удалось найти запрошенный курс.', 'Пожалуйста, вернитесь в меню и попробуйте снова.');
+            return;
+        }
         windowTitle.textContent = currentCourse.title;
 
         document.getElementById('main-flex-container').classList.add('presentation-active');
