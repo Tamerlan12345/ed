@@ -1109,7 +1109,9 @@
                         body: JSON.stringify({ course_id: courseId })
                     });
                     alert('Вы успешно записаны на курс! Он появится в ваших назначенных курсах.');
-                    // Switch to the "Assigned" tab and re-render the view
+                    // Re-fetch all course data to ensure the UI is up-to-date
+                    await showMainMenu();
+                    // Then switch to the 'assigned' tab
                     document.querySelector('.tab-btn[data-filter="assigned"]').click();
                 } catch (error) {
                     console.error('Failed to assign course:', error);
