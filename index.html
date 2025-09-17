@@ -245,6 +245,10 @@
             padding: 0 !important;
             overflow: hidden !important;
         }
+        /* New rule to prevent the main content area from scrolling when the presentation is active */
+        .content-area.no-scroll {
+            overflow-y: hidden;
+        }
         body.presentation-active-fullscreen .presentation-wrapper {
             padding: 0;
             gap: 0;
@@ -980,13 +984,17 @@
                 break;
         }
 
+        const descriptionText = course.group_name
+            ? `Курс из группы: <strong>${course.group_name}</strong>`
+            : (truncateText(course.description) || 'Нет описания.');
+
         menuItem.innerHTML = `
             <div>
                 <h3>
                     <span class="menu-item-icon">${course.user_status === 'completed' ? '🏆' : '📚'}</span>
                     ${course.title}
                 </h3>
-                <p style="font-size: 0.9em; color: var(--text-light-color);">${truncateText(course.description) || 'Нет описания.'}</p>
+                <p style="font-size: 0.9em; color: var(--text-light-color);">${descriptionText}</p>
             </div>
             <div style="text-align: right;">${buttonHtml}</div>
         `;
@@ -1103,8 +1111,9 @@
         backButtonAction = showMainMenu;
         productContent.innerHTML = '';
         productContent.classList.remove('presentation-view');
-        document.body.classList.remove('presentation-active-fullscreen');
-        contentArea.classList.remove('presentation-mode');
+
+        // Ensure scrolling is re-enabled on the main content area
+        contentArea.classList.remove('no-scroll');
 
         const menu = document.createElement('div');
         menu.className = 'course-actions-menu';
@@ -1204,10 +1213,8 @@
         backToMenuBtn.textContent = '❮ Назад к курсу';
         backButtonAction = renderCourseActions;
 
-        // REMOVED: These lines forced a fullscreen view, which is no longer desired.
-        // The layout is now handled by the 'presentation-active' class on the container.
-        // document.body.classList.add('presentation-active-fullscreen');
-        // contentArea.classList.add('presentation-mode');
+        // Disable scrolling on the parent container to prevent double scrollbars
+        contentArea.classList.add('no-scroll');
 
         productContent.classList.add('presentation-view');
         assistantContainer.classList.add('hidden');
