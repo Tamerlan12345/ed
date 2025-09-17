@@ -1238,6 +1238,12 @@
         // 4. Append the final structure to the DOM
         productContent.appendChild(presentationWrapper);
 
+        // Move the nav container to be a direct child of the wrapper for robust layout
+        const nav = productContent.querySelector('.slider-nav-container');
+        if (nav) { // Check if nav exists (it won't in case of an error during render)
+             presentationWrapper.appendChild(nav);
+        }
+
         // 5. Start time tracking
         if (timeTrackingInterval) clearInterval(timeTrackingInterval);
         secondsSinceLastUpdate = 0;
@@ -1489,6 +1495,15 @@
         document.getElementById('leaderboard-container').classList.add('hidden');
         simulatorView.classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
+
+        // Check if we are inside a course context
+        if (currentCourse) {
+            backButtonAction = renderCourseActions;
+            backToMenuBtn.textContent = '❮ Назад к курсу';
+        } else {
+            backButtonAction = showMainMenu;
+            backToMenuBtn.textContent = '❮ Назад в меню';
+        }
 
         simulatorSetup.classList.remove('hidden');
         simulatorChatArea.classList.add('hidden');
