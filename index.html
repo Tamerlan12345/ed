@@ -53,6 +53,11 @@
     </style>
     <style>
         /* Floating Chat Button Styles */
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 174, 239, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(0, 174, 239, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 174, 239, 0); }
+        }
         #floating-chat-btn {
             position: fixed;
             bottom: 20px;
@@ -69,6 +74,7 @@
             align-items: center;
             z-index: 1000;
             transition: all .3s ease;
+            animation: pulse 2.5s infinite;
         }
         #floating-chat-btn:hover {
             transform: scale(1.1);
