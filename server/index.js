@@ -914,6 +914,7 @@ app.use('/api', apiRouter);
 
 // --- User-Facing API Endpoints ---
 
+// --- ОБНОВЛЕННЫЙ ЭНДПОИНТ ---
 apiRouter.post('/getCourseCatalog', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
@@ -924,16 +925,16 @@ apiRouter.post('/getCourseCatalog', async (req, res) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-        // 1. Get IDs of courses the user is already assigned to
+        // 1. Get all of the user's progress records into a Map for efficient lookup.
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
-            .select('course_id')
+            .select('course_id, completed_at')
             .eq('user_id', user.id);
         if (progressError) throw progressError;
-        const assignedCourseIds = progressData.map(p => p.course_id);
+        const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
 
-        // 2. Get all courses that are published and visible in the catalog
-        const { data: allEligibleCourses, error: coursesError } = await supabase
+        // 2. Get all courses that are published and visible in the catalog.
+        const { data: allCatalogCourses, error: coursesError } = await supabase
             .from('courses')
             .select('id, title, description')
             .eq('status', 'published')
@@ -941,10 +942,20 @@ apiRouter.post('/getCourseCatalog', async (req, res) => {
 
         if (coursesError) throw coursesError;
 
-        // 3. Filter out courses the user is already assigned to
-        const catalogCourses = allEligibleCourses.filter(course => !assignedCourseIds.includes(course.id));
+        // 3. Augment each course with the user's status.
+        const finalCatalog = allCatalogCourses.map(course => {
+            const progress = userProgressMap.get(course.id);
+            let user_status = 'not_assigned';
+            if (progress) {
+                user_status = progress.completed_at ? 'completed' : 'assigned';
+            }
+            return {
+                ...course,
+                user_status // 'not_assigned', 'assigned', or 'completed'
+            };
+        });
 
-        res.status(200).json(catalogCourses);
+        res.status(200).json(finalCatalog);
 
     } catch (error) {
         console.error('Error in /api/getCourseCatalog:', error);
