@@ -323,6 +323,7 @@
         }
         .presentation-wrapper {
             display: flex;
+            flex-direction: column; /* This ensures the slider and nav stack vertically */
             height: 100%;
         }
         .presentation-column {
@@ -638,6 +639,13 @@
     const restartSimulationBtn = document.getElementById('restart-simulation-btn');
 
     const contentLoader = document.getElementById('content-loader');
+
+    function truncateText(text, maxLength = 120) {
+        if (!text || text.length <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength) + '...';
+    }
 
     function showLoader() {
         contentArea.classList.add('hidden');
@@ -978,7 +986,7 @@
                     <span class="menu-item-icon">${course.user_status === 'completed' ? '🏆' : '📚'}</span>
                     ${course.title}
                 </h3>
-                <p style="font-size: 0.9em; color: var(--text-light-color);">${course.description || 'Нет описания.'}</p>
+                <p style="font-size: 0.9em; color: var(--text-light-color);">${truncateText(course.description) || 'Нет описания.'}</p>
             </div>
             <div style="text-align: right;">${buttonHtml}</div>
         `;
@@ -1195,9 +1203,13 @@
     function showPresentationView() {
         backToMenuBtn.textContent = '❮ Назад к курсу';
         backButtonAction = renderCourseActions;
-        document.body.classList.add('presentation-active-fullscreen');
+
+        // REMOVED: These lines forced a fullscreen view, which is no longer desired.
+        // The layout is now handled by the 'presentation-active' class on the container.
+        // document.body.classList.add('presentation-active-fullscreen');
+        // contentArea.classList.add('presentation-mode');
+
         productContent.classList.add('presentation-view');
-        contentArea.classList.add('presentation-mode');
         assistantContainer.classList.add('hidden');
         document.getElementById('floating-chat-container').classList.remove('hidden');
 
