@@ -933,10 +933,19 @@ apiRouter.post('/getCourseCatalog', async (req, res) => {
         if (progressError) throw progressError;
         const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
 
-        // 2. Get all courses that are published and visible in the catalog.
+        // 2. Get all courses that are published and visible in the catalog, along with their group info.
         const { data: allCatalogCourses, error: coursesError } = await supabase
             .from('courses')
-            .select('id, title, description')
+            .select(`
+                id,
+                title,
+                description,
+                course_group_items (
+                    course_groups (
+                        group_name
+                    )
+                )
+            `)
             .eq('status', 'published')
             .eq('is_visible', true);
 
@@ -949,9 +958,17 @@ apiRouter.post('/getCourseCatalog', async (req, res) => {
             if (progress) {
                 user_status = progress.completed_at ? 'completed' : 'assigned';
             }
+
+            // Extract the first group name if it exists
+            const groupName = course.course_group_items?.[0]?.course_groups?.group_name || null;
+
+            // Return a cleaner object for the frontend
             return {
-                ...course,
-                user_status // 'not_assigned', 'assigned', or 'completed'
+                id: course.id,
+                title: course.title,
+                description: course.description,
+                group_name: groupName,
+                user_status
             };
         });
 
