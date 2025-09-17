@@ -121,27 +121,41 @@
             line-height: 1.45 !important;
         }
 
-        /* Responsive Layout for Presentation View */
-        .presentation-active {
-            flex-wrap: nowrap !important; /* Prevent wrapping when presentation is active */
-        }
-        .presentation-active #leaderboard-container {
-            flex: 0 0 320px !important; /* Fixed width sidebar */
-        }
-        .presentation-active #main-content-wrapper {
-            flex: 1 1 auto !important; /* Grow to fill remaining space */
-        }
-        .presentation-active .presentation-slider {
-            height: 68vh; /* Make the slider taller */
+        /* --- Presentation View Redesign --- */
+        /* This class is added to #main-flex-container when a course is active */
+        #main-flex-container.presentation-active {
+            flex-wrap: nowrap; /* Ensure columns stay side-by-side */
         }
 
+        /* By default, main content is on the right */
+        #main-content-wrapper { order: 2; }
+        #leaderboard-container { order: 1; }
+
+        /* When a presentation is active, flip the order and set flex properties */
+        #main-flex-container.presentation-active #main-content-wrapper {
+            order: 1; /* Presentation area moves to the left */
+            flex: 3 1 70%;
+        }
+        #main-flex-container.presentation-active #leaderboard-container {
+            order: 2; /* Leaderboard becomes the sidebar on the right */
+            flex: 1 1 30%;
+            min-width: 300px;
+        }
+
+        /* Make the presentation slider taller when active */
+        #main-flex-container.presentation-active .presentation-slider {
+            height: 70vh;
+        }
+
+        /* On smaller screens, stack them vertically */
         @media (max-width: 950px) {
-            .presentation-active {
-                flex-wrap: wrap !important;
+            #main-flex-container.presentation-active {
+                flex-wrap: wrap;
             }
-            .presentation-active #leaderboard-container,
-            .presentation-active #main-content-wrapper {
-                flex: 1 1 100% !important; /* Stack them on smaller screens */
+            #main-flex-container.presentation-active #main-content-wrapper,
+            #main-flex-container.presentation-active #leaderboard-container {
+                order: 0; /* Reset order */
+                flex: 1 1 100%; /* Each takes full width */
             }
         }
 
@@ -770,29 +784,37 @@
     }
 
     async function showMainMenu() {
+        // Stop any ongoing activities
         document.body.classList.remove('presentation-active-fullscreen');
-        backButtonAction = null; // No action needed when at main menu
         stopTimeTracking();
-        contentArea.classList.remove('presentation-mode');
+
+        // --- UI State Reset ---
         windowTitle.textContent = 'Главное Меню';
+        backButtonAction = null; // No custom back action needed
 
-        document.getElementById('main-flex-container').classList.remove('presentation-active');
-        document.getElementById('leaderboard-container').classList.remove('hidden');
-        document.getElementById('main-content-wrapper').classList.remove('hidden');
-
+        // Hide views that are not the main menu
         productContent.classList.add('hidden');
         testView.classList.add('hidden');
         testResultsView.classList.add('hidden');
+        simulatorView.classList.add('hidden');
         assistantContainer.classList.add('hidden');
         document.getElementById('floating-chat-container').classList.add('hidden');
-        simulatorView.classList.add('hidden');
-        
-        mainMenu.classList.remove('hidden');
-        document.getElementById('main-menu-tabs').classList.remove('hidden'); // Show tabs
-        extraToolsDiv.classList.remove('hidden');
         backToMenuBtn.classList.add('hidden');
 
+        // Show main dashboard elements
+        document.getElementById('leaderboard-container').classList.remove('hidden');
+        document.getElementById('main-content-wrapper').classList.remove('hidden');
+        mainMenu.classList.remove('hidden');
+        document.getElementById('main-menu-tabs').classList.remove('hidden');
+        extraToolsDiv.classList.remove('hidden');
+
+        // Remove the presentation-active class to restore the default layout
+        document.getElementById('main-flex-container').classList.remove('presentation-active');
+
+        // --- Load Dynamic Content ---
         loadLeaderboard();
+
+        // Display skeletons while loading
         mainMenu.innerHTML = '';
         for (let i = 0; i < 3; i++) {
             const skeleton = document.createElement('div');
@@ -933,15 +955,32 @@
     function createCatalogMenuItem(course) {
         const menuItem = document.createElement('div');
         menuItem.className = 'menu-item';
+
+        let buttonHtml = '';
+        switch (course.user_status) {
+            case 'not_assigned':
+                buttonHtml = `<button class="btn assign-course-btn" data-course-id="${course.id}" style="margin-top: 15px;">Начать изучение</button>`;
+                break;
+            case 'assigned':
+                buttonHtml = `<button class="btn" disabled style="margin-top: 15px; background-color: var(--text-light-color); cursor: not-allowed;">Курс уже назначен</button>`;
+                break;
+            case 'completed':
+                // Visually distinguish completed courses
+                menuItem.style.borderLeft = '5px solid var(--success-color)';
+                menuItem.style.backgroundColor = '#f8f9fa';
+                buttonHtml = `<p style="margin-top: 15px; font-weight: bold; color: var(--success-color);">✓ Курс пройден</p>`;
+                break;
+        }
+
         menuItem.innerHTML = `
             <div>
                 <h3>
-                    <span class="menu-item-icon">📚</span>
+                    <span class="menu-item-icon">${course.user_status === 'completed' ? '🏆' : '📚'}</span>
                     ${course.title}
                 </h3>
                 <p style="font-size: 0.9em; color: var(--text-light-color);">${course.description || 'Нет описания.'}</p>
             </div>
-            <button class="btn assign-course-btn" data-course-id="${course.id}" style="margin-top: 15px;">Начать изучение</button>
+            <div style="text-align: right;">${buttonHtml}</div>
         `;
         return menuItem;
     }
@@ -1203,16 +1242,25 @@
         }
 
         windowTitle.textContent = currentCourse.title;
+
+        // --- UI State Change for Presentation View ---
+        // 1. Add the class to the container to trigger the two-column layout
+        document.getElementById('main-flex-container').classList.add('presentation-active');
+
+        // 2. Keep the leaderboard visible, but hide the main menu content
         document.getElementById('main-menu-tabs').classList.add('hidden');
         document.getElementById('main-menu').classList.add('hidden');
-        document.getElementById('extra-tools').classList.add('hidden');
-        document.getElementById('leaderboard-container').classList.add('hidden');
+        extraToolsDiv.classList.add('hidden');
 
+        // 3. Show the product content area
         productContent.classList.remove('hidden');
+
+        // 4. Configure the back button
         backToMenuBtn.classList.remove('hidden');
         backToMenuBtn.textContent = '❮ Назад в меню';
         backButtonAction = showMainMenu;
 
+        // --- Load Course Content ---
         productContent.innerHTML = '<div class="loader"></div>';
         audioPlayerContainerUser.innerHTML = '';
         const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
@@ -1347,19 +1395,32 @@
                 button.textContent = 'Запись...';
 
                 try {
-                    await fetchAuthenticated('/api/assign-course', {
+                    const response = await fetchAuthenticated('/api/assign-course', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ course_id: courseId })
                     });
-                    alert('Вы успешно записаны на курс! Он появится в ваших назначенных курсах.');
-                    // Force a full refresh of the main menu to show the new course
-                    showMainMenu();
+
+                    if (response.message === 'Course already assigned.') {
+                         alert('Вы уже записаны на этот курс.');
+                         button.textContent = 'Курс уже назначен';
+                         // No need to call showMainMenu() here, just update the button state
+                    } else {
+                        alert('Вы успешно записаны на курс! Он появится на вкладке "Назначенные".');
+                        // Switch to the 'assigned' tab to show the user their new course.
+                        document.querySelector('.tab-btn[data-filter="assigned"]').click();
+                    }
                 } catch (error) {
                     console.error('Failed to assign course:', error);
-                    alert(`Не удалось записаться на курс: ${error.message}`);
-                    button.disabled = false;
-                    button.textContent = 'Начать изучение';
+                    // Provide a clearer message for the most common error.
+                    if (error.message && error.message.includes('unique constraint')) {
+                        alert('Не удалось записаться: Вы уже записаны на этот курс.');
+                        button.textContent = 'Курс уже назначен';
+                    } else {
+                        alert(`Не удалось записаться на курс: ${error.message}`);
+                        button.disabled = false;
+                        button.textContent = 'Начать изучение';
+                    }
                 }
             }
         });

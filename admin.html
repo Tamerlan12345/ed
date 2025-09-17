@@ -770,8 +770,11 @@
                     <b style="vertical-align: middle;">Видимость в каталоге:</b> Курс доступен для самостоятельного выбора пользователями.
                 </label>
                 <p id="autosave-status" style="font-style: italic; color: #666;"></p>
-                <button id="publish-btn" style="background-color: #28a745;">ОПУБЛИКОВАТЬ</button>
-                <button id="cancel-edit-btn" style="background-color: #6c757d;">Отмена</button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="save-draft-btn" style="background-color: #00AEEF; flex: 1;">Сохранить черновик</button>
+                    <button id="publish-btn" style="background-color: #28a745; flex: 2;">ОПУБЛИКОВАТЬ</button>
+                </div>
+                <button id="cancel-edit-btn" style="background-color: #6c757d; margin-top: 10px;">Отмена</button>
                 <hr>
                 <h3>Сопутствующие материалы</h3>
                 <div id="materials-list">${materialsHtml}</div>
@@ -789,8 +792,7 @@
         document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
         document.getElementById('upload-material-btn').addEventListener('click', uploadMaterialHandler);
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
-        // The autosave listener is now only attached to the WYSIWYG editor in renderWysiwygEditor
-        // to prevent saving on title/description changes, which was causing data structure issues.
+        document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
     }
 
     // --- COURSE MANAGEMENT ---
@@ -807,16 +809,41 @@
         autosaveTimer = setTimeout(async () => {
             const courseId = document.getElementById('course-id').value;
             if (!courseId) return;
-            // Autosave should only save the content part (summary and questions)
-            // Title and description changes are saved on "Publish"
+
+            // Autosave only saves the content, not title/description.
             const draftData = JSON.parse(document.getElementById('content').value || '{}');
+
             try {
                 await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
-                if (statusEl) statusEl.textContent = `Черновик контента сохранен в ${new Date().toLocaleTimeString()}`;
+                if (statusEl) statusEl.textContent = `Автосохранение: ${new Date().toLocaleTimeString()}`;
             } catch (e) {
-                if (statusEl) statusEl.textContent = 'Ошибка сохранения черновика.';
+                if (statusEl) statusEl.textContent = 'Ошибка автосохранения черновика.';
             }
-        }, 1000); // Autosave 1 second after last input
+        }, 2500); // Increased delay to 2.5 seconds
+    }
+
+    async function saveDraftHandler() {
+        if (autosaveTimer) clearTimeout(autosaveTimer); // Cancel any pending autosave
+
+        const courseId = document.getElementById('course-id').value;
+        if (!courseId) {
+            showToast('Сначала создайте курс, чтобы можно было сохранить черновик.', 'error');
+            return;
+        }
+
+        updateJsonFromWysiwyg(false); // Ensure latest content is in the textarea
+        const draftData = JSON.parse(document.getElementById('content').value || '{}');
+        const statusEl = document.getElementById('autosave-status');
+
+        try {
+            if (statusEl) statusEl.textContent = 'Сохранение...';
+            await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
+            showToast('Черновик успешно сохранен!', 'success');
+            if (statusEl) statusEl.textContent = `Черновик сохранен: ${new Date().toLocaleTimeString()}`;
+        } catch (e) {
+            showToast('Ошибка при сохранении черновика.', 'error');
+            if (statusEl) statusEl.textContent = 'Ошибка сохранения черновика.';
+        }
     }
 
     async function processFileHandler() {
