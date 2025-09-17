@@ -17,7 +17,7 @@ const cron = require('node-cron');
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env.PEXELS_API_KEY) : null;
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Рекомендуется использовать актуальную модель
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Рекомендуется использовать актуальную модель
 
 // --- Service URLs ---
 const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
