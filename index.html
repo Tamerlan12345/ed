@@ -884,9 +884,7 @@
 
     function renderCourseGroups(filter = 'assigned') {
         mainMenu.innerHTML = '';
-        mainMenu.style.display = 'block';
-
-        let hasContent = false;
+        mainMenu.style.display = 'block'; // Меняем на block, так как grid будет внутри групп
 
         const filteredGroups = courses.map(group => {
             const filteredCourses = group.courses.filter(course => {
@@ -895,12 +893,10 @@
 
                 if (filter === 'assigned') return !isCompleted;
                 if (filter === 'completed') return isCompleted;
-                return false; // Default case, though we only have two tabs now
+                return false;
             });
-
-            // Return a new group object with the filtered courses
             return { ...group, courses: filteredCourses };
-        }).filter(group => group.courses.length > 0); // Only keep groups that have courses matching the filter
+        }).filter(group => group.courses.length > 0);
 
         if (filteredGroups.length === 0) {
             let message = 'Нет данных для отображения.';
@@ -919,7 +915,7 @@
             groupContainer.appendChild(groupHeader);
 
             const coursesGrid = document.createElement('div');
-            coursesGrid.className = 'main-menu';
+            coursesGrid.className = 'main-menu'; // Используем существующий класс с grid-стилями
             group.courses.forEach(course => {
                 coursesGrid.appendChild(createCourseMenuItem(course));
             });
@@ -1275,6 +1271,8 @@
         // Disable scrolling on the parent container to prevent double scrollbars
         contentArea.classList.add('no-scroll');
 
+        // By adding the .presentation-view class, we turn the productContent div into a flex container.
+        // This allows the .presentation-slider to grow and scroll, while the .slider-nav-container remains fixed at the bottom.
         productContent.classList.add('presentation-view');
         assistantContainer.classList.add('hidden');
         document.getElementById('floating-chat-container').classList.remove('hidden');
@@ -1285,7 +1283,8 @@
         // 2. Get presentation elements from the refactored function
         const { slider, navContainer } = renderPresentation(currentCourse.summary);
 
-        // 3. Append the slider and the nav container directly to the product content area
+        // 3. Append the slider and the nav container as separate siblings.
+        // This is crucial for the flexbox layout to work correctly and keep the nav outside the scrollable area.
         productContent.appendChild(slider);
         if (navContainer) {
             productContent.appendChild(navContainer);
