@@ -81,12 +81,9 @@ async function handleGenerateContent(jobId, payload) {
         console.log(`[Job ${jobId}] Starting content generation for course ${course_id}`);
 
         const { data: courseData, error: fetchError } = await supabaseAdmin.from('courses').select('description').eq('id', course_id).single();
-        if (fetchError) { // Only throw on actual fetch error
-            throw new Error(`Failed to fetch course data: ${fetchError.message}`);
+        if (fetchError || !courseData?.description) {
+            throw new Error('Course description not found or not yet processed.');
         }
-
-        // If description is missing, use a generic topic instead of failing the job.
-        const courseDescription = courseData?.description || 'General knowledge and professional skills.';
 
         const outputFormat = {
             summary: {
@@ -103,7 +100,7 @@ async function handleGenerateContent(jobId, payload) {
         const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}
 
 ИСХОДНЫЙ ТЕКСТ:
-${courseDescription}
+${courseData.description}
 
 ТРЕБОВАНИЯ К ФОРМАТУ ВЫВОДА:
 Обязательно верни результат в формате JSON, соответствующем этой структуре: ${JSON.stringify(outputFormat)}
@@ -117,15 +114,7 @@ ${courseDescription}
         console.log(`[Job ${jobId}] Generating content with Gemini...`);
         const result = await model.generateContent(finalPrompt);
         const response = await result.response;
-        let jsonString = response.text().replace(/```json\n|```/g, '').trim();
-
-        // Sanitize the string to ensure it's valid JSON.
-        // The model can sometimes return a string with extra text or invalid formatting.
-        const firstBracket = jsonString.indexOf('{');
-        const lastBracket = jsonString.lastIndexOf('}');
-        if (firstBracket !== -1 && lastBracket > firstBracket) {
-            jsonString = jsonString.substring(firstBracket, lastBracket + 1);
-        }
+        const jsonString = response.text().replace(/```json\n|```/g, '').trim();
 
         const parsedContent = JSON.parse(jsonString);
 
