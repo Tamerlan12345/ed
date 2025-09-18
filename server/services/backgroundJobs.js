@@ -81,13 +81,15 @@ async function handleGenerateContent(jobId, payload) {
         }
 
         const outputFormat = {
-            summary: [
-                {
-                    slide_title: "string (Заголовок слайда)",
-                    html_content: "string (HTML-контент слайда...)",
-                    image_search_term: "string (1-2 слова на английском для поиска картинки на Pexels)"
-                }
-            ],
+            summary: {
+                slides: [
+                    {
+                        slide_title: "string (Заголовок слайда)",
+                        html_content: "string (HTML-контент слайда...)",
+                        image_search_term: "string (1-2 слова на английском для поиска картинки на Pexels)"
+                    }
+                ]
+            },
             questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
         };
         const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}
@@ -111,8 +113,8 @@ ${courseData.description}
 
         const parsedContent = JSON.parse(jsonString);
 
-        if (pexelsClient && parsedContent.summary && Array.isArray(parsedContent.summary)) {
-            for (const slide of parsedContent.summary) {
+        if (pexelsClient && parsedContent.summary && Array.isArray(parsedContent.summary.slides)) {
+            for (const slide of parsedContent.summary.slides) {
                 if (slide.image_search_term) {
                     try {
                         const query = slide.image_search_term;
