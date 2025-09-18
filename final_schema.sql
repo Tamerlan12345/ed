@@ -120,7 +120,7 @@ BEGIN
   -- Эта функция проверяет наличие 'admin' в пользовательских ролях внутри JWT.
   -- Это безопаснее, так как JWT не может быть изменен на стороне клиента.
   -- Для назначения админа используйте: supabase.auth.admin.updateUserById(user_id, { user_metadata: { role: 'admin' } })
-  RETURN auth.jwt()->>'role' = 'service_role' OR auth.jwt()->'user_metadata'->>'role' = '"admin"';
+  RETURN auth.jwt()->>'role' = 'service_role' OR (auth.jwt()->'user_metadata'->>'role')::text = 'admin';
 END;
 $$ LANGUAGE plpgsql STABLE;
 

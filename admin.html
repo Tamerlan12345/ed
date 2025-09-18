@@ -661,6 +661,7 @@
     async function handleLogin() {
         const email = document.getElementById('admin-email').value;
         const password = document.getElementById('admin-password').value;
+        const loginBtn = document.getElementById('login-btn');
         loginBtn.disabled = true; loginBtn.textContent = 'Вход...';
         document.getElementById('login-error').classList.add('hidden');
         try {
