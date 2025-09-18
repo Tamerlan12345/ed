@@ -333,13 +333,27 @@
             font-size: 2.5em;
             margin-bottom: 15px;
         }
+        .presentation-wrapper {
+            display: flex;
+            gap: 20px;
+            height: 100%;
+        }
+        .presentation-column {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
         .actions-sidebar {
+            flex: 1;
+            min-width: 300px;
             padding: 20px;
             background: #f8f9fa;
             border-left: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
             gap: 15px;
+            overflow-y: auto;
         }
         .actions-sidebar h3 {
             margin-top: 0;
@@ -469,6 +483,18 @@
 
             #main-flex-container {
                 flex-direction: column;
+            }
+        }
+
+        @media (max-width: 950px) {
+            .presentation-wrapper {
+                flex-direction: column;
+                height: auto;
+            }
+            .actions-sidebar {
+                min-width: 100%;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
             }
         }
 
@@ -884,7 +910,9 @@
 
     function renderCourseGroups(filter = 'assigned') {
         mainMenu.innerHTML = '';
-        mainMenu.style.display = 'block'; // Меняем на block, так как grid будет внутри групп
+        mainMenu.style.display = 'block';
+
+        let hasContent = false;
 
         const filteredGroups = courses.map(group => {
             const filteredCourses = group.courses.filter(course => {
@@ -893,10 +921,12 @@
 
                 if (filter === 'assigned') return !isCompleted;
                 if (filter === 'completed') return isCompleted;
-                return false;
+                return false; // Default case, though we only have two tabs now
             });
+
+            // Return a new group object with the filtered courses
             return { ...group, courses: filteredCourses };
-        }).filter(group => group.courses.length > 0);
+        }).filter(group => group.courses.length > 0); // Only keep groups that have courses matching the filter
 
         if (filteredGroups.length === 0) {
             let message = 'Нет данных для отображения.';
@@ -915,7 +945,7 @@
             groupContainer.appendChild(groupHeader);
 
             const coursesGrid = document.createElement('div');
-            coursesGrid.className = 'main-menu'; // Используем существующий класс с grid-стилями
+            coursesGrid.className = 'main-menu';
             group.courses.forEach(course => {
                 coursesGrid.appendChild(createCourseMenuItem(course));
             });
@@ -1144,6 +1174,22 @@
         navContainer.appendChild(counter);
         navContainer.appendChild(nextBtn);
 
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.innerHTML = '⛶';
+        fullscreenBtn.title = 'Полноэкранный режим';
+        fullscreenBtn.style.marginLeft = 'auto';
+        fullscreenBtn.addEventListener('click', () => {
+            const isFullscreen = document.body.classList.toggle('presentation-active-fullscreen');
+            if (isFullscreen) {
+                fullscreenBtn.innerHTML = '↘↙';
+                fullscreenBtn.title = 'Выйти из полноэкранного режима';
+            } else {
+                fullscreenBtn.innerHTML = '⛶';
+                fullscreenBtn.title = 'Полноэкранный режим';
+            }
+        });
+        navContainer.appendChild(fullscreenBtn);
+
         let currentIndex = 0;
         const updateSliderUI = () => {
             slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
@@ -1264,33 +1310,72 @@
         }
     }
 
+    function renderCourseSidebar() {
+        const sidebar = document.createElement('div');
+        sidebar.className = 'actions-sidebar';
+
+        const header = document.createElement('h3');
+        header.textContent = 'Инструменты';
+        sidebar.appendChild(header);
+
+        const testBtn = document.createElement('button');
+        testBtn.textContent = '🎯 Начать тестирование';
+        testBtn.onclick = () => {
+            stopTimeTracking();
+            startTest(currentCourse.id);
+        };
+        sidebar.appendChild(testBtn);
+
+        if (currentCourse.materials && currentCourse.materials.length > 0) {
+            const materialsDiv = document.createElement('div');
+            materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>';
+            const materialsList = document.createElement('ul');
+            materialsList.style.cssText = 'padding-left: 20px; margin: 0; list-style-type: "💾 ";';
+            currentCourse.materials.forEach(m => {
+                const li = document.createElement('li');
+                li.style.paddingLeft = '10px';
+                li.innerHTML = `<a href="${m.public_url}" target="_blank" download>${m.file_name}</a>`;
+                materialsList.appendChild(li);
+            });
+            materialsDiv.appendChild(materialsList);
+            sidebar.appendChild(materialsDiv);
+        }
+
+        // Move AI assistant into the sidebar
+        sidebar.appendChild(assistantContainer);
+        assistantContainer.classList.remove('hidden');
+        const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
+        chatBox.innerHTML = savedChat || '';
+
+        return sidebar;
+    }
+
     function showPresentationView() {
         backToMenuBtn.textContent = '❮ Назад к курсу';
         backButtonAction = renderCourseActions;
 
-        // Disable scrolling on the parent container to prevent double scrollbars
         contentArea.classList.add('no-scroll');
+        productContent.innerHTML = ''; // Clear previous content (e.g., the course actions menu)
 
-        // By adding the .presentation-view class, we turn the productContent div into a flex container.
-        // This allows the .presentation-slider to grow and scroll, while the .slider-nav-container remains fixed at the bottom.
-        productContent.classList.add('presentation-view');
-        assistantContainer.classList.add('hidden');
-        document.getElementById('floating-chat-container').classList.remove('hidden');
+        const wrapper = document.createElement('div');
+        wrapper.className = 'presentation-wrapper';
 
-        // 1. Clear previous content
-        productContent.innerHTML = '';
+        const presentationCol = document.createElement('div');
+        presentationCol.className = 'presentation-column';
 
-        // 2. Get presentation elements from the refactored function
         const { slider, navContainer } = renderPresentation(currentCourse.summary);
-
-        // 3. Append the slider and the nav container as separate siblings.
-        // This is crucial for the flexbox layout to work correctly and keep the nav outside the scrollable area.
-        productContent.appendChild(slider);
+        presentationCol.appendChild(slider);
         if (navContainer) {
-            productContent.appendChild(navContainer);
+            presentationCol.appendChild(navContainer);
         }
 
-        // 5. Start time tracking
+        const sidebar = renderCourseSidebar();
+
+        wrapper.appendChild(presentationCol);
+        wrapper.appendChild(sidebar);
+        productContent.appendChild(wrapper);
+
+        // Start time tracking
         if (timeTrackingInterval) clearInterval(timeTrackingInterval);
         secondsSinceLastUpdate = 0;
         timeTrackingInterval = setInterval(() => {
