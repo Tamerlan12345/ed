@@ -1,7 +1,25 @@
+# Node dependencies
 node_modules
 npm-debug.log
+
+# Environment files
 .env
+
+# Git files
 .git
 .gitignore
+
+# Docker files
 Dockerfile
 .dockerignore
+
+# Local development and test files
+jules-scratch/
+test/
+
+# Documentation and DB schema, not needed in production
+README.md
+final_schema.sql
+
+# The separate Python service is not part of this container
+audio_service/

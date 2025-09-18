@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/shared/constants.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f4f7f6; }
         h1, h2, h3 { color: #005A9C; }
@@ -335,35 +336,8 @@
     </div>
 
 <script>
-    // --- CONSTANTS ---
-    const ACTIONS = {
-        CREATE_COURSE: 'create_course',
-        GET_COURSES_ADMIN: 'get_courses_admin',
-        GET_COURSE_DETAILS: 'get_course_details',
-        SAVE_COURSE_DRAFT: 'save_course_draft',
-        UPLOAD_AND_PROCESS: 'upload_and_process',
-        GENERATE_CONTENT: 'generate_content',
-        PUBLISH_COURSE: 'publish_course',
-        DELETE_COURSE: 'delete_course',
-        GET_COURSE_GROUPS: 'get_course_groups',
-        CREATE_COURSE_GROUP: 'create_course_group',
-        UPDATE_COURSE_GROUP: 'update_course_group',
-        DELETE_COURSE_GROUP: 'delete_course_group',
-        GET_GROUP_DETAILS: 'get_group_details',
-        UPDATE_COURSES_IN_GROUP: 'update_courses_in_group',
-        ASSIGN_GROUP_TO_DEPARTMENT: 'assign_group_to_department',
-        UPLOAD_COURSE_MATERIAL: 'upload_course_material',
-        DELETE_COURSE_MATERIAL: 'delete_course_material',
-        GET_DEPARTMENTS: 'get_departments',
-        GET_LEADERBOARD_SETTINGS: 'get_leaderboard_settings',
-        SAVE_LEADERBOARD_SETTINGS: 'save_leaderboard_settings',
-        GET_SIMULATION_RESULTS: 'get_simulation_results',
-        GET_ALL_USERS: 'get_all_users',
-        ASSIGN_COURSE_TO_USER: 'assign_course_to_user',
-        TEXT_TO_SPEECH: 'text_to_speech',
-    };
-
     // --- CORE SETUP ---
+    // The ACTIONS constant is now loaded from /shared/constants.js
     const SUPABASE_URL = 'https://wnsdlibhrlmgyszbyxat.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2RsaWJocmxtZ3lzemJ5eGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE0MjgsImV4cCI6MjA2OTg1NzQyOH0.Sgz-50dHj8M599sIjTRYs0kMP7b6kX2BJ-Gc-trMUQ4';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -1023,7 +997,7 @@
             // If a published course has content but no draft, create a draft from the published content.
             // This prevents the editor from opening empty and accidentally wiping content.
             if (course.status === 'published' && course.content && !course.draft_content) {
-                showToast('Создается черновик из опубликованной версии...', 'info');
+                showToast('Создан черновик на основе опубликованной версии. Ваши изменения не затронут курс до повторной публикации.', 'info');
                 // The draft should only contain the content object itself to be consistent.
                 const draftData = course.content;
                 await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });

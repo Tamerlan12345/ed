@@ -10,7 +10,7 @@ CREATE TABLE public.users (
     id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name text NULL,
     department text NULL,
-    is_admin boolean DEFAULT false NOT NULL
+    is_admin boolean DEFAULT false NOT NULL -- DEPRECATED: Will be removed in favor of JWT claims
 );
 
 CREATE TABLE public.courses (
@@ -113,12 +113,17 @@ CREATE TABLE public.group_assignments (
 -- # ФУНКЦИИ #
 -- ===========
 
-CREATE OR REPLACE FUNCTION public.is_admin()
+-- НОВАЯ, БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ПРАВ АДМИНИСТРАТОРА ЧЕРЕЗ JWT
+CREATE OR REPLACE FUNCTION public.is_claims_admin()
 RETURNS boolean AS $$
 BEGIN
-  RETURN (SELECT is_admin FROM public.users WHERE id = auth.uid());
+  -- Эта функция проверяет наличие 'admin' в пользовательских ролях внутри JWT.
+  -- Это безопаснее, так как JWT не может быть изменен на стороне клиента.
+  -- Для назначения админа используйте: supabase.auth.admin.updateUserById(user_id, { user_metadata: { role: 'admin' } })
+  RETURN auth.jwt()->>'role' = 'service_role' OR auth.jwt()->'user_metadata'->>'role' = '"admin"';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE;
+
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -203,6 +208,27 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION get_user_by_email(user_email text)
+RETURNS TABLE(id uuid, full_name text, department text, email text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+      u.id,
+      u.full_name,
+      u.department,
+      au.email
+  FROM
+      public.users AS u
+  JOIN
+      auth.users AS au ON u.id = au.id
+  WHERE
+      au.email = user_email;
+END;
+$$;
+
 -- ============
 -- # ТРИГГЕРЫ #
 -- ============
@@ -227,24 +253,27 @@ ALTER TABLE public.course_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_group_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.group_assignments ENABLE ROW LEVEL SECURITY;
 
+-- ОБНОВЛЕННЫЕ ПОЛИТИКИ
 CREATE POLICY "Enable read access for user on their own user record" ON public.users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Enable read access for visible and published courses" ON public.courses FOR SELECT USING (auth.role() = 'authenticated' AND status = 'published'::text AND is_visible = true);
 CREATE POLICY "Enable access for users based on user_id" ON public.user_progress FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Enable access for users based on user_id" ON public.notifications FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Enable access for users based on user_id" ON public.simulation_results FOR ALL USING (auth.uid() = user_id);
 
-CREATE POLICY "Admins have full access to users" ON public.users FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to courses" ON public.courses FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to course materials" ON public.course_materials FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to user_progress" ON public.user_progress FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to background_jobs" ON public.background_jobs FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to notifications" ON public.notifications FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to leaderboard_settings" ON public.leaderboard_settings FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to simulation_results" ON public.simulation_results FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to course groups" ON public.course_groups FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to course group items" ON public.course_group_items FOR ALL USING (is_admin());
-CREATE POLICY "Admins have full access to group assignments" ON public.group_assignments FOR ALL USING (is_admin());
+-- ИСПОЛЬЗУЕМ is_claims_admin() ВМЕСТО is_admin()
+CREATE POLICY "Admins have full access to users" ON public.users FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to courses" ON public.courses FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to course materials" ON public.course_materials FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to user_progress" ON public.user_progress FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to background_jobs" ON public.background_jobs FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to notifications" ON public.notifications FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to leaderboard_settings" ON public.leaderboard_settings FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to simulation_results" ON public.simulation_results FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to course groups" ON public.course_groups FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to course group items" ON public.course_group_items FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to group assignments" ON public.group_assignments FOR ALL USING (public.is_claims_admin());
 
+-- Политики для аутентифицированных пользователей остаются без изменений
 CREATE POLICY "Authenticated users can read visible course groups" ON public.course_groups FOR SELECT USING (auth.role() = 'authenticated' AND is_visible = true);
 CREATE POLICY "Authenticated users can read course group items" ON public.course_group_items FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Authenticated users can read group assignments" ON public.group_assignments FOR SELECT USING (auth.role() = 'authenticated');
