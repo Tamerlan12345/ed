@@ -352,42 +352,6 @@
             width: 100%;
         }
     </style>
-    <style id="jules-slider-fixes">
-        .presentation-wrapper {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: 20px;
-            height: 75vh; /* Expand the presentation area height */
-        }
-        .presentation-slider {
-            flex-grow: 1; /* Slider takes up most of the space */
-            height: 100%; /* Fill the wrapper height */
-            margin-top: 0; /* Remove previous margin */
-        }
-        .slide-counter {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: var(--text-light-color);
-            flex-shrink: 0;
-        }
-        .slider-nav {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            flex-shrink: 0;
-        }
-        .slider-nav button {
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            font-size: 1.5em;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-    </style>
     <style>
         /* --- Presentation Redesign & Mobile Optimization --- */
         .presentation-slide {
@@ -1197,10 +1161,11 @@
         nextBtn.className = 'slider-next';
         nextBtn.innerHTML = '›';
 
-        const navButtons = document.createElement('div');
-        navButtons.className = 'slider-nav';
-        navButtons.appendChild(prevBtn);
-        navButtons.appendChild(nextBtn);
+        const navContainer = document.createElement('div');
+        navContainer.className = 'slider-nav-container'; // Use the original class name for consistency
+        navContainer.appendChild(prevBtn);
+        navContainer.appendChild(counter);
+        navContainer.appendChild(nextBtn);
 
         let currentIndex = 0;
 
@@ -1218,7 +1183,8 @@
 
         updateSliderUI(); // Initial setup
 
-        return { slider, counter, navButtons };
+        // Return the slider and the nav container separately
+        return { slider, navContainer };
     }
 
     function renderCourseActions() {
@@ -1340,19 +1306,11 @@
         productContent.innerHTML = '';
 
         // 2. Get presentation elements from the refactored function
-        const { slider, counter, navButtons } = renderPresentation(currentCourse.summary);
+        const { slider, navContainer } = renderPresentation(currentCourse.summary);
 
-        // 3. Create the new layout structure
-        const presentationWrapper = document.createElement('div');
-        presentationWrapper.className = 'presentation-wrapper'; // New class for the horizontal layout
-
-        // Add counter, slider, and navButtons if they exist
-        if (counter) presentationWrapper.appendChild(counter);
-        presentationWrapper.appendChild(slider);
-        if (navButtons) presentationWrapper.appendChild(navButtons);
-
-        // 4. Append the final structure to the DOM
-        productContent.appendChild(presentationWrapper);
+        // 3. Append the slider and the nav container directly to the product content area
+        productContent.appendChild(slider);
+        productContent.appendChild(navContainer);
 
         // 5. Start time tracking
         if (timeTrackingInterval) clearInterval(timeTrackingInterval);
