@@ -1065,12 +1065,13 @@
     }
 
     function renderPresentation(summaryData) {
-        const fragment = document.createDocumentFragment();
+        // This function now returns a slider element and a nav container element.
 
+        // FIX: Check for the nested 'slides' array and handle empty state.
         if (!summaryData?.slides || !Array.isArray(summaryData.slides) || summaryData.slides.length === 0) {
             const p = document.createElement('p');
             p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
-            return { slider: p, navContainer: null };
+            return { slider: p, navContainer: null }; // Return null for navContainer
         }
 
         const slider = document.createElement('div');
@@ -1081,7 +1082,6 @@
             slideDiv.className = 'presentation-slide';
             let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="${slideData.slide_title || 'Slide Image'}">` : '';
 
-            // Added audio button and player container for each slide
             slideDiv.innerHTML = `
                 ${imageHtml}
                 <h2>${slideData.slide_title || ''}</h2>
@@ -1102,64 +1102,46 @@
                 const button = e.target;
                 button.disabled = true;
                 button.textContent = '⏳ Загрузка...';
-
                 const slideDiv = button.closest('.presentation-slide');
                 const audioPlayerDiv = slideDiv.querySelector('.audio-player-slide');
-                audioPlayerDiv.innerHTML = ''; // Clear previous player
-
-                // Clone the slide content to extract text without the audio controls
+                audioPlayerDiv.innerHTML = '';
                 const contentClone = slideDiv.cloneNode(true);
                 const controlsContainer = contentClone.querySelector('.audio-tts-slide-btn')?.parentElement;
                 if (controlsContainer) controlsContainer.remove();
-
                 const textToSpeak = contentClone.textContent.trim();
-
                 if (!textToSpeak) {
                     alert('Нет текста для озвучивания.');
-                    button.disabled = false;
-                    button.textContent = '🎧 Озвучить слайд';
+                    button.disabled = false; button.textContent = '🎧 Озвучить слайд';
                     return;
                 }
-
                 try {
                     const response = await fetchAuthenticated('/api/text-to-speech-user', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ course_id: currentCourse.id, text: textToSpeak })
                     });
-
                     const audio = new Audio(response.audioUrl);
-                    audio.controls = true;
-                    audio.autoplay = true;
+                    audio.controls = true; audio.autoplay = true;
                     audioPlayerDiv.appendChild(audio);
                     button.textContent = '✅ Готово';
-
                 } catch (error) {
-                    console.error('Audio generation for slide failed:', error);
                     alert(`Не удалось создать аудио: ${error.message}`);
                     button.textContent = '❌ Ошибка';
                 } finally {
-                    setTimeout(() => {
-                        button.disabled = false;
-                        button.textContent = '🎧 Озвучить слайд';
-                    }, 4000);
+                    setTimeout(() => { button.disabled = false; button.textContent = '🎧 Озвучить слайд'; }, 4000);
                 }
             }
         });
 
         const slides = slider.querySelectorAll('.presentation-slide');
-
         const counter = document.createElement('span');
         counter.className = 'slide-counter';
-
         const prevBtn = document.createElement('button');
-        prevBtn.className = 'slider-prev';
-        prevBtn.innerHTML = '‹';
-
+        prevBtn.textContent = '‹ Назад';
         const nextBtn = document.createElement('button');
-        nextBtn.className = 'slider-next';
-        nextBtn.innerHTML = '›';
+        nextBtn.textContent = 'Вперед ›';
 
+        // FIX: Create a single navigation container
         const navContainer = document.createElement('div');
         navContainer.className = 'slider-nav-container';
         navContainer.appendChild(prevBtn);
@@ -1167,11 +1149,8 @@
         navContainer.appendChild(nextBtn);
 
         let currentIndex = 0;
-
         const updateSliderUI = () => {
-            slides.forEach((slide, index) => {
-                slide.classList.toggle('active', index === currentIndex);
-            });
+            slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
             prevBtn.disabled = currentIndex === 0;
             nextBtn.disabled = currentIndex === slides.length - 1;
             counter.textContent = `${currentIndex + 1} / ${slides.length}`;
@@ -1180,7 +1159,7 @@
         prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateSliderUI(); } });
         nextBtn.addEventListener('click', () => { if (currentIndex < slides.length - 1) { currentIndex++; updateSliderUI(); } });
 
-        updateSliderUI(); // Initial setup
+        updateSliderUI();
 
         return { slider, navContainer };
     }
