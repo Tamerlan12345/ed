@@ -168,10 +168,6 @@
             flex: 1 1 30%;
         }
 
-        /* Make the presentation slider taller when active */
-        #main-flex-container.presentation-active .presentation-slider {
-            height: 70vh;
-        }
 
         /* On smaller screens, stack them vertically */
         @media (max-width: 950px) {
@@ -360,6 +356,7 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
+    height: 0; /* Flexbox trick to make child with overflow-y work correctly */
         }
     </style>
     <style>
@@ -1075,13 +1072,13 @@
     }
 
     function renderPresentation(summaryData) {
-        const fragment = document.createDocumentFragment();
-
         if (!Array.isArray(summaryData) || summaryData.length === 0) {
-            const p = document.createElement('p');
-            p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
-            fragment.appendChild(p);
-            return fragment;
+            const errorP = document.createElement('p');
+            errorP.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
+            const slider = document.createElement('div');
+            slider.className = 'presentation-slider';
+            slider.appendChild(errorP);
+            return { slider, navContainer: null };
         }
 
         const slider = document.createElement('div');
@@ -1188,10 +1185,7 @@
 
         updateSliderUI(); // Initial setup
 
-        fragment.appendChild(slider);
-        fragment.appendChild(navContainer);
-
-        return fragment;
+        return { slider, navContainer };
     }
 
     function renderCourseActions() {
@@ -1313,25 +1307,22 @@
         productContent.innerHTML = '';
 
         // 2. Get presentation elements from the refactored function
-        const presentationContent = renderPresentation(currentCourse.summary);
+        const { slider, navContainer } = renderPresentation(currentCourse.summary);
 
         // 3. Create the layout structure
         const presentationColumn = document.createElement('div');
         presentationColumn.className = 'presentation-column';
-        presentationColumn.appendChild(presentationContent);
+        presentationColumn.appendChild(slider); // Add the slider here
 
         const presentationWrapper = document.createElement('div');
         presentationWrapper.className = 'presentation-wrapper';
         presentationWrapper.appendChild(presentationColumn);
+        if (navContainer) {
+            presentationWrapper.appendChild(navContainer); // Add the nav container here
+        }
 
         // 4. Append the final structure to the DOM
         productContent.appendChild(presentationWrapper);
-
-        // Move the nav container to be a direct child of the wrapper for robust layout
-        const nav = productContent.querySelector('.slider-nav-container');
-        if (nav) { // Check if nav exists (it won't in case of an error during render)
-             presentationWrapper.appendChild(nav);
-        }
 
         // 5. Start time tracking
         if (timeTrackingInterval) clearInterval(timeTrackingInterval);
