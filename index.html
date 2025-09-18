@@ -86,7 +86,7 @@
             fill: white;
         }
 
-        /* Override for Assistant Container to be a floating panel */
+        /* Override for Assistant Container to be a floating panel with smooth animation */
         #assistant-container {
             position: fixed;
             bottom: 90px;
@@ -99,9 +99,22 @@
             z-index: 999;
             border: 1px solid var(--border-color);
             padding: 20px;
-            margin-top: 0; /* Override */
-            border-top: none; /* Override */
-            animation: fadeIn .3s;
+            margin-top: 0;
+            border-top: none;
+
+            /* New animation properties */
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+        }
+
+        #assistant-container.hidden {
+            display: block !important; /* Override display:none to allow animation */
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px); /* Start position for slide-in effect */
+            pointer-events: none;
         }
         #assistant-container h3 {
             margin-top: 0;
@@ -133,19 +146,26 @@
             flex-wrap: nowrap; /* Ensure columns stay side-by-side */
         }
 
-        /* By default, main content is on the right */
-        #main-content-wrapper { order: 2; }
-        #leaderboard-container { order: 1; }
+        /* --- Layout Rules: Leaderboard on the left, Main Content on the right --- */
 
-        /* When a presentation is active, flip the order and set flex properties */
+        /* The order is now fixed and will not change. */
+        #leaderboard-container {
+            order: 1;
+            flex: 1 1 30%;
+            min-width: 300px;
+            align-self: flex-start; /* Fix for consistent vertical alignment */
+        }
+        #main-content-wrapper {
+            order: 2;
+            flex: 3 1 70%;
+        }
+
+        /* When a presentation is active, we only ensure the flex properties are set for the two-column view */
         #main-flex-container.presentation-active #main-content-wrapper {
-            order: 1; /* Presentation area moves to the left */
             flex: 3 1 70%;
         }
         #main-flex-container.presentation-active #leaderboard-container {
-            order: 2; /* Leaderboard becomes the sidebar on the right */
             flex: 1 1 30%;
-            min-width: 300px;
         }
 
         /* Make the presentation slider taller when active */
@@ -1071,8 +1091,71 @@
             const slideDiv = document.createElement('div');
             slideDiv.className = 'presentation-slide';
             let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="${slideData.slide_title || 'Slide Image'}">` : '';
-            slideDiv.innerHTML = `${imageHtml}<h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}`;
+
+            // Added audio button and player container for each slide
+            slideDiv.innerHTML = `
+                ${imageHtml}
+                <h2>${slideData.slide_title || ''}</h2>
+                ${slideData.html_content || ''}
+                <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
+                    <button class="audio-tts-slide-btn" style="width: auto; padding: 8px 15px; font-size: 0.9em; align-self: flex-start;">
+                        🎧 Озвучить слайд
+                    </button>
+                    <div class="audio-player-slide"></div>
+                </div>
+            `;
             slider.appendChild(slideDiv);
+        });
+
+        // Event listener for all slide audio buttons
+        slider.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('audio-tts-slide-btn')) {
+                const button = e.target;
+                button.disabled = true;
+                button.textContent = '⏳ Загрузка...';
+
+                const slideDiv = button.closest('.presentation-slide');
+                const audioPlayerDiv = slideDiv.querySelector('.audio-player-slide');
+                audioPlayerDiv.innerHTML = ''; // Clear previous player
+
+                // Clone the slide content to extract text without the audio controls
+                const contentClone = slideDiv.cloneNode(true);
+                const controlsContainer = contentClone.querySelector('.audio-tts-slide-btn')?.parentElement;
+                if (controlsContainer) controlsContainer.remove();
+
+                const textToSpeak = contentClone.textContent.trim();
+
+                if (!textToSpeak) {
+                    alert('Нет текста для озвучивания.');
+                    button.disabled = false;
+                    button.textContent = '🎧 Озвучить слайд';
+                    return;
+                }
+
+                try {
+                    const response = await fetchAuthenticated('/api/text-to-speech-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ course_id: currentCourse.id, text: textToSpeak })
+                    });
+
+                    const audio = new Audio(response.audioUrl);
+                    audio.controls = true;
+                    audio.autoplay = true;
+                    audioPlayerDiv.appendChild(audio);
+                    button.textContent = '✅ Готово';
+
+                } catch (error) {
+                    console.error('Audio generation for slide failed:', error);
+                    alert(`Не удалось создать аудио: ${error.message}`);
+                    button.textContent = '❌ Ошибка';
+                } finally {
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.textContent = '🎧 Озвучить слайд';
+                    }, 4000);
+                }
+            }
         });
 
         const navContainer = document.createElement('div');
@@ -1316,8 +1399,35 @@
     }
 
     chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const data = await fetchAuthenticated('/api/askAssistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion }) }); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
-    function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
-    function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; if (currentCourse) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } } }
+    function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse && !isThinking) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
+
+    function updateLastAssistantMessage(text) {
+        const thinkingIndicator = document.getElementById('thinking-indicator');
+        if (thinkingIndicator) {
+            const span = thinkingIndicator.querySelector('span');
+            span.textContent = ''; // Clear the "..."
+            thinkingIndicator.classList.remove('thinking');
+            thinkingIndicator.id = ''; // The message is now final, remove the ID
+
+            let i = 0;
+            const speed = 25; // Milliseconds per character
+
+            function typeWriter() {
+                if (i < text.length) {
+                    span.textContent += text.charAt(i);
+                    i++;
+                    chatBox.scrollTop = chatBox.scrollHeight; // Keep scrolled to bottom
+                    setTimeout(typeWriter, speed);
+                } else {
+                    // Once typing is done, save the final state to session storage
+                    if (currentCourse) {
+                        sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML);
+                    }
+                }
+            }
+            typeWriter();
+        }
+    }
 
     let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0;
     const MAX_ATTEMPTS = 3;

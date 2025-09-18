@@ -12,6 +12,7 @@ const ACTIONS = {
     // Content Generation
     UPLOAD_AND_PROCESS: 'upload_and_process',
     GENERATE_CONTENT: 'generate_content',
+    GENERATE_SUMMARY: 'generate_summary',
 
     // Group Actions
     GET_COURSE_GROUPS: 'get_course_groups',
