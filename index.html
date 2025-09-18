@@ -333,19 +333,23 @@
             font-size: 2.5em;
             margin-bottom: 15px;
         }
+        #product-content.presentation-mode {
+            height: 100%;
+            padding: 0;
+        }
         .presentation-wrapper {
             display: flex;
             gap: 20px;
             height: 100%;
         }
         .presentation-column {
-            flex: 3;
+            flex: 4; /* Make presentation column wider */
             display: flex;
             flex-direction: column;
             height: 100%;
         }
         .actions-sidebar {
-            flex: 1;
+            flex: 1; /* Keep sidebar width relative */
             min-width: 300px;
             padding: 20px;
             background: #f8f9fa;
@@ -579,7 +583,7 @@
                         <div id="product-content" class="hidden"></div>
                         <div id="audio-player-container-user" style="margin-top: 15px;"></div>
                         <div id="assistant-container" class="hidden">
-                            <h3>AI-Ассистент</h3>
+                            <h3 id="assistant-header" style="cursor: move; background-color: var(--primary-color); color: white; padding: 10px; margin: -20px -20px 15px -20px; border-radius: 12px 12px 0 0;">AI-Ассистент</h3>
                             <div id="chat-box"></div>
                             <form id="chat-form">
                                 <input type="text" id="chat-input" placeholder="Задайте вопрос по материалу..." autocomplete="off">
@@ -1341,12 +1345,7 @@
             sidebar.appendChild(materialsDiv);
         }
 
-        // Move AI assistant into the sidebar
-        sidebar.appendChild(assistantContainer);
-        assistantContainer.classList.remove('hidden');
-        const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
-        chatBox.innerHTML = savedChat || '';
-
+        // The AI assistant is now a separate, draggable element, not part of the sidebar.
         return sidebar;
     }
 
@@ -1356,6 +1355,7 @@
 
         contentArea.classList.add('no-scroll');
         productContent.innerHTML = ''; // Clear previous content (e.g., the course actions menu)
+        productContent.classList.add('presentation-mode'); // Ensure parent has height
 
         const wrapper = document.createElement('div');
         wrapper.className = 'presentation-wrapper';
@@ -1629,7 +1629,18 @@
 
         chatBtn.addEventListener('click', () => {
             assistantContainer.classList.toggle('hidden');
+            if (!assistantContainer.classList.contains('hidden')) {
+                const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
+                chatBox.innerHTML = savedChat || '';
+
+                if (currentCourse && !chatBox.innerHTML.trim()) {
+                    const welcomeMessage = `Здравствуйте! Я ваш ассистент по курсу "${currentCourse.title}". Чем могу помочь?`;
+                    appendMessage(welcomeMessage, 'assistant');
+                }
+            }
         });
+
+        makeDraggable(document.getElementById('assistant-container'));
         // --- End of chat button setup ---
 
         checkSession();
@@ -1643,6 +1654,42 @@
     });
 
     let currentScenario = ''; // To store the scenario for the current session
+
+    function makeDraggable(elmnt) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        const header = elmnt.querySelector("#assistant-header");
+
+        if (header) {
+            header.onmousedown = dragMouseDown;
+        } else {
+            elmnt.onmousedown = dragMouseDown;
+        }
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
 
     function showSimulatorView() {
         windowTitle.textContent = 'Диалоговый тренажер';
