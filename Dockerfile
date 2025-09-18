@@ -1,21 +1,40 @@
-# Используем официальный стабильный образ Node.js
-FROM node:20
+# --- STAGE 1: Builder ---
+# This stage installs all dependencies and can be used for building/testing.
+FROM node:20 as builder
 
-# Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /usr/src/app
 
-# Копируем файлы package.json и package-lock.json для установки зависимостей
-# Это кэширует слой с node_modules, если зависимости не менялись
+# Copy package files and install all dependencies
 COPY package*.json ./
-
-# Выполняем установку зависимостей ВНУТРИ контейнера
 RUN npm install
 
-# Копируем остальные файлы проекта в рабочую директорию
+# Copy the rest of the application source code
 COPY . .
 
-# Открываем порт, на котором будет работать Express-сервер
+
+# --- STAGE 2: Production ---
+# This stage creates the final, lean production image.
+FROM node:20-slim
+
+# Set the working directory
+WORKDIR /usr/src/app
+
+# Set Node.js to production environment
+ENV NODE_ENV=production
+
+# Copy package files from the builder stage
+COPY --from=builder /usr/src/app/package*.json ./
+
+# Install ONLY production dependencies using npm ci for a clean, fast, and reliable install.
+# The --omit=dev flag is the modern equivalent of --only=production
+RUN npm ci --omit=dev
+
+# Copy the application code from the builder stage.
+# This is done after npm ci to leverage Docker layer caching.
+COPY --from=builder /usr/src/app .
+
+# Expose the port the app runs on
 EXPOSE 3001
 
-# Команда для запуска приложения при старте контейнера
+# The command to run the application
 CMD [ "npm", "start" ]

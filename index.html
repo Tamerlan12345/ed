@@ -1260,11 +1260,8 @@
     }
 
     async function showProduct(courseId, forceRegenerate = false) {
-        // Find the course from the locally cached list
-        const courseGroup = courses.find(group => group.courses.some(c => c.id === courseId));
-        if (courseGroup) {
-            currentCourse = courseGroup.courses.find(c => c.id === courseId);
-        }
+        // Find the course from the locally cached list of groups using flatMap for robust search
+        currentCourse = courses.flatMap(group => group.courses).find(c => c.id === courseId);
 
         if (!currentCourse) {
             console.error("Course not found for ID:", courseId);

@@ -1,17 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-
-// This is a simplified version of the one in server/index.js
-// It is here to avoid circular dependencies.
-const createSupabaseClient = (token) => {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-        throw new Error('Supabase URL or Anon Key is not configured.');
-    }
-    return createClient(
-        process.env.SUPABASE_URL,
-        process.env.SUPABASE_ANON_KEY,
-        { global: { headers: { Authorization: `Bearer ${token}` } } }
-    );
-};
+const { createSupabaseClient } = require('../lib/supabaseClient');
 
 const adminAuthMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -20,23 +7,28 @@ const adminAuthMiddleware = async (req, res, next) => {
     }
     const token = authHeader.split(' ')[1];
 
+    // Используем единый клиент, созданный для конкретного пользователя
     const supabase = createSupabaseClient(token);
 
+    // 1. Проверяем, валиден ли токен вообще
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        return res.status(401).json({ error: 'Unauthorized: Invalid token.' });
     }
 
-    const { data: adminCheck, error: adminCheckError } = await supabase
-        .from('users')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
+    // 2. Вызываем безопасную серверную функцию для проверки прав администратора
+    const { data: isAdmin, error: rpcError } = await supabase.rpc('is_claims_admin');
 
-    if (adminCheckError || !adminCheck?.is_admin) {
-        return res.status(403).json({ error: 'Forbidden: User is not an admin.' });
+    if (rpcError) {
+        console.error('Error calling is_claims_admin RPC:', rpcError);
+        return res.status(500).json({ error: 'Failed to verify admin privileges.' });
     }
 
+    if (!isAdmin) {
+        return res.status(403).json({ error: 'Forbidden: User does not have admin privileges.' });
+    }
+
+    // 3. Если всё в порядке, передаем данные дальше
     req.user = user;
     req.token = token; // Pass token for background jobs
     next();
