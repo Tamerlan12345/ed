@@ -740,7 +740,6 @@
                 <button id="process-file-btn">Загрузить и извлечь текст</button>
                 <h3>Описание (Источник для AI)</h3>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <button id="generate-summary-btn" style="flex: 1; background-color: #ffc107; color: black;">Сгенерировать краткое описание</button>
                     <button id="text-to-speech-btn" style="flex: 1;">Озвучить описание</button>
                 </div>
                 <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
@@ -781,11 +780,6 @@
         document.getElementById('upload-material-btn').addEventListener('click', uploadMaterialHandler);
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
         document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
-        // New listener for the summary button
-        const summaryBtn = document.getElementById('generate-summary-btn');
-        if (summaryBtn) {
-            summaryBtn.addEventListener('click', generateSummaryHandler);
-        }
     }
 
     // --- COURSE MANAGEMENT ---
@@ -872,31 +866,22 @@
         } catch(e) { /* Handled */ }
     }
 
-    async function generateSummaryHandler() {
-        const courseId = document.getElementById('course-id').value;
-        if (!courseId) return showToast('Сначала создайте или выберите курс.', 'error');
-        const descriptionArea = document.getElementById('description');
-        if (!descriptionArea.value || descriptionArea.value.trim().length < 100) {
-             return showToast('Для генерации саммари необходимо наличие полного текста в поле "Описание".', 'error');
-        }
-        descriptionArea.value = 'Генерация краткого описания...';
-        try {
-            await apiCall(ACTIONS.GENERATE_SUMMARY, { course_id: courseId });
-        } catch(e) { /* Handled */ }
-    }
-
     async function textToSpeechHandler() {
         const description = document.getElementById('description').value;
-        if (!description) return showStatus('Нет текста.', 'error');
+        const courseId = document.getElementById('course-id').value;
+
+        if (!description) return showStatus('Нет текста для озвучивания.', 'error');
+        if (!courseId) return showStatus('Сначала необходимо сохранить курс, чтобы получить ID.', 'error');
+
         const audioContainer = document.getElementById('audio-player-container');
         audioContainer.innerHTML = '';
         try {
-            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: description });
+            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: description, course_id: courseId });
             const audio = new Audio(data.audioUrl);
             audio.controls = true;
             audioContainer.appendChild(audio);
             audioContainer.classList.remove('hidden');
-        } catch (error) { /* Handled */ }
+        } catch (error) { /* Handled in apiCall */ }
     }
 
     async function publishCourseHandler() {

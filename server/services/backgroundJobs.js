@@ -22,17 +22,22 @@ async function handleUploadAndProcess(jobId, payload) {
 
     try {
         let { course_id, title, file_name, file_data } = payload;
-        console.log(`[Job ${jobId}] Starting processing for course ID: ${course_id}`);
+        console.log(`[Job ${jobId}] Starting processing for course ID: ${course_id}, File: ${file_name}`);
 
         const buffer = Buffer.from(file_data, 'base64');
         let textContent = '';
 
+        console.log(`[Job ${jobId}] Buffer created, size: ${buffer.length}. Detecting file type.`);
         if (file_name.endsWith('.docx')) {
+            console.log(`[Job ${jobId}] Processing .docx file with mammoth...`);
             const { value } = await mammoth.extractRawText({ buffer });
             textContent = value;
+            console.log(`[Job ${jobId}] .docx processing complete. Text length: ${textContent.length}`);
         } else if (file_name.endsWith('.pdf')) {
+            console.log(`[Job ${jobId}] Processing .pdf file with pdf-parse...`);
             const data = await pdf(buffer);
             textContent = data.text;
+            console.log(`[Job ${jobId}] .pdf processing complete. Text length: ${textContent.length}`);
         } else {
             throw new Error('Unsupported file type. Please upload a .docx or .pdf file.');
         }
