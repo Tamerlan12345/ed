@@ -1067,17 +1067,16 @@
     function renderPresentation(summaryData) {
         const fragment = document.createDocumentFragment();
 
-        if (!Array.isArray(summaryData) || summaryData.length === 0) {
+        if (!summaryData?.slides || !Array.isArray(summaryData.slides) || summaryData.slides.length === 0) {
             const p = document.createElement('p');
             p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
-            fragment.appendChild(p);
-            return fragment;
+            return { slider: p, navContainer: null };
         }
 
         const slider = document.createElement('div');
         slider.className = 'presentation-slider';
 
-        summaryData.forEach((slideData) => {
+        summaryData.slides.forEach((slideData) => {
             const slideDiv = document.createElement('div');
             slideDiv.className = 'presentation-slide';
             let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="${slideData.slide_title || 'Slide Image'}">` : '';
@@ -1162,7 +1161,7 @@
         nextBtn.innerHTML = '›';
 
         const navContainer = document.createElement('div');
-        navContainer.className = 'slider-nav-container'; // Use the original class name for consistency
+        navContainer.className = 'slider-nav-container';
         navContainer.appendChild(prevBtn);
         navContainer.appendChild(counter);
         navContainer.appendChild(nextBtn);
@@ -1183,7 +1182,6 @@
 
         updateSliderUI(); // Initial setup
 
-        // Return the slider and the nav container separately
         return { slider, navContainer };
     }
 
@@ -1310,7 +1308,9 @@
 
         // 3. Append the slider and the nav container directly to the product content area
         productContent.appendChild(slider);
-        productContent.appendChild(navContainer);
+        if (navContainer) {
+            productContent.appendChild(navContainer);
+        }
 
         // 5. Start time tracking
         if (timeTrackingInterval) clearInterval(timeTrackingInterval);
