@@ -890,11 +890,11 @@ ${courseData.description}
             }
         }
 
-        // The 'content' column is TEXT, so we store the JSON as a string.
+        // The 'content' column is JSONB. Pass the object directly.
         console.log(`[Job ${jobId}] Content generated, now with images. Saving to database...`);
         const { error: dbError } = await supabaseAdmin
             .from('courses')
-            .update({ content: JSON.stringify(parsedContent) })
+            .update({ content: parsedContent }) // Pass the JS object directly for JSONB
             .eq('id', course_id);
 
         if (dbError) throw new Error(`Failed to save generated content: ${dbError.message}`);
