@@ -602,8 +602,18 @@
                 const job = await response.json();
                 apiState.jobs[jobId].status = job.status;
                 if (job.status === 'completed' || job.status === 'failed') {
-                    showToast(`Задача (ID: ${jobId}) ${job.status === 'completed' ? 'успешно завершена' : 'не удалась'}: ${job.last_error || ''}`, job.status === 'completed' ? 'success' : 'error');
                     clearInterval(intervalId);
+                    const successMessage = job.payload?.message || (job.status === 'completed' ? 'Задача успешно завершена' : 'Задача не удалась');
+                    showToast(`Задача (ID: ${jobId}) ${job.status}: ${job.last_error || successMessage}`, job.status === 'completed' ? 'success' : 'error');
+
+                    // If a new description was generated, update the textarea
+                    if (job.job_type === 'summary_generation' && job.status === 'completed' && job.payload?.new_description) {
+                         const descriptionArea = document.getElementById('description');
+                         if (descriptionArea) {
+                             descriptionArea.value = job.payload.new_description;
+                         }
+                    }
+
                     if (window.loadCourses) loadCourses();
                 }
             } catch (error) {
@@ -729,8 +739,11 @@
                 <input type="file" id="file-uploader" accept=".pdf,.docx">
                 <button id="process-file-btn">Загрузить и извлечь текст</button>
                 <h3>Описание (Источник для AI)</h3>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button id="generate-summary-btn" style="flex: 1; background-color: #ffc107; color: black;">Сгенерировать краткое описание</button>
+                    <button id="text-to-speech-btn" style="flex: 1;">Озвучить описание</button>
+                </div>
                 <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
-                <button id="text-to-speech-btn">Озвучить описание</button>
                 <textarea id="description" placeholder="Здесь появится текст...">${escapeHTML(description)}</textarea>
                 <h3>Шаг 2: Сгенерируйте контент</h3>
                 <textarea id="custom-prompt" placeholder="Оставьте пустым для стандартного промпта..."></textarea>
@@ -768,6 +781,11 @@
         document.getElementById('upload-material-btn').addEventListener('click', uploadMaterialHandler);
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
         document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
+        // New listener for the summary button
+        const summaryBtn = document.getElementById('generate-summary-btn');
+        if (summaryBtn) {
+            summaryBtn.addEventListener('click', generateSummaryHandler);
+        }
     }
 
     // --- COURSE MANAGEMENT ---
@@ -851,6 +869,19 @@
         document.getElementById('content').value = 'Генерация...';
         try {
             await apiCall(ACTIONS.GENERATE_CONTENT, { course_id: courseId, custom_prompt: document.getElementById('custom-prompt').value });
+        } catch(e) { /* Handled */ }
+    }
+
+    async function generateSummaryHandler() {
+        const courseId = document.getElementById('course-id').value;
+        if (!courseId) return showToast('Сначала создайте или выберите курс.', 'error');
+        const descriptionArea = document.getElementById('description');
+        if (!descriptionArea.value || descriptionArea.value.trim().length < 100) {
+             return showToast('Для генерации саммари необходимо наличие полного текста в поле "Описание".', 'error');
+        }
+        descriptionArea.value = 'Генерация краткого описания...';
+        try {
+            await apiCall(ACTIONS.GENERATE_SUMMARY, { course_id: courseId });
         } catch(e) { /* Handled */ }
     }
 

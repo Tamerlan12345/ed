@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { createSupabaseAdminClient } = require('../lib/supabaseClient');
-const { handleUploadAndProcess, handleGenerateContent } = require('../services/backgroundJobs');
+const { handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
 const { ACTIONS } = require('../../shared/constants');
 
 // --- Service URLs ---
@@ -100,6 +100,14 @@ const adminActionHandlers = {
         const supabaseAdmin = createSupabaseAdminClient();
         await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'content_generation', status: 'pending', payload });
         handleGenerateContent(jobId, payload, token).catch(console.error);
+        res.status(202).json({ jobId });
+        return null;
+    },
+    [ACTIONS.GENERATE_SUMMARY]: async ({ payload, token, res }) => {
+        const jobId = crypto.randomUUID();
+        const supabaseAdmin = createSupabaseAdminClient();
+        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'summary_generation', status: 'pending', payload });
+        handleGenerateSummary(jobId, payload, token).catch(console.error);
         res.status(202).json({ jobId });
         return null;
     },

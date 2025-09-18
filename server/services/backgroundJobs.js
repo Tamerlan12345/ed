@@ -144,7 +144,62 @@ ${courseData.description}
     }
 }
 
+async function handleGenerateSummary(jobId, payload) {
+    const supabaseAdmin = createSupabaseAdminClient();
+
+    const updateJobStatus = async (status, data = null, errorMessage = null) => {
+        const { error } = await supabaseAdmin
+            .from('background_jobs')
+            .update({ status, payload: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .eq('id', jobId);
+        if (error) console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
+    };
+
+    try {
+        const { course_id } = payload;
+        if (!course_id) {
+            throw new Error('Valid course_id is required for summary generation.');
+        }
+        console.log(`[Job ${jobId}] Starting summary generation for course ${course_id}`);
+
+        // Fetch the full description to generate a summary from it.
+        const { data: courseData, error: fetchError } = await supabaseAdmin
+            .from('courses')
+            .select('description')
+            .eq('id', course_id)
+            .single();
+
+        if (fetchError || !courseData?.description) {
+            throw new Error('Course description not found or not yet processed.');
+        }
+
+        const finalPrompt = `На основе предоставленного текста, напиши краткое и емкое саммари (аннотацию) для учебного курса. Объем — 2-3 предложения. Стиль — деловой, привлекательный для пользователя. ИСХОДНЫЙ ТЕКСТ: ${courseData.description}`;
+
+        console.log(`[Job ${jobId}] Generating summary with Gemini...`);
+        const result = await model.generateContent(finalPrompt);
+        const response = await result.response;
+        const summaryText = response.text().trim();
+
+        console.log(`[Job ${jobId}] Summary generated. Saving to database...`);
+        // We update the 'description' field with the newly generated summary.
+        const { error: dbError } = await supabaseAdmin
+            .from('courses')
+            .update({ description: summaryText })
+            .eq('id', course_id);
+
+        if (dbError) throw new Error(`Failed to save generated summary: ${dbError.message}`);
+
+        console.log(`[Job ${jobId}] Summary generation completed successfully.`);
+        await updateJobStatus('completed', { message: 'Summary generated and saved.', new_description: summaryText });
+
+    } catch (error) {
+        console.error(`[Job ${jobId}] Unhandled error during summary generation:`, error);
+        await updateJobStatus('failed', null, error.message);
+    }
+}
+
 module.exports = {
     handleUploadAndProcess,
     handleGenerateContent,
+    handleGenerateSummary,
 };
