@@ -168,6 +168,10 @@
             flex: 1 1 30%;
         }
 
+        /* Make the presentation slider taller when active */
+        #main-flex-container.presentation-active .presentation-slider {
+            height: 70vh;
+        }
 
         /* On smaller screens, stack them vertically */
         @media (max-width: 950px) {
@@ -347,16 +351,41 @@
         .actions-sidebar button {
             width: 100%;
         }
+    </style>
+    <style id="jules-slider-fixes">
         .presentation-wrapper {
             display: flex;
-            flex-direction: column; /* This ensures the slider and nav stack vertically */
-            height: 100%;
+            flex-direction: row;
+            align-items: center;
+            gap: 20px;
+            height: 75vh; /* Expand the presentation area height */
         }
-        .presentation-column {
-            flex-grow: 1;
+        .presentation-slider {
+            flex-grow: 1; /* Slider takes up most of the space */
+            height: 100%; /* Fill the wrapper height */
+            margin-top: 0; /* Remove previous margin */
+        }
+        .slide-counter {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--text-light-color);
+            flex-shrink: 0;
+        }
+        .slider-nav {
             display: flex;
             flex-direction: column;
-    height: 0; /* Flexbox trick to make child with overflow-y work correctly */
+            gap: 15px;
+            flex-shrink: 0;
+        }
+        .slider-nav button {
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 1.5em;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
     </style>
     <style>
@@ -1072,13 +1101,13 @@
     }
 
     function renderPresentation(summaryData) {
+        const fragment = document.createDocumentFragment();
+
         if (!Array.isArray(summaryData) || summaryData.length === 0) {
-            const errorP = document.createElement('p');
-            errorP.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
-            const slider = document.createElement('div');
-            slider.className = 'presentation-slider';
-            slider.appendChild(errorP);
-            return { slider, navContainer: null };
+            const p = document.createElement('p');
+            p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
+            fragment.appendChild(p);
+            return fragment;
         }
 
         const slider = document.createElement('div');
@@ -1155,20 +1184,24 @@
             }
         });
 
-        const navContainer = document.createElement('div');
-        navContainer.className = 'slider-nav-container';
-        navContainer.innerHTML = `
-            <span class="slide-counter"></span>
-            <div class="slider-nav">
-                <button class="slider-prev">‹ Назад</button>
-                <button class="slider-next">Вперед ›</button>
-            </div>
-        `;
-
         const slides = slider.querySelectorAll('.presentation-slide');
-        const prevBtn = navContainer.querySelector('.slider-prev');
-        const nextBtn = navContainer.querySelector('.slider-next');
-        const counter = navContainer.querySelector('.slide-counter');
+
+        const counter = document.createElement('span');
+        counter.className = 'slide-counter';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'slider-prev';
+        prevBtn.innerHTML = '‹';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'slider-next';
+        nextBtn.innerHTML = '›';
+
+        const navButtons = document.createElement('div');
+        navButtons.className = 'slider-nav';
+        navButtons.appendChild(prevBtn);
+        navButtons.appendChild(nextBtn);
+
         let currentIndex = 0;
 
         const updateSliderUI = () => {
@@ -1185,7 +1218,7 @@
 
         updateSliderUI(); // Initial setup
 
-        return { slider, navContainer };
+        return { slider, counter, navButtons };
     }
 
     function renderCourseActions() {
@@ -1307,19 +1340,16 @@
         productContent.innerHTML = '';
 
         // 2. Get presentation elements from the refactored function
-        const { slider, navContainer } = renderPresentation(currentCourse.summary);
+        const { slider, counter, navButtons } = renderPresentation(currentCourse.summary);
 
-        // 3. Create the layout structure
-        const presentationColumn = document.createElement('div');
-        presentationColumn.className = 'presentation-column';
-        presentationColumn.appendChild(slider); // Add the slider here
-
+        // 3. Create the new layout structure
         const presentationWrapper = document.createElement('div');
-        presentationWrapper.className = 'presentation-wrapper';
-        presentationWrapper.appendChild(presentationColumn);
-        if (navContainer) {
-            presentationWrapper.appendChild(navContainer); // Add the nav container here
-        }
+        presentationWrapper.className = 'presentation-wrapper'; // New class for the horizontal layout
+
+        // Add counter, slider, and navButtons if they exist
+        if (counter) presentationWrapper.appendChild(counter);
+        presentationWrapper.appendChild(slider);
+        if (navButtons) presentationWrapper.appendChild(navButtons);
 
         // 4. Append the final structure to the DOM
         productContent.appendChild(presentationWrapper);
