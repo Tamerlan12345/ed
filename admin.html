@@ -1012,6 +1012,14 @@
             let course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
             currentEditingCourseId = courseId;
 
+            // Defensively parse content if it's a stringified JSON from the DB
+            if (typeof course.content === 'string' && course.content.trim().startsWith('{')) {
+                try { course.content = JSON.parse(course.content); } catch (e) { console.warn("Could not auto-parse course.content string:", e); }
+            }
+            if (typeof course.draft_content === 'string' && course.draft_content.trim().startsWith('{')) {
+                try { course.draft_content = JSON.parse(course.draft_content); } catch (e) { console.warn("Could not auto-parse course.draft_content string:", e); }
+            }
+
             // If a published course has content but no draft, create a draft from the published content.
             // This prevents the editor from opening empty and accidentally wiping content.
             if (course.status === 'published' && course.content && !course.draft_content) {
