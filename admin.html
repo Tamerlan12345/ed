@@ -384,10 +384,10 @@
         const contentTextarea = document.getElementById('content');
         if (!editor || !contentTextarea) return;
 
-        const data = { summary: [], questions: [] };
+        const data = { summary: { slides: [] }, questions: [] };
 
         editor.querySelectorAll('.wysiwyg-slide').forEach(slideEl => {
-            data.summary.push({
+            data.summary.slides.push({
                 slide_title: slideEl.querySelector('.wysiwyg-slide-title').textContent,
                 html_content: slideEl.querySelector('.wysiwyg-slide-content').innerHTML,
             });
@@ -410,11 +410,11 @@
 
         try {
             const originalData = JSON.parse(contentTextarea.value || '{}');
-            if (originalData.summary) {
-                data.summary.forEach((slide, index) => {
-                    if (originalData.summary[index]) {
-                        slide.image_search_term = originalData.summary[index].image_search_term;
-                        slide.image_url = originalData.summary[index].image_url;
+            if (originalData.summary && Array.isArray(originalData.summary.slides)) {
+                data.summary.slides.forEach((slide, index) => {
+                    if (originalData.summary.slides[index]) {
+                        slide.image_search_term = originalData.summary.slides[index].image_search_term;
+                        slide.image_url = originalData.summary.slides[index].image_url;
                     }
                 });
             }
@@ -441,7 +441,7 @@
                  return;
             }
 
-            const slidesHtml = (data.summary || []).map((slide, index) => `
+            const slidesHtml = (data.summary?.slides || []).map((slide, index) => `
                 <div class="wysiwyg-slide" data-index="${index}">
                     <div class="wysiwyg-slide-title" contenteditable="true">${slide.slide_title || 'Новый слайд'}</div>
                     <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || '<p>Начните вводить текст...</p>'}</div>
