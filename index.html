@@ -252,7 +252,7 @@
             gap: 15px;
         }
         .presentation-view-right-content {
-            flex: 3;
+            flex: 4; /* Make presentation wider */
             display: flex;
             flex-direction: column;
             position: relative;
@@ -300,7 +300,7 @@
             flex-direction: column;
         }
         #chat-box-sidebar {
-            height: 150px;
+            height: 250px; /* Expand chatbox */
             overflow-y: auto;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -366,6 +366,7 @@
             cursor: not-allowed;
         }
         .presentation-slide.active {
+            display: block;
             animation: fadeIn .4s;
         }
         @keyframes fadeIn {
@@ -1431,6 +1432,7 @@
 
 
         productContent.innerHTML = ''; // Clear previous content.
+        productContent.style.height = '100%'; // Ensure productContent fills its parent for correct layout
         productContent.classList.remove('presentation-mode'); // Remove old class if present.
         contentArea.classList.add('no-scroll');
 
@@ -1441,15 +1443,7 @@
         const leftSidebar = document.createElement('div');
         leftSidebar.className = 'presentation-view-left-sidebar';
 
-        // Leaderboard Panel
-        const leaderboardPanel = document.createElement('div');
-        leaderboardPanel.className = 'sidebar-panel';
-        leaderboardPanel.innerHTML = `
-            <h3>🏆 Топ Учеников Недели</h3>
-            <div id="leaderboard-content-presentation"></div>
-        `;
-        leftSidebar.appendChild(leaderboardPanel);
-        loadLeaderboard('leaderboard-content-presentation');
+        // Leaderboard Panel - REMOVED as per user feedback
 
         // Instruments Panel
         const instrumentsPanel = document.createElement('div');
