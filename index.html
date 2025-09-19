@@ -196,127 +196,6 @@
             visibility: visible;
         }
     </style>
-    <style id="jules-overrides">
-        body.presentation-active-fullscreen {
-            overflow: hidden;
-        }
-        body.presentation-active-fullscreen #app-view.container {
-            padding: 0;
-            max-width: 100%;
-        }
-        body.presentation-active-fullscreen #app-view .window {
-            padding: 0;
-            border: 0;
-            border-radius: 0;
-            box-shadow: none;
-            max-width: 100%;
-            height: 100vh;
-            background: var(--bg-color);
-        }
-        body.presentation-active-fullscreen .window-header,
-        body.presentation-active-fullscreen .window-footer,
-        body.presentation-active-fullscreen #leaderboard-container,
-        body.presentation-active-fullscreen .actions-sidebar {
-            display: none !important;
-        }
-        body.presentation-active-fullscreen #back-to-menu-btn {
-            display: block !important;
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1001;
-        }
-        body.presentation-active-fullscreen .content-area.presentation-mode {
-            height: 100% !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-        }
-        body.presentation-active-fullscreen .presentation-wrapper {
-            padding: 0;
-            gap: 0;
-            height: 100%;
-            border-radius: 0;
-        }
-        body.presentation-active-fullscreen .presentation-column {
-            height: 100%;
-        }
-        body.presentation-active-fullscreen .presentation-slider {
-            border-radius: 0;
-            border: none;
-            height: 100% !important;
-        }
-        body.presentation-active-fullscreen .presentation-slide {
-            padding: 40px 80px !important;
-        }
-        body.presentation-active-fullscreen .slider-nav-container {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
-            border-top: 1px solid var(--border-color);
-            z-index: 10;
-        }
-        .course-actions-menu {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            padding: 20px;
-            justify-content: center;
-        }
-        .action-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 25px;
-            border-radius: 12px;
-            background-color: var(--surface-color);
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: center;
-            font-size: 1.1em;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-        .action-btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-            border-color: var(--primary-color);
-        }
-        .action-btn .icon {
-            font-size: 2.5em;
-            margin-bottom: 15px;
-        }
-        .actions-sidebar {
-            padding: 20px;
-            background: #f8f9fa;
-            border-left: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .actions-sidebar h3 {
-            margin-top: 0;
-            font-size: 1.2em;
-            color: var(--primary-color);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
-        }
-        .actions-sidebar button {
-            width: 100%;
-        }
-        .presentation-wrapper {
-            display: flex;
-            height: 100%;
-        }
-        .presentation-column {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-        }
-    </style>
     <style>
         /* --- Presentation Redesign & Mobile Optimization --- */
         .presentation-slide {
@@ -368,6 +247,24 @@
                 padding: 10px 18px;
                 font-size: 0.9em;
             }
+        }
+
+        /* Styles for Embedded Presentation View */
+        .presentation-view {
+            display: flex;
+            flex-direction: column;
+            height: 65vh;
+        }
+
+        .presentation-slider {
+            flex-grow: 1;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid var(--border-color);
+        }
+
+        .presentation-slide {
+            padding: 25px 40px !important;
         }
 
         /* --- General Visual Enhancements --- */
@@ -1056,7 +953,6 @@
         backButtonAction = showMainMenu;
         productContent.innerHTML = '';
         productContent.classList.remove('presentation-view');
-        document.body.classList.remove('presentation-active-fullscreen');
         contentArea.classList.remove('presentation-mode');
 
         const menu = document.createElement('div');
@@ -1156,7 +1052,6 @@
     function showPresentationView() {
         backToMenuBtn.textContent = '❮ Назад к курсу';
         backButtonAction = renderCourseActions;
-        document.body.classList.add('presentation-active-fullscreen');
         productContent.classList.add('presentation-view');
         contentArea.classList.add('presentation-mode');
         assistantContainer.classList.add('hidden');
