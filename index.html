@@ -322,6 +322,17 @@
             font-size: 0.95em;
         }
 
+        .instruments-panel button.primary {
+            background-color: var(--secondary-color);
+            box-shadow: 0 4px 14px rgba(0, 174, 239, 0.35);
+            font-weight: bold;
+            transform: scale(1.05);
+        }
+        .instruments-panel button.primary:hover {
+            background-color: var(--primary-color);
+            transform: scale(1.08);
+        }
+
         .chatbot-panel {
             flex-grow: 1; /* Allows this panel to fill remaining space */
             display: flex;
@@ -1124,7 +1135,7 @@
 
     function renderCourseGroups(filter = 'assigned') {
         mainMenu.innerHTML = '';
-        mainMenu.style.display = 'block';
+        mainMenu.style.display = 'grid';
 
         let hasContent = false;
 
@@ -1178,7 +1189,7 @@
             menuItem.title = 'Этот курс будет доступен после прохождения предыдущего';
         } else {
             menuItem.style.cursor = 'pointer';
-            menuItem.addEventListener('click', () => showProduct(course.id));
+            menuItem.addEventListener('click', () => showPresentationView(course.id));
         }
 
         if (course.progress?.completed_at) {
@@ -1353,111 +1364,6 @@
         return { slider, prevBtn, nextBtn };
     }
 
-    function renderCourseActions() {
-        stopTimeTracking();
-        appView.classList.remove('presentation-mode-active');
-        const windowEl = document.querySelector('#app-view .window');
-        if (windowEl) windowEl.classList.remove('presentation-layout-active');
-        backToMenuBtn.textContent = '❮ Назад в меню';
-        backButtonAction = showMainMenu;
-        productContent.innerHTML = '';
-        productContent.classList.remove('presentation-view');
-
-        // Ensure scrolling is re-enabled on the main content area
-        contentArea.classList.remove('no-scroll');
-
-        const menu = document.createElement('div');
-        menu.className = 'course-actions-menu';
-
-        // 1. Study Material Button
-        const studyBtn = document.createElement('div');
-        studyBtn.className = 'action-btn';
-        studyBtn.innerHTML = `<span class="icon">📖</span> Изучить материал`;
-        studyBtn.onclick = () => showPresentationView();
-        menu.appendChild(studyBtn);
-
-        // 2. Start Test Button
-        const testBtn = document.createElement('div');
-        testBtn.className = 'action-btn';
-        testBtn.innerHTML = `<span class="icon">🎯</span> Начать тестирование`;
-        testBtn.onclick = () => {
-            stopTimeTracking();
-            startTest(currentCourse.id);
-        };
-        menu.appendChild(testBtn);
-
-        // 3. Simulator Button
-        const simulatorBtn = document.createElement('div');
-        simulatorBtn.className = 'action-btn';
-        simulatorBtn.innerHTML = `<span class="icon">💬</span> Диалоговый тренажер`;
-        simulatorBtn.onclick = () => showSimulatorView();
-        menu.appendChild(simulatorBtn);
-
-        // 4. Listen to Material Button
-        const listenBtn = document.createElement('div');
-        listenBtn.className = 'action-btn';
-        listenBtn.innerHTML = `<span class="icon">🎧</span> Прослушать материал`;
-        listenBtn.onclick = async () => {
-            const icon = listenBtn.querySelector('.icon');
-            const originalIcon = icon.innerHTML;
-            icon.innerHTML = '⏳';
-            listenBtn.disabled = true;
-
-            try {
-                let summaryText = '';
-                if (currentCourse && Array.isArray(currentCourse.summary)) {
-                    const tempDiv = document.createElement('div');
-                    summaryText = currentCourse.summary.map(slide => {
-                        tempDiv.innerHTML = slide.html_content;
-                        return tempDiv.textContent || tempDiv.innerText || '';
-                    }).join('\n\n');
-                }
-
-                if (!summaryText) throw new Error('Текст саммари для озвучивания не найден.');
-
-                const response = await fetchAuthenticated('/api/text-to-speech-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ course_id: currentCourse.id, text: summaryText })
-                });
-
-                audioPlayerContainerUser.innerHTML = '';
-                const audio = new Audio(response.audioUrl);
-                audio.controls = true;
-                audio.autoplay = true;
-                audioPlayerContainerUser.appendChild(audio);
-                icon.innerHTML = '✅';
-
-            } catch (error) {
-                console.error('Audio generation failed:', error);
-                showToast(`Не удалось создать аудио: ${error.message}`, 'error');
-                icon.innerHTML = '❌';
-            } finally {
-                icon.innerHTML = originalIcon;
-                listenBtn.disabled = false;
-            }
-        };
-        menu.appendChild(listenBtn);
-
-        productContent.appendChild(menu);
-        productContent.appendChild(audioPlayerContainerUser);
-
-        // 5. Downloadable Materials
-        if (currentCourse.materials && currentCourse.materials.length > 0) {
-            const materialsDiv = document.createElement('div');
-            materialsDiv.style.marginTop = '30px';
-            materialsDiv.innerHTML = '<h3>Материалы для скачивания</h3>';
-            const materialsList = document.createElement('ul');
-            currentCourse.materials.forEach(m => {
-                const li = document.createElement('li');
-                li.innerHTML = `<a href="${m.public_url}" target="_blank" download>${m.file_name}</a>`;
-                materialsList.appendChild(li);
-            });
-            materialsDiv.appendChild(materialsList);
-            productContent.appendChild(materialsDiv);
-        }
-    }
-
     function renderCourseSidebar() {
         const sidebar = document.createElement('div');
         sidebar.className = 'actions-sidebar';
@@ -1493,167 +1399,10 @@
         return sidebar;
     }
 
-    function showPresentationView() {
-        // Remove debug panel if it exists from previous failed runs
-        const debugPanel = document.getElementById('debug-info-panel');
-        if (debugPanel) debugPanel.remove();
-
+    async function showPresentationView(courseId, forceRegenerate = false) {
         // This function is completely redesigned to match the screenshot layout.
         stopTimeTracking(); // Stop any previous tracking.
 
-        // Add a single class to the main app container to switch to presentation mode
-        appView.classList.add('presentation-mode-active');
-
-        productContent.innerHTML = ''; // Clear previous content.
-
-        const container = document.createElement('div');
-        container.className = 'presentation-view-container';
-
-        // --- 1. Build Left Sidebar ---
-        const leftSidebar = document.createElement('div');
-        leftSidebar.className = 'presentation-view-left-sidebar';
-
-        // Leaderboard Panel - REMOVED as per user feedback
-
-        // Instruments Panel
-        const instrumentsPanel = document.createElement('div');
-        instrumentsPanel.className = 'sidebar-panel instruments-panel';
-        instrumentsPanel.innerHTML = '<h3>Инструменты</h3>';
-        const testBtn = document.createElement('button');
-        testBtn.textContent = 'Начать тестирование';
-        testBtn.onclick = () => {
-            stopTimeTracking();
-            startTest(currentCourse.id);
-        };
-        instrumentsPanel.appendChild(testBtn);
-        leftSidebar.appendChild(instrumentsPanel);
-
-        // Chatbot Panel
-        const chatbotPanel = document.createElement('div');
-        chatbotPanel.className = 'sidebar-panel chatbot-panel';
-        chatbotPanel.innerHTML = `
-            <h3>ЧАТ-БОТ АССИСТЕНТ</h3>
-            <div id="chat-box-sidebar" class="chat-box"></div>
-            <form id="chat-form-sidebar">
-                <input type="text" id="chat-input-sidebar" placeholder="Ваш вопрос..." autocomplete="off">
-                <button type="submit" id="sidebar-submit-btn">➢</button>
-            </form>
-        `;
-        leftSidebar.appendChild(chatbotPanel);
-
-        // Back Button
-        const backBtnSidebar = document.createElement('button');
-        backBtnSidebar.id = 'back-to-course-btn-sidebar';
-        backBtnSidebar.textContent = '‹ Назад к курсу';
-        backBtnSidebar.onclick = renderCourseActions; // Go back to the course action menu
-        leftSidebar.appendChild(backBtnSidebar);
-
-        // --- 2. Build Right Content Area ---
-        const rightContent = document.createElement('div');
-        rightContent.className = 'presentation-view-right-content';
-
-        const sliderContainer = document.createElement('div');
-        sliderContainer.className = 'presentation-slider-container';
-
-        const navButtonsContainer = document.createElement('div');
-        navButtonsContainer.className = 'slider-nav-buttons';
-
-        const { slider, prevBtn, nextBtn } = renderPresentation(currentCourse.summary);
-        sliderContainer.appendChild(slider);
-        if (prevBtn && nextBtn) {
-            navButtonsContainer.appendChild(prevBtn);
-            navButtonsContainer.appendChild(nextBtn);
-        }
-
-        rightContent.appendChild(sliderContainer);
-        rightContent.appendChild(navButtonsContainer);
-
-        // --- 3. Assemble and Render ---
-        container.appendChild(leftSidebar);
-        container.appendChild(rightContent);
-        productContent.appendChild(container);
-
-        // --- 4. Wire up Chat ---
-        const chatFormSidebar = document.getElementById('chat-form-sidebar');
-        const chatInputSidebar = document.getElementById('chat-input-sidebar');
-        const chatBoxSidebar = document.getElementById('chat-box-sidebar');
-
-        const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
-        if(savedChat) chatBoxSidebar.innerHTML = savedChat;
-        else {
-            const welcomeMessage = `Здравствуйте! Я ваш ассистент по курсу "${currentCourse.title}". Чем могу помочь?`;
-            const appendWelcome = (text, sender) => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `chat-message ${sender}-message`;
-                const textSpan = document.createElement('span');
-                textSpan.textContent = text;
-                messageDiv.appendChild(textSpan);
-                chatBoxSidebar.appendChild(messageDiv);
-                chatBoxSidebar.scrollTop = chatBoxSidebar.scrollHeight;
-                sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
-            };
-            appendWelcome(welcomeMessage, 'assistant');
-        }
-
-
-        chatFormSidebar.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const userQuestion = chatInputSidebar.value.trim();
-            if (!userQuestion || !currentCourse) return;
-
-            const submitBtn = document.getElementById('sidebar-submit-btn');
-
-            const append = (text, sender, isThinking = false) => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `chat-message ${sender}-message`;
-                const textSpan = document.createElement('span');
-                textSpan.textContent = text;
-                if (isThinking) { messageDiv.id = 'thinking-indicator-sidebar'; }
-                messageDiv.appendChild(textSpan);
-                chatBoxSidebar.appendChild(messageDiv);
-                chatBoxSidebar.scrollTop = chatBoxSidebar.scrollHeight;
-                if (!isThinking) sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
-            };
-
-            const updateLast = (text) => {
-                const thinking = document.getElementById('thinking-indicator-sidebar');
-                if (thinking) {
-                    thinking.querySelector('span').textContent = text;
-                    thinking.id = '';
-                    sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
-                }
-            };
-
-            append(userQuestion, 'user');
-            chatInputSidebar.value = '';
-            chatInputSidebar.disabled = true;
-            if (submitBtn) submitBtn.disabled = true;
-            append('...', 'assistant', true);
-
-            try {
-                const data = await fetchAuthenticated('/api/askAssistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion }) });
-                updateLast(data.answer);
-            } catch (error) {
-                console.error('Ошибка ассистента:', error);
-                updateLast(`Извините, произошла ошибка.`);
-            } finally {
-                chatInputSidebar.disabled = false;
-                if (submitBtn) submitBtn.disabled = false;
-                chatInputSidebar.focus();
-            }
-        });
-
-
-        // --- 5. Start Time Tracking ---
-        if (timeTrackingInterval) clearInterval(timeTrackingInterval);
-        secondsSinceLastUpdate = 0;
-        timeTrackingInterval = setInterval(() => {
-            secondsSinceLastUpdate += 30;
-            sendTimeUpdate(currentCourse.id, 30);
-        }, 30000);
-    }
-
-    async function showProduct(courseId, forceRegenerate = false) {
         // Find the course from the locally cached list of groups using flatMap for robust search
         currentCourse = courses.flatMap(group => group.courses).find(c => c.id === courseId);
 
@@ -1664,21 +1413,11 @@
         }
 
         windowTitle.textContent = currentCourse.title;
-
-        // --- UI State Change for Presentation View ---
-        // Show the product content area where the actions will be rendered
-        productContent.classList.remove('hidden');
-
-        // 4. Configure the back button
         backToMenuBtn.classList.remove('hidden');
-        backToMenuBtn.textContent = '❮ Назад в меню';
         backButtonAction = showMainMenu;
 
         // --- Load Course Content ---
         productContent.innerHTML = '<div class="loader"></div>';
-        audioPlayerContainerUser.innerHTML = '';
-        const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
-        chatBox.innerHTML = savedChat || '';
 
         try {
             // Check if content is already loaded
@@ -1693,7 +1432,154 @@
                 currentCourse.materials = data.materials;
             }
 
-            renderCourseActions();
+            // Add a single class to the main app container to switch to presentation mode
+            appView.classList.add('presentation-mode-active');
+            productContent.innerHTML = ''; // Clear previous content.
+
+            const container = document.createElement('div');
+            container.className = 'presentation-view-container';
+
+            // --- 1. Build Left Sidebar ---
+            const leftSidebar = document.createElement('div');
+            leftSidebar.className = 'presentation-view-left-sidebar';
+
+            // Instruments Panel
+            const instrumentsPanel = document.createElement('div');
+            instrumentsPanel.className = 'sidebar-panel instruments-panel';
+            instrumentsPanel.innerHTML = '<h3>Инструменты</h3>';
+            const testBtn = document.createElement('button');
+            testBtn.textContent = 'Начать тестирование';
+            testBtn.className = 'action-btn primary';
+            testBtn.onclick = () => {
+                stopTimeTracking();
+                startTest(currentCourse.id);
+            };
+            instrumentsPanel.appendChild(testBtn);
+            leftSidebar.appendChild(instrumentsPanel);
+
+            // Chatbot Panel
+            const chatbotPanel = document.createElement('div');
+            chatbotPanel.className = 'sidebar-panel chatbot-panel';
+            chatbotPanel.innerHTML = `
+                <h3>ЧАТ-БОТ АССИСТЕНТ</h3>
+                <div id="chat-box-sidebar" class="chat-box"></div>
+                <form id="chat-form-sidebar">
+                    <input type="text" id="chat-input-sidebar" placeholder="Ваш вопрос..." autocomplete="off">
+                    <button type="submit" id="sidebar-submit-btn">➢</button>
+                </form>
+            `;
+            leftSidebar.appendChild(chatbotPanel);
+
+            // Back Button
+            const backBtnSidebar = document.createElement('button');
+            backBtnSidebar.id = 'back-to-course-btn-sidebar';
+            backBtnSidebar.textContent = '‹ Назад в меню';
+            backBtnSidebar.onclick = showMainMenu; // Go back to the main menu
+            leftSidebar.appendChild(backBtnSidebar);
+
+            // --- 2. Build Right Content Area ---
+            const rightContent = document.createElement('div');
+            rightContent.className = 'presentation-view-right-content';
+
+            const sliderContainer = document.createElement('div');
+            sliderContainer.className = 'presentation-slider-container';
+
+            const navButtonsContainer = document.createElement('div');
+            navButtonsContainer.className = 'slider-nav-buttons';
+
+            const { slider, prevBtn, nextBtn } = renderPresentation(currentCourse.summary);
+            sliderContainer.appendChild(slider);
+            if (prevBtn && nextBtn) {
+                navButtonsContainer.appendChild(prevBtn);
+                navButtonsContainer.appendChild(nextBtn);
+            }
+
+            rightContent.appendChild(sliderContainer);
+            rightContent.appendChild(navButtonsContainer);
+
+            // --- 3. Assemble and Render ---
+            container.appendChild(leftSidebar);
+            container.appendChild(rightContent);
+            productContent.appendChild(container);
+
+            // --- 4. Wire up Chat ---
+            const chatFormSidebar = document.getElementById('chat-form-sidebar');
+            const chatInputSidebar = document.getElementById('chat-input-sidebar');
+            const chatBoxSidebar = document.getElementById('chat-box-sidebar');
+
+            const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
+            if(savedChat) chatBoxSidebar.innerHTML = savedChat;
+            else {
+                const welcomeMessage = `Здравствуйте! Я ваш ассистент по курсу "${currentCourse.title}". Чем могу помочь?`;
+                const appendWelcome = (text, sender) => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `chat-message ${sender}-message`;
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = text;
+                    messageDiv.appendChild(textSpan);
+                    chatBoxSidebar.appendChild(messageDiv);
+                    chatBoxSidebar.scrollTop = chatBoxSidebar.scrollHeight;
+                    sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
+                };
+                appendWelcome(welcomeMessage, 'assistant');
+            }
+
+
+            chatFormSidebar.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const userQuestion = chatInputSidebar.value.trim();
+                if (!userQuestion || !currentCourse) return;
+
+                const submitBtn = document.getElementById('sidebar-submit-btn');
+
+                const append = (text, sender, isThinking = false) => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `chat-message ${sender}-message`;
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = text;
+                    if (isThinking) { messageDiv.id = 'thinking-indicator-sidebar'; }
+                    messageDiv.appendChild(textSpan);
+                    chatBoxSidebar.appendChild(messageDiv);
+                    chatBoxSidebar.scrollTop = chatBoxSidebar.scrollHeight;
+                    if (!isThinking) sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
+                };
+
+                const updateLast = (text) => {
+                    const thinking = document.getElementById('thinking-indicator-sidebar');
+                    if (thinking) {
+                        thinking.querySelector('span').textContent = text;
+                        thinking.id = '';
+                        sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
+                    }
+                };
+
+                append(userQuestion, 'user');
+                chatInputSidebar.value = '';
+                chatInputSidebar.disabled = true;
+                if (submitBtn) submitBtn.disabled = true;
+                append('...', 'assistant', true);
+
+                try {
+                    const data = await fetchAuthenticated('/api/askAssistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion }) });
+                    updateLast(data.answer);
+                } catch (error) {
+                    console.error('Ошибка ассистента:', error);
+                    updateLast(`Извините, произошла ошибка.`);
+                } finally {
+                    chatInputSidebar.disabled = false;
+                    if (submitBtn) submitBtn.disabled = false;
+                    chatInputSidebar.focus();
+                }
+            });
+
+
+            // --- 5. Start Time Tracking ---
+            if (timeTrackingInterval) clearInterval(timeTrackingInterval);
+            secondsSinceLastUpdate = 0;
+            timeTrackingInterval = setInterval(() => {
+                secondsSinceLastUpdate += 30;
+                sendTimeUpdate(currentCourse.id, 30);
+            }, 30000);
 
         } catch (error) {
             console.error('Не удалось загрузить контент курса:', error);
@@ -1962,7 +1848,7 @@
 
         // Check if we are inside a course context
         if (currentCourse) {
-            backButtonAction = renderCourseActions;
+            backButtonAction = () => showPresentationView(currentCourse.id);
             backToMenuBtn.textContent = '❮ Назад к курсу';
         } else {
             backButtonAction = showMainMenu;
