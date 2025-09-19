@@ -198,6 +198,27 @@
             from { opacity: 0; }
             to { opacity: 1; }
         }
+        .presentation-slide img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1rem auto;
+            border-radius: 8px;
+        }
+        @media (max-width: 992px) {
+            .presentation-view-container {
+                flex-direction: column;
+                padding: 10px;
+                height: auto;
+            }
+            .presentation-view-left-sidebar {
+                flex: 1 1 auto;
+                width: 100%;
+            }
+            .presentation-view-right-content {
+                padding: 15px;
+            }
+        }
     </style>
     <style>
         /* Toast Notifications */
