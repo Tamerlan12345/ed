@@ -232,6 +232,35 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2RsaWJocmxtZ3lzemJ5eGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE0MjgsImV4cCI6MjA2OTg1NzQyOH0.Sgz-50dHj8M599sIjTRYs0kMP7b6kX2BJ-Gc-trMUQ4';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     </script>
+    <style id="layout-override">
+        #main-menu {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        #main-menu .menu-item {
+            padding: 15px;
+        }
+        #main-menu .menu-item h3 {
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+        #main-menu .menu-item-icon {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+        .window-header {
+            position: sticky;
+            top: 0;
+            background: var(--surface-color);
+            z-index: 10;
+        }
+        #main-menu-tabs {
+            position: sticky;
+            top: 107px; /* Height of the header. May need adjustment. */
+            background: var(--surface-color);
+            z-index: 10;
+        }
+    </style>
 </head>
 <body>
     <div id="toast-container"></div>
