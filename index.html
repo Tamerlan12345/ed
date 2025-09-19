@@ -373,6 +373,17 @@
             from { opacity: 0.3; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* New rules for robust flex layout in presentation view */
+        .window.presentation-layout-active {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .window.presentation-layout-active > .content-area {
+            flex: 1;
+            height: auto;
+        }
     </style>
     <style id="jules-overrides">
         body.presentation-active-fullscreen {
@@ -987,6 +998,8 @@
     async function showMainMenu() {
         // Stop any ongoing activities
         document.body.classList.remove('presentation-active-fullscreen');
+        const windowEl = document.querySelector('#app-view .window');
+        if (windowEl) windowEl.classList.remove('presentation-layout-active');
         stopTimeTracking();
 
         // --- UI State Reset ---
@@ -1239,7 +1252,8 @@
 
     function renderPresentation(summaryData) {
         // This function now returns an object with the slider, prev button, and next button.
-        if (!summaryData?.slides || !Array.isArray(summaryData.slides) || summaryData.slides.length === 0) {
+        // FIX: summaryData is the array of slides itself, not an object containing them.
+        if (!summaryData || !Array.isArray(summaryData) || summaryData.length === 0) {
             const p = document.createElement('p');
             p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
             return { slider: p, prevBtn: null, nextBtn: null };
@@ -1248,7 +1262,7 @@
         const slider = document.createElement('div');
         slider.className = 'presentation-slider';
 
-        summaryData.slides.forEach((slideData) => {
+        summaryData.forEach((slideData) => {
             const slideDiv = document.createElement('div');
             slideDiv.className = 'presentation-slide';
             let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="${slideData.slide_title || 'Slide Image'}">` : '';
@@ -1285,6 +1299,8 @@
 
     function renderCourseActions() {
         stopTimeTracking();
+        const windowEl = document.querySelector('#app-view .window');
+        if (windowEl) windowEl.classList.remove('presentation-layout-active');
         backToMenuBtn.textContent = '❮ Назад в меню';
         backButtonAction = showMainMenu;
         productContent.innerHTML = '';
@@ -1423,6 +1439,10 @@
     }
 
     function showPresentationView() {
+        // Remove debug panel if it exists from previous failed runs
+        const debugPanel = document.getElementById('debug-info-panel');
+        if (debugPanel) debugPanel.remove();
+
         // This function is completely redesigned to match the screenshot layout.
         stopTimeTracking(); // Stop any previous tracking.
         backToMenuBtn.classList.add('hidden'); // Hide the main back button.
@@ -1431,8 +1451,10 @@
         document.getElementById('main-content-wrapper').style.flex = '1 1 100%';
 
 
+        const windowEl = document.querySelector('#app-view .window');
+        if (windowEl) windowEl.classList.add('presentation-layout-active');
+
         productContent.innerHTML = ''; // Clear previous content.
-        productContent.style.height = '100%'; // Ensure productContent fills its parent for correct layout
         productContent.classList.remove('presentation-mode'); // Remove old class if present.
         contentArea.classList.add('no-scroll');
 
