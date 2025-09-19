@@ -187,8 +187,24 @@
         }
         .presentation-slide { display: none; }
         .presentation-slide.active {
-            display: block;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
             animation: fadeInSlide .5s;
+        }
+        .presentation-slide img {
+            max-width: 100%;
+            max-height: 40vh;
+            object-fit: contain;
+            flex-shrink: 0;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            align-self: center;
+        }
+        .presentation-slide-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 10px;
         }
         @keyframes fadeInSlide {
             from { opacity: 0.3; transform: translateY(10px); }
@@ -197,13 +213,6 @@
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
-        }
-        .presentation-slide img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 1rem auto;
-            border-radius: 8px;
         }
         @media (max-width: 992px) {
             .presentation-view-container {
@@ -856,7 +865,7 @@
                     const slideDiv = document.createElement('div');
                     slideDiv.className = 'presentation-slide';
                     let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="Slide Image">` : '';
-                    slideDiv.innerHTML = `${imageHtml}<h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}`;
+                    slideDiv.innerHTML = `${imageHtml}<div class="presentation-slide-content"><h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}</div>`;
                     slider.appendChild(slideDiv);
                 });
                 const slides = slider.querySelectorAll('.presentation-slide');
