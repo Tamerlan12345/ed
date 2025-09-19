@@ -1310,7 +1310,9 @@
         if (timeTrackingInterval) {
             clearInterval(timeTrackingInterval);
             timeTrackingInterval = null;
-            sendTimeUpdate(currentCourse.id, secondsSinceLastUpdate);
+            if (currentCourse && currentCourse.id) {
+                sendTimeUpdate(currentCourse.id, secondsSinceLastUpdate);
+            }
             secondsSinceLastUpdate = 0;
         }
     }
