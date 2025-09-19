@@ -53,20 +53,25 @@ describe('API Endpoints', () => {
         // The factory for our mock client
         createClientStub = sinon.stub().returns(supabaseStub);
 
-        // Use proxyquire to inject the mocked middleware and supabase client
-        // This is now more complex due to the refactoring, so we mock at the highest level needed.
+        // A mock for the entire supabaseClient module, preventing the original file from being loaded
+        const supabaseClientMock = {
+            createSupabaseClient: () => supabaseStub,
+            createSupabaseAdminClient: () => supabaseStub,
+        };
+
+        // Use proxyquire to inject the mocked middleware and the mocked supabase client module
         const server = proxyquire('../../server/index', {
             './routes/api': proxyquire('../../server/routes/api', {
                 '../middleware/adminAuth': adminAuthMiddlewareStub,
                 '../middleware/userAuth': userAuthMiddlewareStub,
                 '../controllers/adminController': proxyquire('../../server/controllers/adminController', {
-                    '../lib/supabaseClient': { createSupabaseAdminClient: () => supabaseStub }
+                    '../lib/supabaseClient': supabaseClientMock
                 }),
                  '../controllers/reportController': proxyquire('../../server/controllers/reportController', {
-                    '../lib/supabaseClient': { createSupabaseAdminClient: () => supabaseStub }
+                    '../lib/supabaseClient': supabaseClientMock
                 }),
                 '../controllers/userController': proxyquire('../../server/controllers/userController', {
-                    '../lib/supabaseClient': { createSupabaseClient: () => supabaseStub, createSupabaseAdminClient: () => supabaseStub }
+                    '../lib/supabaseClient': supabaseClientMock
                 }),
             })
         });

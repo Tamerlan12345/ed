@@ -691,6 +691,15 @@
             }
         }
     </style>
+    <style>
+        /* Toast Notifications */
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+        .toast { padding: 15px 20px; margin-bottom: 10px; border-radius: 8px; color: white; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1); opacity: 0; width: 300px; transform: translateX(100%); transition: all 0.4s ease-in-out; }
+        .toast.show { opacity: 0.9; transform: translateX(0); }
+        .toast-error { background-color: #dc3545; }
+        .toast-success { background-color: #28a745; }
+        .toast-info { background-color: #00AEEF; }
+    </style>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
     
@@ -701,6 +710,7 @@
     </script>
 </head>
 <body>
+    <div id="toast-container"></div>
     <div id="auth-view" class="container">
         <div class="window">
             <div class="window-header"><h1>Вход в систему</h1></div>
@@ -756,7 +766,7 @@
                             <div id="chat-box"></div>
                             <form id="chat-form">
                                 <input type="text" id="chat-input" placeholder="Задайте вопрос по материалу..." autocomplete="off">
-                                <button type="submit">Отправить</button>
+                                <button type="submit" id="chat-submit-btn">Отправить</button>
                             </form>
                         </div>
                     </div>
@@ -792,7 +802,7 @@
                         <div id="simulator-chat-box" style="height: 45vh; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 10px; background-color: var(--bg-color);"></div>
                         <form id="simulator-chat-form" style="display: flex; gap: 10px;">
                             <input type="text" id="simulator-chat-input" placeholder="Ваш ответ..." autocomplete="off" style="flex-grow: 1; margin: 0;">
-                            <button type="submit">Отправить</button>
+                            <button type="submit" id="simulator-submit-btn">Отправить</button>
                         </form>
                         <button id="end-simulation-btn" style="margin-top: 10px; background-color: var(--error-color);">Завершить и получить оценку</button>
                     </div>
@@ -810,6 +820,25 @@
     </div>
 
 <script>
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+
+            // Trigger the animation
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            // Hide and remove after 5 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 5000);
+        }
+
     const userData = { email: '', token: null };
     let courses = [];
     let currentCourse = null;
@@ -883,7 +912,7 @@
         const authButton = document.getElementById('auth-button');
         authButton.disabled = true;
         authButton.textContent = 'Вход...';
-        authError.classList.add('hidden');
+        authError.classList.add('hidden'); // Keep this for now to avoid breaking layout if it's used elsewhere
 
         try {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -896,8 +925,12 @@
             }
         } catch (error) {
             console.error("Не удалось войти:", error);
-            authError.textContent = 'Ошибка: неверный логин или пароль.';
-            authError.classList.remove('hidden');
+            let errorMessage = 'Не удалось войти. Проверьте подключение к сети.';
+            if (error.message.includes('Invalid login credentials')) {
+                errorMessage = 'Неверный логин или пароль.';
+            }
+            showToast(errorMessage, 'error');
+        } finally {
             authButton.disabled = false;
             authButton.textContent = 'Войти';
         }
@@ -1275,9 +1308,11 @@
         // This function now returns an object with the slider, prev button, and next button.
         // FIX: summaryData is the array of slides itself, not an object containing them.
         if (!summaryData || !Array.isArray(summaryData) || summaryData.length === 0) {
-            const p = document.createElement('p');
-            p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
-            return { slider: p, prevBtn: null, nextBtn: null };
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message'; // Use existing style for messages
+            messageDiv.style.padding = '40px'; // Add some padding to fill the space
+            messageDiv.innerHTML = 'Материалы курса не найдены или генерируются. <br>Попробуйте обновить позже.';
+            return { slider: messageDiv, prevBtn: null, nextBtn: null };
         }
 
         const slider = document.createElement('div');
@@ -1366,7 +1401,7 @@
             const icon = listenBtn.querySelector('.icon');
             const originalIcon = icon.innerHTML;
             icon.innerHTML = '⏳';
-            listenBtn.style.cursor = 'wait';
+            listenBtn.disabled = true;
 
             try {
                 let summaryText = '';
@@ -1395,13 +1430,11 @@
 
             } catch (error) {
                 console.error('Audio generation failed:', error);
-                alert(`Не удалось создать аудио: ${error.message}`);
+                showToast(`Не удалось создать аудио: ${error.message}`, 'error');
                 icon.innerHTML = '❌';
             } finally {
-                 setTimeout(() => {
-                    icon.innerHTML = originalIcon;
-                    listenBtn.style.cursor = 'pointer';
-                }, 3000);
+                icon.innerHTML = originalIcon;
+                listenBtn.disabled = false;
             }
         };
         menu.appendChild(listenBtn);
@@ -1503,7 +1536,7 @@
             <div id="chat-box-sidebar" class="chat-box"></div>
             <form id="chat-form-sidebar">
                 <input type="text" id="chat-input-sidebar" placeholder="Ваш вопрос..." autocomplete="off">
-                <button type="submit">➢</button>
+                <button type="submit" id="sidebar-submit-btn">➢</button>
             </form>
         `;
         leftSidebar.appendChild(chatbotPanel);
@@ -1568,6 +1601,8 @@
             const userQuestion = chatInputSidebar.value.trim();
             if (!userQuestion || !currentCourse) return;
 
+            const submitBtn = document.getElementById('sidebar-submit-btn');
+
             const append = (text, sender, isThinking = false) => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `chat-message ${sender}-message`;
@@ -1592,6 +1627,7 @@
             append(userQuestion, 'user');
             chatInputSidebar.value = '';
             chatInputSidebar.disabled = true;
+            if (submitBtn) submitBtn.disabled = true;
             append('...', 'assistant', true);
 
             try {
@@ -1602,6 +1638,7 @@
                 updateLast(`Извините, произошла ошибка.`);
             } finally {
                 chatInputSidebar.disabled = false;
+                if (submitBtn) submitBtn.disabled = false;
                 chatInputSidebar.focus();
             }
         });
@@ -1660,11 +1697,12 @@
 
         } catch (error) {
             console.error('Не удалось загрузить контент курса:', error);
+            showToast('Ошибка при загрузке контента курса.', 'error');
             showMessage('Ошибка при генерации контента курса.', error.message);
         }
     }
 
-    chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const data = await fetchAuthenticated('/api/askAssistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion }) }); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
+    chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; const submitBtn = document.getElementById('chat-submit-btn'); appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; if(submitBtn) submitBtn.disabled = true; appendMessage('...', 'assistant', true); try { const data = await fetchAuthenticated('/api/askAssistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion }) }); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); } finally { chatInput.disabled = false; if(submitBtn) submitBtn.disabled = false; chatInput.focus(); } });
     function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; if (currentCourse && !isThinking) { sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBox.innerHTML); } }
 
     function updateLastAssistantMessage(text) {
@@ -1703,9 +1741,9 @@
         if (document.hidden) {
             tabSwitchCount++;
             if (tabSwitchCount === 1) {
-                alert('Внимание! Вы переключились на другую вкладку. При повторном переключении тест будет завершен с результатом 0.');
+                showToast('Внимание! Вы переключились на другую вкладку. При повторном переключении тест будет завершен с результатом 0.', 'info');
             } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
-                alert('Вы превысили лимит переключений. Тест завершен с нулевым результатом.');
+                showToast('Вы превысили лимит переключений. Тест завершен с нулевым результатом.', 'error');
                 score = 0;
                 showTestResultsView();
             }
@@ -1721,7 +1759,7 @@
         const attempts = progress ? progress.attempts : 0;
 
         if (attempts >= MAX_ATTEMPTS) {
-            alert(`Вы использовали все ${MAX_ATTEMPTS} попытки для сдачи этого теста.`);
+            showToast(`Вы использовали все ${MAX_ATTEMPTS} попытки для сдачи этого теста.`, 'error');
             document.getElementById('start-test-btn').disabled = true;
             return;
         }
@@ -1806,11 +1844,11 @@
                     });
 
                     if (response.message === 'Course already assigned.') {
-                         alert('Вы уже записаны на этот курс.');
+                         showToast('Вы уже записаны на этот курс.', 'info');
                          button.textContent = 'Курс уже назначен';
                          // No need to call showMainMenu() here, just update the button state
                     } else {
-                        alert('Вы успешно записаны на курс! Он появится на вкладке "Назначенные".');
+                        showToast('Вы успешно записаны на курс!', 'success');
                         // Switch to the 'assigned' tab to show the user their new course.
                         document.querySelector('.tab-btn[data-filter="assigned"]').click();
                     }
@@ -1818,10 +1856,10 @@
                     console.error('Failed to assign course:', error);
                     // Provide a clearer message for the most common error.
                     if (error.message && error.message.includes('unique constraint')) {
-                        alert('Не удалось записаться: Вы уже записаны на этот курс.');
+                        showToast('Не удалось записаться: Вы уже записаны на этот курс.', 'error');
                         button.textContent = 'Курс уже назначен';
                     } else {
-                        alert(`Не удалось записаться на курс: ${error.message}`);
+                        showToast(`Не удалось записаться на курс: ${error.message}`, 'error');
                         button.disabled = false;
                         button.textContent = 'Начать изучение';
                     }
@@ -1996,10 +2034,12 @@
         const userInput = simulatorChatInput.value.trim();
         if (!userInput) return;
 
+        const submitBtn = document.getElementById('simulator-submit-btn');
         appendSimulatorMessage(userInput, 'user');
         simulationHistory.push({ role: 'user', text: userInput });
         simulatorChatInput.value = '';
         simulatorChatInput.disabled = true;
+        if(submitBtn) submitBtn.disabled = true;
         appendSimulatorMessage('...', 'assistant', true);
 
         try {
@@ -2028,17 +2068,18 @@
             updateLastSimulatorMessage(`Ошибка: ${error.message}`);
         } finally {
             simulatorChatInput.disabled = false;
+            if(submitBtn) submitBtn.disabled = false;
             simulatorChatInput.focus();
         }
     });
 
     endSimulationBtn.addEventListener('click', async () => {
         if (simulationHistory.length === 0) {
-            alert('Сначала начните диалог.');
+            showToast('Сначала начните диалог.', 'info');
             return;
         }
         if (!currentScenario) { // Defensive check
-            alert("Ошибка: сценарий не определен. Пожалуйста, перезапустите тренажер.");
+            showToast("Ошибка: сценарий не определен. Пожалуйста, перезапустите тренажер.", 'error');
             return;
         }
         simulatorChatArea.classList.add('hidden');
