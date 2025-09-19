@@ -226,6 +226,36 @@
             padding: 0;
         }
     </style>
+    <style id="jules-layout-fixes-2">
+        body, html {
+            overflow: hidden !important;
+        }
+        .window {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        .window-header {
+            flex-shrink: 0;
+            margin-bottom: 20px;
+        }
+        .content-area {
+            flex-grow: 1;
+            min-height: 0;
+            height: auto !important; /* Override 60vh */
+            overflow-y: auto !important;
+        }
+        .window-footer {
+            flex-shrink: 0;
+        }
+        #grouped-courses-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+        }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
     <script>
         const SUPABASE_URL = 'https://wnsdlibhrlmgyszbyxat.supabase.co';
@@ -233,30 +263,24 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     </script>
     <style id="layout-override">
-        #main-menu {
+        .main-menu {
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
         }
-        #main-menu .menu-item {
+        .main-menu .menu-item {
             padding: 15px;
         }
-        #main-menu .menu-item h3 {
+        .main-menu .menu-item h3 {
             font-size: 1.1em;
             margin-bottom: 5px;
         }
-        #main-menu .menu-item-icon {
+        .main-menu .menu-item-icon {
             font-size: 1.2em;
             margin-right: 10px;
         }
         .window-header {
             position: sticky;
             top: 0;
-            background: var(--surface-color);
-            z-index: 10;
-        }
-        #main-menu-tabs {
-            position: sticky;
-            top: 107px; /* Height of the header. May need adjustment. */
             background: var(--surface-color);
             z-index: 10;
         }
@@ -537,6 +561,14 @@
         stopTimeTracking();
         windowTitle.textContent = 'Главное Меню';
         backButtonAction = null;
+
+        const windowEl = appView.querySelector('.window');
+        const tabsEl = document.getElementById('main-menu-tabs');
+        const contentAreaEl = document.getElementById('content-area');
+        if (windowEl && tabsEl && contentAreaEl && tabsEl.parentElement !== windowEl) {
+            windowEl.insertBefore(tabsEl, contentAreaEl);
+        }
+
         productContent.classList.add('hidden');
         testView.classList.add('hidden');
         testResultsView.classList.add('hidden');
