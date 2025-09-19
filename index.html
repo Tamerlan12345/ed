@@ -77,10 +77,10 @@
             animation: fadeIn .4s ease-in-out forwards;
         }
         .presentation-view-left-sidebar {
-            flex: 0 0 320px;
+            flex: 0 0 280px; /* Reduced width */
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px; /* Reduced gap */
         }
         .presentation-view-right-content {
             flex: 1;
@@ -89,8 +89,20 @@
             background: var(--surface-color);
             border-radius: 12px;
             box-shadow: var(--shadow);
-            padding: 25px 30px;
+            padding: 20px 25px; /* Reduced padding */
             overflow: hidden;
+        }
+        .sidebar-panel {
+            padding: 15px; /* Reduced padding */
+        }
+        #chat-box-sidebar {
+            font-size: 0.85em; /* Smaller font in chat */
+        }
+        .presentation-slide h2 {
+            font-size: 1.5em; /* Smaller slide titles */
+        }
+        .presentation-slide {
+            font-size: 0.95em; /* Smaller slide text */
         }
         .sidebar-panel {
             background: var(--surface-color);
@@ -275,6 +287,7 @@
                     </div>
                 </div>
                 <div id="test-view" class="hidden">
+                    <button id="back-to-presentation-from-test" style="background-color: #6c757d; float: right;">Назад к материалам</button>
                     <p id="question-counter"></p>
                     <div id="question" class="question"></div>
                     <div id="answers" class="answers"></div>
@@ -994,6 +1007,14 @@
             if (typeof backButtonAction === 'function') backButtonAction();
         });
         backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
+
+        document.getElementById('back-to-presentation-from-test').addEventListener('click', () => {
+            if (currentCourse) {
+                showPresentationView(currentCourse.id);
+            } else {
+                showMainMenu();
+            }
+        });
     });
     let currentScenario = '';
     function showSimulatorView() {

@@ -42,17 +42,19 @@ const getCourseContent = async (req, res) => {
         if (error) throw error;
         if (!course) return res.status(404).json({ error: 'Course not found.' });
 
-        let parsedContent = { summary: [], questions: [] };
+        let parsedContent = { summary: { slides: [] }, questions: [] };
         if (course.content) {
             try {
                 parsedContent = typeof course.content === 'string' ? JSON.parse(course.content) : course.content;
             } catch(e) {
                 console.error(`Failed to parse content for course ${course_id}:`, e);
+                // If parsing fails, we'll send empty content to avoid crashing the client
+                parsedContent = { summary: { slides: [] }, questions: [] };
             }
         }
 
         res.status(200).json({
-            summary: parsedContent.summary || [],
+            summary: (parsedContent.summary && parsedContent.summary.slides) ? parsedContent.summary.slides : [],
             questions: parsedContent.questions || [],
             materials: course.course_materials || []
         });
