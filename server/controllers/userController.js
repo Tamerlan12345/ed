@@ -313,14 +313,48 @@ const askAssistant = async (req, res) => {
         const { data: courseData, error: courseError } = await supabase.from('courses').select('description, content').eq('id', course_id).single();
         if (courseError || !courseData) return res.status(404).json({ error: 'Course not found.' });
 
-        const courseContent = courseData.content || '';
-        const context = `КОНТЕКСТ КУРСА:\n${courseData.description}\n\n${courseContent}`;
-        const prompt = `Основываясь СТРОГО на предоставленном КОНТЕКСТЕ КУРСА, ответь на вопрос студента. Если ответ нельзя найти в тексте, скажи "Извините, я не могу ответить на этот вопрос на основе имеющихся материалов.". Вопрос студента: "${question}"`;
+        let courseTextContent = '';
+        if (courseData.content && typeof courseData.content === 'object' && courseData.content.summary) {
+            // Extract text from presentation slides
+            courseTextContent = courseData.content.summary.map(slide => {
+                const slideTitle = slide.slide_title || '';
+                const slideContent = slide.html_content || '';
+                // Basic HTML tag stripping and combine title + content
+                const fullText = `${slideTitle}\n${slideContent}`;
+                return fullText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            }).join('\n\n');
+        } else if (typeof courseData.content === 'string') {
+            // Fallback for plain text content that might be stored
+            courseTextContent = courseData.content;
+        }
+
+        if (!courseData.description && !courseTextContent) {
+             return res.status(200).json({ answer: "Материалы для этого курса еще не готовы, поэтому я не могу ответить на ваш вопрос." });
+        }
+
+        const context = `ОПИСАНИЕ КУРСА:
+${courseData.description || 'Нет описания.'}
+
+МАТЕРИАЛЫ КУРСА (СЛАЙДЫ ПРЕЗЕНТАЦИИ):
+${courseTextContent || 'Нет текстовых материалов.'}`;
+
+        const prompt = `Ты — русскоязычный чат-бот ассистент для образовательной платформы. Твоя главная задача — помогать студентам, отвечая на их вопросы СТРОГО в рамках предоставленных учебных материалов.
+
+ЗАДАНИЕ:
+1. Внимательно изучи "ОПИСАНИЕ КУРСА" и "МАТЕРИАЛЫ КУРСА". Это твой единственный источник знаний.
+2. Ответь на "ВОПРОС СТУДЕНТА", основываясь ИСКЛЮЧИТЕЛЬНО на этой информации.
+3. Если информация для ответа есть, дай четкий, полезный и лаконичный ответ. Цитируй или пересказывай информацию из текста.
+4. Если в предоставленном контексте нет информации для ответа на вопрос, ты ОБЯЗАН ответить только одной фразой: "К сожалению, я не могу ответить на этот вопрос, так как информация выходит за рамки данного курса."
+5. Не придумывай ничего, не делай предположений и не используй свои общие знания. Не извиняйся и не добавляй лишних фраз. Просто дай ответ по существу или стандартный отказ.
+
+${context}
+
+ВОПРОС СТУДЕНТА: "${question}"`;
 
         const result = await model.generateContent(prompt);
         const response = result.response;
 
-        if (!response || !response.text) {
+        if (!response || !response.text()) {
             console.error('AI response was blocked or empty for askAssistant:', JSON.stringify(result, null, 2));
             return res.status(200).json({ answer: "Извините, не удалось получить ответ от AI. Попробуйте переформулировать." });
         }

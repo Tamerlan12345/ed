@@ -236,6 +236,143 @@
             visibility: visible;
         }
     </style>
+    <style id="photo-layout-overrides">
+        .presentation-view-container {
+            display: flex;
+            gap: 20px;
+            background-color: var(--bg-color);
+            height: 100%;
+        }
+        .presentation-view-left-sidebar {
+            flex: 1;
+            min-width: 280px;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .presentation-view-right-content {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: var(--surface-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 25px 30px;
+            overflow: hidden;
+        }
+        .sidebar-panel {
+            background: var(--surface-color);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+        .sidebar-panel h3 {
+            margin-top: 0;
+            font-size: 1.0em;
+            font-weight: bold;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        #leaderboard-content-presentation ol {
+            padding-left: 20px;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        #leaderboard-content-presentation li {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        .instruments-panel button {
+            width: 100%;
+            background-color: var(--primary-color);
+            font-size: 0.95em;
+        }
+        .chatbot-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        #chat-box-sidebar {
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: var(--bg-color);
+            font-size: 0.9em;
+        }
+        #chat-form-sidebar {
+            display: flex;
+            gap: 5px;
+        }
+        #chat-input-sidebar {
+            flex-grow: 1;
+            margin: 0;
+            font-size: 0.9em;
+        }
+        #chat-form-sidebar button {
+            margin: 0;
+            padding: 8px 12px;
+            background-color: var(--primary-color);
+        }
+        #back-to-course-btn-sidebar {
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--text-light-color);
+            color: var(--text-light-color);
+            margin-top: auto; /* Pushes to the bottom */
+        }
+        #back-to-course-btn-sidebar:hover {
+            background: var(--text-light-color);
+            color: white;
+        }
+        .presentation-slider-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 10px; /* space for scrollbar */
+        }
+        .slider-nav-buttons {
+            padding-top: 15px;
+            margin-top: 15px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .slider-nav-buttons button {
+            background: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 20px;
+        }
+        .slider-nav-buttons button:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+        .slider-nav-buttons button:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            background: transparent;
+            cursor: not-allowed;
+        }
+        .presentation-slide.active {
+            animation: fadeIn .4s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0.3; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
     <style id="jules-overrides">
         body.presentation-active-fullscreen {
             overflow: hidden;
@@ -818,8 +955,13 @@
         }
     });
 
-    async function loadLeaderboard() {
-        const leaderboardContent = document.getElementById('leaderboard-content');
+    async function loadLeaderboard(containerId = 'leaderboard-content') {
+        const leaderboardContent = document.getElementById(containerId);
+        if (!leaderboardContent) {
+            // It's okay if the presentation-specific container doesn't exist on the main page.
+            // console.warn(`Leaderboard container #${containerId} not found.`);
+            return;
+        }
         leaderboardContent.innerHTML = '<div class="loader" style="height: 20px; width: 20px; margin: 0;"></div>';
         try {
             const leaderboardData = await fetchAuthenticated('/api/get-leaderboard', { method: 'POST' });
@@ -828,9 +970,9 @@
                 return;
             }
 
-            let html = '<ol style="margin: 0; padding-left: 20px;">';
+            let html = '<ol>'; // Removed inline styles to rely on CSS
             leaderboardData.forEach(user => {
-                html += `<li style="margin-bottom: 5px;"><strong>${user.full_name || 'Аноним'}</strong>: Завершено курсов: ${user.courses_completed || 0}, Время обучения: ${user.total_time_spent_minutes || 0} мин.</li>`;
+                html += `<li><strong>${user.full_name || 'Аноним'}</strong>: Завершено курсов: ${user.courses_completed || 0}, Время обучения: ${user.total_time_spent_minutes || 0} мин.</li>`;
             });
             html += '</ol>';
             leaderboardContent.innerHTML = html;
@@ -1095,13 +1237,11 @@
     }
 
     function renderPresentation(summaryData) {
-        // This function now returns a slider element and a nav container element.
-
-        // FIX: Check for the nested 'slides' array and handle empty state.
+        // This function now returns an object with the slider, prev button, and next button.
         if (!summaryData?.slides || !Array.isArray(summaryData.slides) || summaryData.slides.length === 0) {
             const p = document.createElement('p');
             p.textContent = 'Материалы курса не найдены или генерируются. Попробуйте обновить позже.';
-            return { slider: p, navContainer: null }; // Return null for navContainer
+            return { slider: p, prevBtn: null, nextBtn: null };
         }
 
         const slider = document.createElement('div');
@@ -1112,94 +1252,26 @@
             slideDiv.className = 'presentation-slide';
             let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="${slideData.slide_title || 'Slide Image'}">` : '';
 
+            // Replicating the visual structure from the image.
             slideDiv.innerHTML = `
                 ${imageHtml}
-                <h2>${slideData.slide_title || ''}</h2>
+                <h2 style="margin-top: 20px; text-align: left;">${slideData.slide_title || ''}</h2>
                 ${slideData.html_content || ''}
-                <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
-                    <button class="audio-tts-slide-btn" style="width: auto; padding: 8px 15px; font-size: 0.9em; align-self: flex-start;">
-                        🎧 Озвучить слайд
-                    </button>
-                    <div class="audio-player-slide"></div>
-                </div>
             `;
             slider.appendChild(slideDiv);
         });
 
-        // Event listener for all slide audio buttons
-        slider.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('audio-tts-slide-btn')) {
-                const button = e.target;
-                button.disabled = true;
-                button.textContent = '⏳ Загрузка...';
-                const slideDiv = button.closest('.presentation-slide');
-                const audioPlayerDiv = slideDiv.querySelector('.audio-player-slide');
-                audioPlayerDiv.innerHTML = '';
-                const contentClone = slideDiv.cloneNode(true);
-                const controlsContainer = contentClone.querySelector('.audio-tts-slide-btn')?.parentElement;
-                if (controlsContainer) controlsContainer.remove();
-                const textToSpeak = contentClone.textContent.trim();
-                if (!textToSpeak) {
-                    alert('Нет текста для озвучивания.');
-                    button.disabled = false; button.textContent = '🎧 Озвучить слайд';
-                    return;
-                }
-                try {
-                    const response = await fetchAuthenticated('/api/text-to-speech-user', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ course_id: currentCourse.id, text: textToSpeak })
-                    });
-                    const audio = new Audio(response.audioUrl);
-                    audio.controls = true; audio.autoplay = true;
-                    audioPlayerDiv.appendChild(audio);
-                    button.textContent = '✅ Готово';
-                } catch (error) {
-                    alert(`Не удалось создать аудио: ${error.message}`);
-                    button.textContent = '❌ Ошибка';
-                } finally {
-                    setTimeout(() => { button.disabled = false; button.textContent = '🎧 Озвучить слайд'; }, 4000);
-                }
-            }
-        });
-
         const slides = slider.querySelectorAll('.presentation-slide');
-        const counter = document.createElement('span');
-        counter.className = 'slide-counter';
         const prevBtn = document.createElement('button');
-        prevBtn.textContent = '‹ Назад';
+        prevBtn.textContent = 'Назад';
         const nextBtn = document.createElement('button');
-        nextBtn.textContent = 'Вперед ›';
-
-        // FIX: Create a single navigation container
-        const navContainer = document.createElement('div');
-        navContainer.className = 'slider-nav-container';
-        navContainer.appendChild(prevBtn);
-        navContainer.appendChild(counter);
-        navContainer.appendChild(nextBtn);
-
-        const fullscreenBtn = document.createElement('button');
-        fullscreenBtn.innerHTML = '⛶';
-        fullscreenBtn.title = 'Полноэкранный режим';
-        fullscreenBtn.style.marginLeft = 'auto';
-        fullscreenBtn.addEventListener('click', () => {
-            const isFullscreen = document.body.classList.toggle('presentation-active-fullscreen');
-            if (isFullscreen) {
-                fullscreenBtn.innerHTML = '↘↙';
-                fullscreenBtn.title = 'Выйти из полноэкранного режима';
-            } else {
-                fullscreenBtn.innerHTML = '⛶';
-                fullscreenBtn.title = 'Полноэкранный режим';
-            }
-        });
-        navContainer.appendChild(fullscreenBtn);
+        nextBtn.textContent = 'Вперед';
 
         let currentIndex = 0;
         const updateSliderUI = () => {
             slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
             prevBtn.disabled = currentIndex === 0;
             nextBtn.disabled = currentIndex === slides.length - 1;
-            counter.textContent = `${currentIndex + 1} / ${slides.length}`;
         };
 
         prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateSliderUI(); } });
@@ -1207,7 +1279,7 @@
 
         updateSliderUI();
 
-        return { slider, navContainer };
+        return { slider, prevBtn, nextBtn };
     }
 
     function renderCourseActions() {
@@ -1350,32 +1422,161 @@
     }
 
     function showPresentationView() {
-        backToMenuBtn.textContent = '❮ Назад к курсу';
-        backButtonAction = renderCourseActions;
+        // This function is completely redesigned to match the screenshot layout.
+        stopTimeTracking(); // Stop any previous tracking.
+        backToMenuBtn.classList.add('hidden'); // Hide the main back button.
+        document.getElementById('main-flex-container').classList.add('presentation-active');
+        document.getElementById('leaderboard-container').classList.add('hidden');
+        document.getElementById('main-content-wrapper').style.flex = '1 1 100%';
 
+
+        productContent.innerHTML = ''; // Clear previous content.
+        productContent.classList.remove('presentation-mode'); // Remove old class if present.
         contentArea.classList.add('no-scroll');
-        productContent.innerHTML = ''; // Clear previous content (e.g., the course actions menu)
-        productContent.classList.add('presentation-mode'); // Ensure parent has height
 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'presentation-wrapper';
+        const container = document.createElement('div');
+        container.className = 'presentation-view-container';
 
-        const presentationCol = document.createElement('div');
-        presentationCol.className = 'presentation-column';
+        // --- 1. Build Left Sidebar ---
+        const leftSidebar = document.createElement('div');
+        leftSidebar.className = 'presentation-view-left-sidebar';
 
-        const { slider, navContainer } = renderPresentation(currentCourse.summary);
-        presentationCol.appendChild(slider);
-        if (navContainer) {
-            presentationCol.appendChild(navContainer);
+        // Leaderboard Panel
+        const leaderboardPanel = document.createElement('div');
+        leaderboardPanel.className = 'sidebar-panel';
+        leaderboardPanel.innerHTML = `
+            <h3>🏆 Топ Учеников Недели</h3>
+            <div id="leaderboard-content-presentation"></div>
+        `;
+        leftSidebar.appendChild(leaderboardPanel);
+        loadLeaderboard('leaderboard-content-presentation');
+
+        // Instruments Panel
+        const instrumentsPanel = document.createElement('div');
+        instrumentsPanel.className = 'sidebar-panel instruments-panel';
+        instrumentsPanel.innerHTML = '<h3>Инструменты</h3>';
+        const testBtn = document.createElement('button');
+        testBtn.textContent = 'Начать тестирование';
+        testBtn.onclick = () => {
+            stopTimeTracking();
+            startTest(currentCourse.id);
+        };
+        instrumentsPanel.appendChild(testBtn);
+        leftSidebar.appendChild(instrumentsPanel);
+
+        // Chatbot Panel
+        const chatbotPanel = document.createElement('div');
+        chatbotPanel.className = 'sidebar-panel chatbot-panel';
+        chatbotPanel.innerHTML = `
+            <h3>ЧАТ-БОТ АССИСТЕНТ</h3>
+            <div id="chat-box-sidebar" class="chat-box"></div>
+            <form id="chat-form-sidebar">
+                <input type="text" id="chat-input-sidebar" placeholder="Ваш вопрос..." autocomplete="off">
+                <button type="submit">➢</button>
+            </form>
+        `;
+        leftSidebar.appendChild(chatbotPanel);
+
+        // Back Button
+        const backBtnSidebar = document.createElement('button');
+        backBtnSidebar.id = 'back-to-course-btn-sidebar';
+        backBtnSidebar.textContent = '‹ Назад к курсу';
+        backBtnSidebar.onclick = renderCourseActions; // Go back to the course action menu
+        leftSidebar.appendChild(backBtnSidebar);
+
+        // --- 2. Build Right Content Area ---
+        const rightContent = document.createElement('div');
+        rightContent.className = 'presentation-view-right-content';
+
+        const sliderContainer = document.createElement('div');
+        sliderContainer.className = 'presentation-slider-container';
+
+        const navButtonsContainer = document.createElement('div');
+        navButtonsContainer.className = 'slider-nav-buttons';
+
+        const { slider, prevBtn, nextBtn } = renderPresentation(currentCourse.summary);
+        sliderContainer.appendChild(slider);
+        if (prevBtn && nextBtn) {
+            navButtonsContainer.appendChild(prevBtn);
+            navButtonsContainer.appendChild(nextBtn);
         }
 
-        const sidebar = renderCourseSidebar();
+        rightContent.appendChild(sliderContainer);
+        rightContent.appendChild(navButtonsContainer);
 
-        wrapper.appendChild(presentationCol);
-        wrapper.appendChild(sidebar);
-        productContent.appendChild(wrapper);
+        // --- 3. Assemble and Render ---
+        container.appendChild(leftSidebar);
+        container.appendChild(rightContent);
+        productContent.appendChild(container);
 
-        // Start time tracking
+        // --- 4. Wire up Chat ---
+        const chatFormSidebar = document.getElementById('chat-form-sidebar');
+        const chatInputSidebar = document.getElementById('chat-input-sidebar');
+        const chatBoxSidebar = document.getElementById('chat-box-sidebar');
+
+        const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
+        if(savedChat) chatBoxSidebar.innerHTML = savedChat;
+        else {
+            const welcomeMessage = `Здравствуйте! Я ваш ассистент по курсу "${currentCourse.title}". Чем могу помочь?`;
+            const appendWelcome = (text, sender) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `chat-message ${sender}-message`;
+                const textSpan = document.createElement('span');
+                textSpan.textContent = text;
+                messageDiv.appendChild(textSpan);
+                chatBoxSidebar.appendChild(messageDiv);
+                chatBoxSidebar.scrollTop = chatBoxSidebar.scrollHeight;
+                sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
+            };
+            appendWelcome(welcomeMessage, 'assistant');
+        }
+
+
+        chatFormSidebar.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userQuestion = chatInputSidebar.value.trim();
+            if (!userQuestion || !currentCourse) return;
+
+            const append = (text, sender, isThinking = false) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `chat-message ${sender}-message`;
+                const textSpan = document.createElement('span');
+                textSpan.textContent = text;
+                if (isThinking) { messageDiv.id = 'thinking-indicator-sidebar'; }
+                messageDiv.appendChild(textSpan);
+                chatBoxSidebar.appendChild(messageDiv);
+                chatBoxSidebar.scrollTop = chatBoxSidebar.scrollHeight;
+                if (!isThinking) sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
+            };
+
+            const updateLast = (text) => {
+                const thinking = document.getElementById('thinking-indicator-sidebar');
+                if (thinking) {
+                    thinking.querySelector('span').textContent = text;
+                    thinking.id = '';
+                    sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxSidebar.innerHTML);
+                }
+            };
+
+            append(userQuestion, 'user');
+            chatInputSidebar.value = '';
+            chatInputSidebar.disabled = true;
+            append('...', 'assistant', true);
+
+            try {
+                const data = await fetchAuthenticated('/api/askAssistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion }) });
+                updateLast(data.answer);
+            } catch (error) {
+                console.error('Ошибка ассистента:', error);
+                updateLast(`Извините, произошла ошибка.`);
+            } finally {
+                chatInputSidebar.disabled = false;
+                chatInputSidebar.focus();
+            }
+        });
+
+
+        // --- 5. Start Time Tracking ---
         if (timeTrackingInterval) clearInterval(timeTrackingInterval);
         secondsSinceLastUpdate = 0;
         timeTrackingInterval = setInterval(() => {
