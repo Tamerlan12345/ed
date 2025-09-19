@@ -237,70 +237,99 @@
         }
     </style>
     <style id="photo-layout-overrides">
+        /* --- Presentation Mode --- */
+
+        /* Hide normal main content when presentation is active */
+        #app-view.presentation-mode-active #main-menu-tabs,
+        #app-view.presentation-mode-active #main-menu,
+        #app-view.presentation-mode-active #extra-tools,
+        #app-view.presentation-mode-active #leaderboard-container,
+        #app-view.presentation-mode-active #back-to-menu-btn,
+        #app-view.presentation-mode-active .window-footer {
+            display: none;
+        }
+
+        /* When active, ensure the content area is visible and ready */
+        #app-view.presentation-mode-active #product-content {
+            display: block;
+            height: 100%;
+        }
+
+        #app-view.presentation-mode-active #main-flex-container {
+            display: block; /* Override the default flex to allow product-content to take over */
+        }
+
+        #app-view.presentation-mode-active #main-content-wrapper {
+             flex: 1 1 100%; /* Allow the wrapper to expand */
+        }
+
+        #app-view.presentation-mode-active .content-area {
+            padding: 0; /* Remove padding to allow full bleed */
+        }
+
+        /* The container for our two-column layout */
         .presentation-view-container {
             display: flex;
             gap: 20px;
             background-color: var(--bg-color);
             height: 100%;
+            padding: 20px; /* Add padding to the container itself */
+            opacity: 0;
+            animation: fadeIn .4s ease-in-out forwards;
         }
+
         .presentation-view-left-sidebar {
-            flex: 1;
-            min-width: 280px;
-            max-width: 320px;
+            flex: 0 0 320px; /* Fixed width sidebar */
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
         }
+
         .presentation-view-right-content {
-            flex: 4; /* Make presentation wider */
+            flex: 1; /* Takes up remaining space */
             display: flex;
             flex-direction: column;
-            position: relative;
             background: var(--surface-color);
             border-radius: 12px;
             box-shadow: var(--shadow);
             padding: 25px 30px;
-            overflow: hidden;
+            overflow: hidden; /* Important for containing the scrolling content */
         }
+
         .sidebar-panel {
             background: var(--surface-color);
             border-radius: 8px;
-            padding: 15px;
+            padding: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             border: 1px solid var(--border-color);
         }
+
         .sidebar-panel h3 {
             margin-top: 0;
             font-size: 1.0em;
             font-weight: bold;
             color: var(--text-color);
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 8px;
-            margin-bottom: 12px;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        #leaderboard-content-presentation ol {
-            padding-left: 20px;
-            margin: 0;
-            font-size: 0.9rem;
-        }
-        #leaderboard-content-presentation li {
-            margin-bottom: 8px;
-            line-height: 1.4;
-        }
+
         .instruments-panel button {
             width: 100%;
             background-color: var(--primary-color);
             font-size: 0.95em;
         }
+
         .chatbot-panel {
-            flex-grow: 1;
+            flex-grow: 1; /* Allows this panel to fill remaining space */
             display: flex;
             flex-direction: column;
         }
+
         #chat-box-sidebar {
-            height: 250px; /* Expand chatbox */
+            flex-grow: 1; /* Make chatbox expand */
             overflow-y: auto;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -309,80 +338,71 @@
             background-color: var(--bg-color);
             font-size: 0.9em;
         }
-        #chat-form-sidebar {
-            display: flex;
-            gap: 5px;
-        }
-        #chat-input-sidebar {
-            flex-grow: 1;
-            margin: 0;
-            font-size: 0.9em;
-        }
-        #chat-form-sidebar button {
-            margin: 0;
-            padding: 8px 12px;
-            background-color: var(--primary-color);
-        }
+
+        #chat-form-sidebar { display: flex; gap: 5px; }
+        #chat-input-sidebar { flex-grow: 1; margin: 0; font-size: 0.9em; }
+        #chat-form-sidebar button { margin: 0; padding: 8px 12px; background-color: var(--primary-color); }
+
         #back-to-course-btn-sidebar {
             width: 100%;
             background: transparent;
             border: 1px solid var(--text-light-color);
             color: var(--text-light-color);
-            margin-top: auto; /* Pushes to the bottom */
+            margin-top: auto; /* Pushes to the bottom of the flex container */
         }
-        #back-to-course-btn-sidebar:hover {
-            background: var(--text-light-color);
-            color: white;
-        }
+        #back-to-course-btn-sidebar:hover { background: var(--text-light-color); color: white; }
+
         .presentation-slider-container {
             flex-grow: 1;
             overflow-y: auto;
-            padding-right: 10px; /* space for scrollbar */
+            padding-right: 15px; /* space for scrollbar */
         }
+
         .slider-nav-buttons {
             padding-top: 15px;
-            margin-top: 15px;
+            margin-top: auto; /* Push to the bottom */
             display: flex;
-            justify-content: flex-end;
+            justify-content: flex-end; /* Align to the right */
             gap: 10px;
             flex-shrink: 0;
         }
+
+        /* Style buttons to match mockup */
         .slider-nav-buttons button {
             background: transparent;
             border: 1px solid var(--primary-color);
             color: var(--primary-color);
             font-weight: bold;
-            padding: 8px 20px;
-            border-radius: 20px;
+            padding: 6px 16px; /* Adjusted padding */
+            border-radius: 6px; /* Adjusted radius */
+            font-size: 0.9em;
         }
+
         .slider-nav-buttons button:hover {
             background: var(--primary-color);
             color: white;
         }
+
         .slider-nav-buttons button:disabled {
             border-color: #ccc;
             color: #ccc;
             background: transparent;
             cursor: not-allowed;
         }
+
         .presentation-slide.active {
             display: block;
-            animation: fadeIn .4s;
+            animation: fadeInSlide .5s;
         }
-        @keyframes fadeIn {
+
+        @keyframes fadeInSlide {
             from { opacity: 0.3; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* New rules for robust flex layout in presentation view */
-        .window.presentation-layout-active {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        .window.presentation-layout-active > .content-area {
-            flex: 1;
-            height: auto;
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
     </style>
     <style id="jules-overrides">
@@ -997,6 +1017,7 @@
 
     async function showMainMenu() {
         // Stop any ongoing activities
+        appView.classList.remove('presentation-mode-active');
         document.body.classList.remove('presentation-active-fullscreen');
         const windowEl = document.querySelector('#app-view .window');
         if (windowEl) windowEl.classList.remove('presentation-layout-active');
@@ -1299,6 +1320,7 @@
 
     function renderCourseActions() {
         stopTimeTracking();
+        appView.classList.remove('presentation-mode-active');
         const windowEl = document.querySelector('#app-view .window');
         if (windowEl) windowEl.classList.remove('presentation-layout-active');
         backToMenuBtn.textContent = '❮ Назад в меню';
@@ -1445,18 +1467,11 @@
 
         // This function is completely redesigned to match the screenshot layout.
         stopTimeTracking(); // Stop any previous tracking.
-        backToMenuBtn.classList.add('hidden'); // Hide the main back button.
-        document.getElementById('main-flex-container').classList.add('presentation-active');
-        document.getElementById('leaderboard-container').classList.add('hidden');
-        document.getElementById('main-content-wrapper').style.flex = '1 1 100%';
 
-
-        const windowEl = document.querySelector('#app-view .window');
-        if (windowEl) windowEl.classList.add('presentation-layout-active');
+        // Add a single class to the main app container to switch to presentation mode
+        appView.classList.add('presentation-mode-active');
 
         productContent.innerHTML = ''; // Clear previous content.
-        productContent.classList.remove('presentation-mode'); // Remove old class if present.
-        contentArea.classList.add('no-scroll');
 
         const container = document.createElement('div');
         container.className = 'presentation-view-container';
@@ -1614,15 +1629,7 @@
         windowTitle.textContent = currentCourse.title;
 
         // --- UI State Change for Presentation View ---
-        // 1. Add the class to the container to trigger the two-column layout
-        document.getElementById('main-flex-container').classList.add('presentation-active');
-
-        // 2. Keep the leaderboard visible, but hide the main menu content
-        document.getElementById('main-menu-tabs').classList.add('hidden');
-        document.getElementById('main-menu').classList.add('hidden');
-        extraToolsDiv.classList.add('hidden');
-
-        // 3. Show the product content area
+        // Show the product content area where the actions will be rendered
         productContent.classList.remove('hidden');
 
         // 4. Configure the back button
