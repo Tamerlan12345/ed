@@ -1,7 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY || !process.env.SUPABASE_SERVICE_KEY) {
-    throw new Error('Supabase environment variables (URL, ANON_KEY, SERVICE_KEY) are not configured.');
+// In a test environment, the keys might not be set, and the client will be mocked anyway.
+if (process.env.NODE_ENV !== 'test') {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY || !process.env.SUPABASE_SERVICE_KEY) {
+        throw new Error('Supabase environment variables (URL, ANON_KEY, SERVICE_KEY) are not configured.');
+    }
 }
 
 /**

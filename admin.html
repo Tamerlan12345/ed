@@ -810,11 +810,14 @@
     }
 
     async function saveDraftHandler() {
+        const btn = document.getElementById('save-draft-btn');
+        btn.disabled = true;
         if (autosaveTimer) clearTimeout(autosaveTimer); // Cancel any pending autosave
 
         const courseId = document.getElementById('course-id').value;
         if (!courseId) {
             showToast('Сначала создайте курс, чтобы можно было сохранить черновик.', 'error');
+            btn.disabled = false;
             return;
         }
 
@@ -830,15 +833,22 @@
         } catch (e) {
             showToast('Ошибка при сохранении черновика.', 'error');
             if (statusEl) statusEl.textContent = 'Ошибка сохранения черновика.';
+        } finally {
+            btn.disabled = false;
         }
     }
 
     async function processFileHandler() {
-        const file = document.getElementById('file-uploader').files[0];
-        const title = document.getElementById('course-title').value.trim();
-        if (!file || !title) return showStatus('Укажите название и выберите файл.', 'error');
-        let courseId = document.getElementById('course-id').value.trim();
+        const btn = document.getElementById('process-file-btn');
+        btn.disabled = true;
         try {
+            const file = document.getElementById('file-uploader').files[0];
+            const title = document.getElementById('course-title').value.trim();
+            if (!file || !title) {
+                showStatus('Укажите название и выберите файл.', 'error');
+                return;
+            }
+            let courseId = document.getElementById('course-id').value.trim();
             if (!courseId) {
                 const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title });
                 courseId = newCourse.id;
@@ -858,103 +868,144 @@
     }
 
     async function generateContentHandler() {
-        const courseId = document.getElementById('course-id').value;
-        if (!courseId) return showToast('Сначала создайте курс.', 'error');
-        document.getElementById('content').value = 'Генерация...';
+        const btn = document.getElementById('generate-btn');
+        btn.disabled = true;
         try {
+            const courseId = document.getElementById('course-id').value;
+            if (!courseId) {
+                showToast('Сначала создайте курс.', 'error');
+                return;
+            }
+            document.getElementById('content').value = 'Генерация...';
             await apiCall(ACTIONS.GENERATE_CONTENT, { course_id: courseId, custom_prompt: document.getElementById('custom-prompt').value });
-        } catch(e) { /* Handled */ }
+        } catch(e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     async function textToSpeechHandler() {
-        const description = document.getElementById('description').value;
-        const courseId = document.getElementById('course-id').value;
-
-        if (!description) return showStatus('Нет текста для озвучивания.', 'error');
-        if (!courseId) return showStatus('Сначала необходимо сохранить курс, чтобы получить ID.', 'error');
-
-        const audioContainer = document.getElementById('audio-player-container');
-        audioContainer.innerHTML = '';
+        const btn = document.getElementById('text-to-speech-btn');
+        btn.disabled = true;
         try {
+            const description = document.getElementById('description').value;
+            const courseId = document.getElementById('course-id').value;
+
+            if (!description) {
+                showStatus('Нет текста для озвучивания.', 'error');
+                return;
+            };
+            if (!courseId) {
+                showStatus('Сначала необходимо сохранить курс, чтобы получить ID.', 'error');
+                return;
+            }
+
+            const audioContainer = document.getElementById('audio-player-container');
+            audioContainer.innerHTML = '';
             const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: description, course_id: courseId });
             const audio = new Audio(data.audioUrl);
             audio.controls = true;
             audioContainer.appendChild(audio);
             audioContainer.classList.remove('hidden');
-        } catch (error) { /* Handled in apiCall */ }
+        } catch (error) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     async function publishCourseHandler() {
-        const courseId = document.getElementById('course-id').value;
-        if (!courseId) {
-            showToast('Сначала необходимо создать или загрузить курс.', 'error');
-            return;
-        }
-        if (autosaveTimer) clearTimeout(autosaveTimer);
-
-        // 1. Синхронизировать WYSIWYG с textarea
-        updateJsonFromWysiwyg(false); // false - не запускать автосохранение
-
-        // 2. Собрать все данные из формы
-        const title = document.getElementById('course-title').value;
-        const description = document.getElementById('description').value;
-        const contentString = document.getElementById('content').value;
-        const isVisible = document.getElementById('course-is-visible').checked;
-
-        if (!title || !contentString) {
-            showToast('Название курса и контент не могут быть пустыми.', 'error');
-            return;
-        }
-
-        let content;
+        const btn = document.getElementById('publish-btn');
+        btn.disabled = true;
         try {
-            content = JSON.parse(contentString);
-        } catch (e) {
-            showToast('Ошибка в формате JSON контента. Публикация невозможна.', 'error');
-            return;
-        }
+            const courseId = document.getElementById('course-id').value;
+            if (!courseId) {
+                showToast('Сначала необходимо создать или загрузить курс.', 'error');
+                return;
+            }
+            if (autosaveTimer) clearTimeout(autosaveTimer);
 
-        const payload = {
-            course_id: courseId,
-            title,
-            description,
-            content,
-            is_visible: isVisible
-        };
+            updateJsonFromWysiwyg(false);
 
-        try {
-            // 3. Отправить полный payload на сервер
+            const title = document.getElementById('course-title').value;
+            const description = document.getElementById('description').value;
+            const contentString = document.getElementById('content').value;
+            const isVisible = document.getElementById('course-is-visible').checked;
+
+            if (!title || !contentString) {
+                showToast('Название курса и контент не могут быть пустыми.', 'error');
+                return;
+            }
+
+            let content;
+            try {
+                content = JSON.parse(contentString);
+            } catch (e) {
+                showToast('Ошибка в формате JSON контента. Публикация невозможна.', 'error');
+                return;
+            }
+
+            const payload = {
+                course_id: courseId,
+                title,
+                description,
+                content,
+                is_visible: isVisible
+            };
+
             await apiCall(ACTIONS.PUBLISH_COURSE, payload);
             showToast('Курс успешно опубликован!', 'success');
             await loadCourses();
             clearCourseForm();
         } catch (e) {
-            // Ошибки уже обрабатываются в apiCall
+            // Errors are handled in apiCall
+        } finally {
+            btn.disabled = false;
         }
     }
 
     async function uploadMaterialHandler() {
+        const btn = document.getElementById('upload-material-btn');
         const file = document.getElementById('material-uploader').files[0];
-        if (!currentEditingCourseId || !file) return showStatus('Выберите курс и файл.', 'error');
+        if (!currentEditingCourseId || !file) {
+            showStatus('Выберите курс и файл.', 'error');
+            return;
+        }
+
+        btn.disabled = true;
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async () => {
             try {
                 await apiCall(ACTIONS.UPLOAD_COURSE_MATERIAL, { course_id: currentEditingCourseId, file_name: file.name, file_data: reader.result.split(',')[1] });
                 loadCourseForEditing(currentEditingCourseId);
-            } catch(e) { /* Handled */ }
+            } catch(e) {
+                /* Handled in apiCall */
+            } finally {
+                btn.disabled = false;
+            }
         };
+        reader.onerror = () => {
+            showToast('Не удалось прочитать файл.', 'error');
+            btn.disabled = false;
+        }
     }
 
     async function deleteMaterialHandler(e) {
         if (e.target.classList.contains('delete-material-btn')) {
-            const materialId = e.target.dataset.id;
-            const storagePath = e.target.dataset.path;
+            const btn = e.target;
+            const materialId = btn.dataset.id;
+            const storagePath = btn.dataset.path;
             if (confirm(`Удалить материал "${storagePath}"?`)) {
+                btn.disabled = true;
                 try {
                     await apiCall(ACTIONS.DELETE_COURSE_MATERIAL, { material_id: materialId, storage_path: storagePath });
                     loadCourseForEditing(currentEditingCourseId);
-                } catch(e) { /* Handled */ }
+                } catch(e) {
+                    /* Handled */
+                    btn.disabled = false;
+                }
             }
         }
     }
@@ -1143,18 +1194,23 @@
         }
     }
 
-    document.getElementById('save-group-btn').addEventListener('click', async () => {
-        const groupName = groupNameInput.value.trim();
-        if (!groupName) return showStatus('Название не может быть пустым.', 'error');
-        const payload = {
-            group_name: groupName,
-            is_for_new_employees: newEmployeesCheckbox.checked,
-            is_visible: document.getElementById('group-is-visible').checked,
-            enforce_order: document.getElementById('group-enforce-order').checked,
-            deadline_days: document.getElementById('group-deadline-days').value || null,
-            recurrence_period: document.getElementById('group-recurrence').value || null
-        };
+    document.getElementById('save-group-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         try {
+            const groupName = groupNameInput.value.trim();
+            if (!groupName) {
+                showStatus('Название не может быть пустым.', 'error');
+                return;
+            }
+            const payload = {
+                group_name: groupName,
+                is_for_new_employees: newEmployeesCheckbox.checked,
+                is_visible: document.getElementById('group-is-visible').checked,
+                enforce_order: document.getElementById('group-enforce-order').checked,
+                deadline_days: document.getElementById('group-deadline-days').value || null,
+                recurrence_period: document.getElementById('group-recurrence').value || null
+            };
             if (currentEditingGroupId) {
                 await apiCall(ACTIONS.UPDATE_COURSE_GROUP, { ...payload, group_id: currentEditingGroupId });
             } else {
@@ -1163,7 +1219,11 @@
             }
             showStatus('Группа сохранена.', 'success');
             await loadGroups();
-        } catch (e) { /* Handled */ }
+        } catch (e) {
+            /* Handled */
+        } finally {
+            btn.disabled = false;
+        }
     });
 
     async function loadAllCoursesForGrouping() {
@@ -1233,29 +1293,49 @@
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
-    document.getElementById('save-courses-in-group-btn').addEventListener('click', async () => {
-        if (!currentEditingGroupId) return showStatus('Сначала выберите группу.', 'error');
-        const courseIds = Array.from(groupCoursesList.getElementsByTagName('li')).map(li => li.dataset.id);
+    document.getElementById('save-courses-in-group-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         try {
+            if (!currentEditingGroupId) {
+                showStatus('Сначала выберите группу.', 'error');
+                return;
+            }
+            const courseIds = Array.from(groupCoursesList.getElementsByTagName('li')).map(li => li.dataset.id);
             await apiCall(ACTIONS.UPDATE_COURSES_IN_GROUP, { group_id: currentEditingGroupId, course_ids: courseIds });
             showStatus('Состав группы сохранен.', 'success');
-        } catch (e) { /* Handled */ }
+        } catch (e) {
+            /* Handled */
+        } finally {
+            btn.disabled = false;
+        }
     });
 
-    document.getElementById('assign-group-btn').addEventListener('click', async () => {
-        const department = document.getElementById('assign-department-select').value;
-        if (!currentEditingGroupId || !department) return showStatus('Выберите группу и подразделение.', 'error');
+    document.getElementById('assign-group-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         try {
+            const department = document.getElementById('assign-department-select').value;
+            if (!currentEditingGroupId || !department) {
+                showStatus('Выберите группу и подразделение.', 'error');
+                return;
+            }
             await apiCall(ACTIONS.ASSIGN_GROUP_TO_DEPARTMENT, { group_id: currentEditingGroupId, department: department });
             showStatus(`Группа назначена подразделению "${department}".`, 'success');
             document.getElementById('assign-department-select').value = '';
-        } catch (e) { /* Handled */ }
+        } catch (e) {
+            /* Handled */
+        } finally {
+            btn.disabled = false;
+        }
     });
 
     // --- STUDENT MANAGEMENT (within Groups tab) ---
     let selectedStudentEmail = null;
 
-    document.getElementById('load-students-btn').addEventListener('click', async () => {
+    document.getElementById('load-students-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         try {
             showStatus('Загрузка списка учеников...', 'info');
             const students = await apiCall(ACTIONS.GET_ALL_USERS);
@@ -1271,7 +1351,11 @@
             });
             studentsTable.classList.remove('hidden');
             showStatus(`Загружено ${students.length} учеников.`, 'success');
-        } catch(e) { /* Handled in apiCall */ }
+        } catch(e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
     });
 
     document.getElementById('students-table-body').addEventListener('click', (e) => {
@@ -1298,15 +1382,22 @@
         actionsPanel.classList.remove('hidden');
     });
 
-    document.getElementById('assign-course-to-student-btn').addEventListener('click', async () => {
-        const courseId = document.getElementById('student-course-assignment-list').value;
-        if (!selectedStudentEmail || !courseId) {
-            return showStatus('Выберите ученика и курс для назначения.', 'error');
-        }
+    document.getElementById('assign-course-to-student-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         try {
+            const courseId = document.getElementById('student-course-assignment-list').value;
+            if (!selectedStudentEmail || !courseId) {
+                showStatus('Выберите ученика и курс для назначения.', 'error');
+                return;
+            }
             await apiCall(ACTIONS.ASSIGN_COURSE_TO_USER, { user_email: selectedStudentEmail, course_id: courseId });
             showStatus(`Курс "${courseId}" успешно назначен ${selectedStudentEmail}.`, 'success');
-        } catch(e) { /* Handled in apiCall */ }
+        } catch(e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
     });
 
 
@@ -1320,17 +1411,25 @@
         } catch (e) { /* Handled in apiCall */ }
     }
 
-    document.getElementById('save-leaderboard-settings-btn').addEventListener('click', async () => {
-        const metrics = {};
-        document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(c => { metrics[c.value] = c.checked; });
+    document.getElementById('save-leaderboard-settings-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         try {
+            const metrics = {};
+            document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(c => { metrics[c.value] = c.checked; });
             await apiCall(ACTIONS.SAVE_LEADERBOARD_SETTINGS, { metrics });
             showStatus('Настройки успешно сохранены.', 'success');
-        } catch (e) { /* Handled in apiCall */ }
+        } catch (e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
     });
 
     // --- RESULTS ---
     async function loadResults() {
+        const btn = document.getElementById('apply-filters-btn');
+        if(btn) btn.disabled = true;
         const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
         tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Загрузка отчета...</td></tr>';
         const userEmail = document.getElementById('filter-user').value;
@@ -1366,6 +1465,8 @@
         } catch (error) {
             showStatus('Ошибка при загрузке результатов.', 'error');
             tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">${error.message}</td></tr>`;
+        } finally {
+            if(btn) btn.disabled = false;
         }
     }
 
@@ -1373,6 +1474,8 @@
 
     // --- SIMULATOR RESULTS ---
     async function loadSimulatorResults() {
+        const btn = document.getElementById('refresh-sim-results-btn');
+        if(btn) btn.disabled = true;
         const tableBody = document.getElementById('simulator-results-table').getElementsByTagName('tbody')[0];
         tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Загрузка результатов...</td></tr>';
         showStatus('Загрузка результатов тренажера...', 'info');
@@ -1399,13 +1502,17 @@
             showStatus('Результаты тренажера загружены.', 'success');
         } catch (e) {
             tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: red;">${e.message}</td></tr>`;
+        } finally {
+            if(btn) btn.disabled = false;
         }
     }
 
     document.getElementById('refresh-sim-results-btn').addEventListener('click', loadSimulatorResults);
 
 
-    document.getElementById('export-csv-btn').addEventListener('click', async () => {
+    document.getElementById('export-csv-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
         const userEmail = document.getElementById('filter-user').value;
         const department = document.getElementById('filter-department').value;
         const courseId = document.getElementById('filter-course').value;
@@ -1433,6 +1540,8 @@
             showStatus('Отчет успешно выгружен.', 'success');
         } catch (error) {
             showStatus(`Ошибка при выгрузке: ${error.message}`, 'error');
+        } finally {
+            btn.disabled = false;
         }
     });
 </script>
