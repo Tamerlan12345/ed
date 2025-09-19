@@ -34,7 +34,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /usr/src/app .
 
 # Expose the port the app runs on
-EXPOSE 3001
+EXPOSE 3002
 
 # The command to run the application
 CMD [ "npm", "start" ]
