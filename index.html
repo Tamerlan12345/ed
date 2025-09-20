@@ -356,6 +356,41 @@
             z-index: 10;
         }
     </style>
+    <style id="course-materials-style">
+        .course-materials-container h3 {
+            font-size: 1.1em;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+        .course-materials-list {
+            list-style-type: none;
+            padding-left: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .material-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        .material-link:hover {
+            border-color: var(--primary-color);
+            background-color: #e9f7fe;
+            color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+    </style>
 </head>
 <body>
     <div id="toast-container"></div>
@@ -509,6 +544,10 @@
     const restartSimulationBtn = document.getElementById('restart-simulation-btn');
     const contentLoader = document.getElementById('content-loader');
 
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+    }
     function truncateText(text, maxLength = 120) {
         if (!text || text.length <= maxLength) return text;
         return text.substring(0, maxLength) + '...';
@@ -964,16 +1003,14 @@
             if (rightContent && currentCourse.materials && currentCourse.materials.length > 0) {
                 const materialsContainer = document.createElement('div');
                 materialsContainer.className = 'course-materials-container';
-                materialsContainer.style.marginTop = '20px';
-                materialsContainer.style.paddingTop = '20px';
-                materialsContainer.style.borderTop = '1px solid #eee';
 
-                let materialsHtml = '<h3>Файлы для скачивания по курсу:</h3><ul style="list-style-type: none; padding-left: 0;">';
+                let materialsHtml = '<h3>Файлы для скачивания</h3><ul class="course-materials-list">';
                 currentCourse.materials.forEach(material => {
                     materialsHtml += `
-                        <li style="margin-bottom: 10px;">
-                            <a href="${escapeHTML(material.file_url)}" target="_blank" rel="noopener noreferrer" class="btn" style="text-decoration: none; display: inline-block; background-color: #00AEEF;">
-                                📄 ${escapeHTML(material.file_name)}
+                        <li>
+                            <a href="${escapeHTML(material.file_url)}" target="_blank" rel="noopener noreferrer" class="material-link">
+                                <span>📄</span>
+                                <span>${escapeHTML(material.file_name)}</span>
                             </a>
                         </li>
                     `;
@@ -981,6 +1018,7 @@
                 materialsHtml += '</ul>';
                 materialsContainer.innerHTML = materialsHtml;
 
+                // Insert the materials container before the navigation buttons
                 const sliderNav = rightContent.querySelector('.slider-nav-buttons');
                 if (sliderNav) {
                     rightContent.insertBefore(materialsContainer, sliderNav);
