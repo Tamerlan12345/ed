@@ -968,18 +968,26 @@
             };
             // NEW: Check if the course is from a Google Slides presentation
             if (currentCourse.presentation_url) {
-                sliderContainer.innerHTML = ''; // Clear existing content
+                sliderContainer.innerHTML = '<div class="loader"></div>'; // Show loader
                 navButtonsContainer.style.display = 'none'; // Hide our custom nav
 
                 const iframe = document.createElement('iframe');
-                // Rebuild the URL to ensure it's always a valid embed link, handling various /pub formats
-                const embedUrl = currentCourse.presentation_url.split('/pub')[0] + '/embed?rm=minimal&amp;start=false&amp;loop=false&amp;delayms=3000';
+                // Rebuild the URL for embedding. Removed 'rm=minimal' to ensure controls are visible.
+                const embedUrl = currentCourse.presentation_url.split('/pub')[0] + '/embed?start=false&loop=false&delayms=3000';
 
                 iframe.src = embedUrl;
                 iframe.style.width = '100%';
                 iframe.style.height = '100%';
                 iframe.style.border = 'none';
+                iframe.style.display = 'none'; // Hide iframe until loaded
                 iframe.allow = "fullscreen";
+
+                iframe.onload = () => {
+                    // Remove loader and show the iframe
+                    const loader = sliderContainer.querySelector('.loader');
+                    if (loader) loader.remove();
+                    iframe.style.display = 'block';
+                };
 
                 sliderContainer.appendChild(iframe);
             } else {

@@ -452,6 +452,7 @@
 
             const questionsHtml = (data.questions || []).map((q, qIndex) => `
                 <div class="wysiwyg-question" data-index="${qIndex}">
+                    <button class="delete-question-btn" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
                     <div class="wysiwyg-question-text" contenteditable="true">${q.question || 'Текст вопроса'}</div>
                     <ul class="wysiwyg-options">
                         ${(q.options || []).map((opt, oIndex) => `
@@ -464,11 +465,57 @@
                 </div>
             `).join('');
 
-            if(questionsHtml) {
-                editor.innerHTML += `<div class="wysiwyg-questions-container"><h4>Тестовые вопросы</h4>${questionsHtml}</div>`;
-            }
+            const questionsContainer = document.createElement('div');
+            questionsContainer.className = 'wysiwyg-questions-container';
+            questionsContainer.innerHTML = `
+                <h4>Тестовые вопросы</h4>
+                ${questionsHtml}
+                <button id="add-question-btn" style="margin-top: 15px; background-color: #28a745;">+ Добавить вопрос</button>
+            `;
+            editor.appendChild(questionsContainer);
 
             ['input', 'change'].forEach(evt => editor.addEventListener(evt, () => updateJsonFromWysiwyg()));
+
+            // --- Add/Delete Question Logic ---
+            editor.addEventListener('click', (e) => {
+                if (e.target.id === 'add-question-btn') {
+                    e.preventDefault();
+                    const newQuestionIndex = editor.querySelectorAll('.wysiwyg-question').length;
+                    const newQuestionEl = document.createElement('div');
+                    newQuestionEl.className = 'wysiwyg-question';
+                    newQuestionEl.dataset.index = newQuestionIndex;
+                    newQuestionEl.innerHTML = `
+                        <button class="delete-question-btn" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
+                        <div class="wysiwyg-question-text" contenteditable="true">Новый вопрос</div>
+                        <ul class="wysiwyg-options">
+                            <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${newQuestionIndex}" checked>
+                                <span class="wysiwyg-option-label" contenteditable="true">Вариант 1</span>
+                            </li>
+                             <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${newQuestionIndex}">
+                                <span class="wysiwyg-option-label" contenteditable="true">Вариант 2</span>
+                            </li>
+                        </ul>
+                    `;
+                    e.target.before(newQuestionEl); // Insert before the "Add" button
+                    updateJsonFromWysiwyg();
+                }
+
+                if (e.target.classList.contains('delete-question-btn')) {
+                    e.preventDefault();
+                    const questionToDelete = e.target.closest('.wysiwyg-question');
+                    if (questionToDelete && confirm('Удалить этот вопрос?')) {
+                        questionToDelete.remove();
+                        // Re-index remaining questions to maintain data integrity
+                        editor.querySelectorAll('.wysiwyg-question').forEach((q, index) => {
+                            q.dataset.index = index;
+                            q.querySelectorAll('input[type="radio"]').forEach(radio => radio.name = `correct_q_${index}`);
+                        });
+                        updateJsonFromWysiwyg();
+                    }
+                }
+            });
 
         } catch (e) {
             console.error("Error parsing content JSON for WYSIWYG editor:", e);
@@ -746,6 +793,7 @@
                 <h3>ИЛИ Шаг 1Б: Генерация по ссылке на Google Slides</h3>
                 <p style="font-size: 0.9em; color: #666; margin-top: -5px;">Для корректной работы опубликуйте презентацию в интернете (Файл -> Поделиться -> Опубликовать в интернете) и вставьте ссылку сюда.</p>
                 <input type="url" id="presentation-url" placeholder="Вставьте ссылку на опубликованную Google Slides презентацию" value="${escapeHTML(presentationUrl)}">
+                <div id="presentation-preview-container" style="margin-top: 15px; min-height: 400px; border: 1px solid #e0e0e0; display: none; background-color: #f9f9f9; padding: 5px; border-radius: 8px;"></div>
                 <button id="process-presentation-btn">Создать/Обновить курс по презентации</button>
                 <hr style="margin: 20px 0;">
                 <h3>Описание (Источник для AI)</h3>
@@ -794,6 +842,25 @@
         document.getElementById('add-material-btn').addEventListener('click', addMaterialHandler); // ИЗМЕНЕНО
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
         document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
+
+        // --- Live Preview for Google Slides ---
+        const presentationUrlInput = document.getElementById('presentation-url');
+        const previewContainer = document.getElementById('presentation-preview-container');
+
+        const updatePreview = () => {
+            const url = presentationUrlInput.value;
+            if (url && url.includes('docs.google.com/presentation/d/')) {
+                const embedUrl = url.split('/pub')[0].replace('/edit', '') + '/embed?start=false&loop=false&delayms=3000';
+                previewContainer.innerHTML = `<iframe src="${embedUrl}" style="width: 100%; height: 400px; border: none;"></iframe>`;
+                previewContainer.style.display = 'block';
+            } else {
+                previewContainer.style.display = 'none';
+                previewContainer.innerHTML = '';
+            }
+        };
+
+        presentationUrlInput.addEventListener('input', updatePreview);
+        updatePreview(); // Also run on form load
     }
 
     // --- COURSE MANAGEMENT ---
