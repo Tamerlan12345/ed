@@ -931,8 +931,8 @@
                 navButtonsContainer.style.display = 'none'; // Hide our custom nav
 
                 const iframe = document.createElement('iframe');
-                // Transform the URL for embedding. Example: /pub? -> /embed?
-                const embedUrl = currentCourse.presentation_url.replace('/pub?', '/embed?') + '&amp;start=false&amp;loop=false&amp;delayms=3000&amp;rm=minimal';
+                // Rebuild the URL to ensure it's always a valid embed link, handling various /pub formats
+                const embedUrl = currentCourse.presentation_url.split('/pub')[0] + '/embed?rm=minimal&amp;start=false&amp;loop=false&amp;delayms=3000';
 
                 iframe.src = embedUrl;
                 iframe.style.width = '100%';
