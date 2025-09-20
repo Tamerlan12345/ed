@@ -867,7 +867,14 @@
         stopTimeTracking();
         currentCourse = courses.flatMap(group => group.courses).find(c => c.id === courseId);
         if (!currentCourse) {
-            showMessage("Не удалось найти выбранный курс.");
+            contentArea.innerHTML = `
+                <div class="message">Не удалось найти выбранный курс.</div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button id="back-to-menu-from-no-course" class="btn">Вернуться в меню</button>
+                </div>
+            `;
+            document.getElementById('back-to-menu-from-no-course').addEventListener('click', showMainMenu);
+            hideLoader();
             return;
         }
         windowTitle.textContent = currentCourse.title;
@@ -1127,8 +1134,14 @@
             return;
         }
         if (!currentCourse || !currentCourse.questions || currentCourse.questions.length === 0) {
-            showMessage('Вопросы для этого курса не найдены или отсутствуют.');
-            backToMenuBtn.classList.remove('hidden');
+            contentArea.innerHTML = `
+                <div class="message">Вопросы для этого курса не найдены или отсутствуют.</div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button id="back-to-menu-from-no-questions" class="btn">Вернуться в меню</button>
+                </div>
+            `;
+            document.getElementById('back-to-menu-from-no-questions').addEventListener('click', showMainMenu);
+            hideLoader();
             return;
         }
         currentQuestions = currentCourse.questions;
