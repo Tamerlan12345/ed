@@ -33,8 +33,8 @@ async function handlePresentationProcessing(jobId, payload) {
 
         // 2. Extract text using Cheerio
         const $ = cheerio.load(html);
-        // This selector targets the divs that contain the slide content in Google Slides' "Publish to the web" format.
-        const textContent = $('.punch-viewer-content').text().replace(/\s+/g, ' ').trim();
+        // This selector is now more robust, taking all text from the body to avoid issues with Google's class name changes.
+        const textContent = $('body').text().replace(/\s+/g, ' ').trim();
 
         if (!textContent) {
             throw new Error('Could not extract any text from the presentation URL. Please ensure it is a valid, publicly published Google Slides presentation.');
