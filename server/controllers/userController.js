@@ -121,7 +121,7 @@ const getCourses = async (req, res) => {
         const { data: coursesWithGroups, error: coursesError } = await supabase
             .from('courses')
             .select(`
-                id, title, description,
+                id, title, description, presentation_url,
                 course_group_items (order_index, course_groups (id, group_name, enforce_order))
             `)
             .in('id', allCourseIds)
