@@ -25,29 +25,31 @@ async function handlePresentationProcessing(jobId, payload) {
     };
 
     try {
-        console.log(`[Job ${jobId}] Starting presentation processing for course ${course_id} from URL: ${presentation_url}`);
+        console.log(`[Job ${jobId}] Starting PDF-based presentation processing for course ${course_id} from URL: ${presentation_url}`);
 
-        // 1. Fetch the HTML content from the published Google Slides URL
-        const response = await axios.get(presentation_url);
-        const html = response.data;
+        // 1. Transform the Google Slides URL to a PDF export URL.
+        // e.g., https://docs.google.com/presentation/d/ID/pub? -> https://docs.google.com/presentation/d/ID/export/pdf
+        if (!presentation_url.includes('/pub?')) {
+            throw new Error('Invalid Google Slides URL. Please provide a "published to the web" URL.');
+        }
+        const pdfUrl = presentation_url.replace(/\/pub\?.*$/, '/export/pdf');
+        console.log(`[Job ${jobId}] Converted to PDF URL: ${pdfUrl}`);
 
-        // 2. Extract text using Cheerio
-        const $ = cheerio.load(html);
+        // 2. Fetch the PDF content from the export URL
+        const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
+        const pdfBuffer = response.data;
 
-        // --- NEW: Remove code and script blocks before extracting text ---
-        // This targets common tags for code, scripts, and styles to reduce token count for the AI.
-        $('pre, code, script, style').remove();
-
-        // This selector is now more robust, taking all text from the body to avoid issues with Google's class name changes.
-        const textContent = $('body').text().replace(/\s+/g, ' ').trim();
+        // 3. Extract text using pdf-parse
+        const data = await pdf(pdfBuffer);
+        const textContent = data.text.replace(/\s+/g, ' ').trim();
 
         if (!textContent) {
-            throw new Error('Could not extract any text from the presentation URL. Please ensure it is a valid, publicly published Google Slides presentation.');
+            throw new Error('Could not extract any text from the presentation PDF. The presentation might be empty or image-based.');
         }
 
         console.log(`[Job ${jobId}] Extracted text length: ${textContent.length}. Saving to course description...`);
 
-        // 3. Save the extracted text to the course's description
+        // 4. Save the extracted text to the course's description
         const { error: updateError } = await supabaseAdmin
             .from('courses')
             .update({ description: textContent })
@@ -57,7 +59,7 @@ async function handlePresentationProcessing(jobId, payload) {
 
         console.log(`[Job ${jobId}] Text saved. Triggering content generation for questions only.`);
 
-        // 4. Trigger the handleGenerateContent job for questions only
+        // 5. Trigger the handleGenerateContent job for questions only
         const newJobId = require('crypto').randomUUID();
         const newJobPayload = { course_id, generation_mode: 'questions_only' };
 
