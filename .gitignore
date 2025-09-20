@@ -56,6 +56,7 @@ web_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+config.env
 
 # Netlify local dev
 .netlify
