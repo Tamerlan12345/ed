@@ -30,7 +30,7 @@ const ACTIONS = {
     ASSIGN_COURSE_TO_USER: 'assign_course_to_user',
 
     // Material Actions
-    UPLOAD_COURSE_MATERIAL: 'upload_course_material',
+    ADD_COURSE_MATERIAL: 'add_course_material', // ИЗМЕНЕНО: Раньше было UPLOAD_COURSE_MATERIAL
     DELETE_COURSE_MATERIAL: 'delete_course_material',
 
     // Settings & Results

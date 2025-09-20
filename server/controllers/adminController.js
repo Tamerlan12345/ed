@@ -231,9 +231,9 @@ const adminActionHandlers = {
         return { message: `Group assigned to department ${department}. ${progressRecords.length} course assignments created/updated.` };
     },
     [ACTIONS.DELETE_COURSE_MATERIAL]: async ({ payload, supabaseAdmin }) => {
-        const { material_id, storage_path } = payload;
-        if (!material_id || !storage_path) throw { status: 400, message: 'Material ID and storage path are required.' };
-        await supabaseAdmin.storage.from('course-materials').remove([storage_path]);
+        const { material_id } = payload;
+        if (!material_id) throw { status: 400, message: 'Material ID is required.' };
+        // Убрали удаление из storage
         await supabaseAdmin.from('course_materials').delete().eq('id', material_id);
         return { message: 'Material deleted successfully.' };
     },
@@ -298,15 +298,21 @@ const adminActionHandlers = {
         if (error) throw error;
         return data;
     },
-    [ACTIONS.UPLOAD_COURSE_MATERIAL]: async ({ payload, supabaseAdmin }) => {
-        const { course_id, file_name, file_data } = payload;
-        if (!course_id || !file_name || !file_data) throw { status: 400, message: 'Missing required fields for material upload.' };
-        const buffer = Buffer.from(file_data, 'base64');
-        const storagePath = `course-materials/${course_id}/${Date.now()}-${file_name}`;
-        const { error: uploadError } = await supabaseAdmin.storage.from('course-materials').upload(storagePath, buffer);
-        if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
-        const { data: urlData } = supabaseAdmin.storage.from('course-materials').getPublicUrl(storagePath);
-        const { data: dbRecord, error: dbError } = await supabaseAdmin.from('course_materials').insert({ course_id, file_name, storage_path: storagePath, public_url: urlData.publicUrl }).select().single();
+    // ЗАМЕНИТЬ UPLOAD_COURSE_MATERIAL на ЭТОТ КОД
+    [ACTIONS.ADD_COURSE_MATERIAL]: async ({ payload, supabaseAdmin }) => {
+        const { course_id, file_name, file_url } = payload;
+        if (!course_id || !file_name || !file_url) {
+            throw { status: 400, message: 'Missing required fields for material.' };
+        }
+        // Простая валидация URL
+        if (!file_url.startsWith('http://') && !file_url.startsWith('https://')) {
+            throw { status: 400, message: 'Please provide a valid URL.' };
+        }
+        const { data: dbRecord, error: dbError } = await supabaseAdmin
+            .from('course_materials')
+            .insert({ course_id, file_name, file_url })
+            .select()
+            .single();
         if (dbError) throw dbError;
         return dbRecord;
     },

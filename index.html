@@ -849,6 +849,38 @@
                 currentCourse.questions = data.questions;
                 currentCourse.materials = data.materials;
             }
+
+            // ... (весь существующий код функции)
+
+            const rightContent = document.querySelector('.presentation-view-right-content');
+            if (rightContent && currentCourse.materials && currentCourse.materials.length > 0) {
+                const materialsContainer = document.createElement('div');
+                materialsContainer.className = 'course-materials-container';
+                materialsContainer.style.marginTop = '20px';
+                materialsContainer.style.paddingTop = '20px';
+                materialsContainer.style.borderTop = '1px solid #eee';
+
+                let materialsHtml = '<h3>Файлы для скачивания по курсу:</h3><ul style="list-style-type: none; padding-left: 0;">';
+                currentCourse.materials.forEach(material => {
+                    materialsHtml += `
+                        <li style="margin-bottom: 10px;">
+                            <a href="${escapeHTML(material.file_url)}" target="_blank" rel="noopener noreferrer" class="btn" style="text-decoration: none; display: inline-block; background-color: #00AEEF;">
+                                📄 ${escapeHTML(material.file_name)}
+                            </a>
+                        </li>
+                    `;
+                });
+                materialsHtml += '</ul>';
+                materialsContainer.innerHTML = materialsHtml;
+
+                // Добавляем блок с материалами после слайдера
+                const sliderNav = rightContent.querySelector('.slider-nav-buttons');
+                if (sliderNav) {
+                    rightContent.insertBefore(materialsContainer, sliderNav);
+                } else {
+                    rightContent.appendChild(materialsContainer);
+                }
+            }
             appView.classList.add('presentation-mode-active');
             productContent.innerHTML = '';
             const container = document.createElement('div');
