@@ -19,6 +19,7 @@ CREATE TABLE public.courses (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     title text NOT NULL,
     description text NULL,
+    presentation_url text NULL,
     content jsonb NULL,
     status text DEFAULT 'draft'::text NOT NULL, -- 'draft', 'published', 'archived'
     draft_content jsonb NULL, -- Для автосохранения черновиков

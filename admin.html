@@ -712,6 +712,7 @@
         const courseId = isEditing ? course.id : '';
         const title = isEditing ? course.title || '' : '';
         const description = isEditing ? course.description || '' : '';
+        const presentationUrl = isEditing ? course.presentation_url || '' : '';
         const isVisible = isEditing ? course.is_visible : false;
         const headerText = isEditing ? `Редактирование: ${title}` : 'Создать новый курс';
 
@@ -735,9 +736,15 @@
                 <h2>${headerText}</h2>
                 <input type="hidden" id="course-id" value="${escapeHTML(courseId)}">
                 <input type="text" id="course-title" placeholder="Название курса" value="${escapeHTML(title)}">
-                <h3>Шаг 1: Загрузите файл для описания</h3>
+                <h3>Шаг 1А: Генерация из файла (текущий функционал)</h3>
                 <input type="file" id="file-uploader" accept=".pdf,.docx">
                 <button id="process-file-btn">Загрузить и извлечь текст</button>
+                <hr style="margin: 20px 0;">
+                <h3>ИЛИ Шаг 1Б: Генерация по ссылке на Google Slides</h3>
+                <p style="font-size: 0.9em; color: #666; margin-top: -5px;">Для корректной работы опубликуйте презентацию в интернете (Файл -> Поделиться -> Опубликовать в интернете) и вставьте ссылку сюда.</p>
+                <input type="url" id="presentation-url" placeholder="Вставьте ссылку на опубликованную Google Slides презентацию" value="${escapeHTML(presentationUrl)}">
+                <button id="process-presentation-btn">Создать/Обновить курс по презентации</button>
+                <hr style="margin: 20px 0;">
                 <h3>Описание (Источник для AI)</h3>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                     <button id="text-to-speech-btn" style="flex: 1;">Озвучить описание</button>
@@ -774,6 +781,7 @@
     function attachCourseFormListeners() {
         document.getElementById('cancel-edit-btn').addEventListener('click', clearCourseForm);
         document.getElementById('process-file-btn').addEventListener('click', processFileHandler);
+        document.getElementById('process-presentation-btn').addEventListener('click', processPresentationHandler);
         document.getElementById('generate-btn').addEventListener('click', generateContentHandler);
         document.getElementById('text-to-speech-btn').addEventListener('click', textToSpeechHandler);
         document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
@@ -865,6 +873,36 @@
                 await loadCourses();
             };
         } catch(e) { /* Handled */ }
+    }
+
+    async function processPresentationHandler() {
+        const btn = document.getElementById('process-presentation-btn');
+        btn.disabled = true;
+        try {
+            const presentationUrl = document.getElementById('presentation-url').value.trim();
+            const title = document.getElementById('course-title').value.trim();
+            if (!presentationUrl || !title) {
+                showToast('Укажите название курса и ссылку на презентацию.', 'error');
+                return;
+            }
+            let courseId = document.getElementById('course-id').value.trim();
+            if (!courseId) {
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title });
+                courseId = newCourse.id;
+                document.getElementById('course-id').value = courseId;
+                showToast(`Создан новый курс. ID: ${courseId}`, 'success');
+                currentEditingCourseId = courseId;
+            }
+
+            await apiCall(ACTIONS.PROCESS_PRESENTATION, { course_id: courseId, presentation_url: presentationUrl });
+            document.getElementById('description').value = 'Презентация обрабатывается... Текст появится здесь после завершения фоновой задачи.';
+            await loadCourses();
+
+        } catch(e) {
+            // handled in apiCall
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     async function generateContentHandler() {
