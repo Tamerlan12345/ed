@@ -925,12 +925,36 @@
                 updateSliderUI();
                 return { slider, prevBtn, nextBtn };
             };
-            const { slider, prevBtn, nextBtn } = renderPresentationForView(currentCourse.summary);
-            sliderContainer.appendChild(slider);
-            if (prevBtn && nextBtn) {
-                navButtonsContainer.appendChild(prevBtn);
-                navButtonsContainer.appendChild(nextBtn);
+            // NEW: Check if the course is from a Google Slides presentation
+            if (currentCourse.presentation_url) {
+                sliderContainer.innerHTML = ''; // Clear existing content
+                navButtonsContainer.style.display = 'none'; // Hide our custom nav
+
+                const iframe = document.createElement('iframe');
+                // Transform the URL for embedding. Example: /pub? -> /embed?
+                const embedUrl = currentCourse.presentation_url.replace('/pub?', '/embed?') + '&amp;start=false&amp;loop=false&amp;delayms=3000&amp;rm=minimal';
+
+                iframe.src = embedUrl;
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                iframe.allow = "fullscreen";
+
+                sliderContainer.appendChild(iframe);
+            } else {
+                // Original logic for generated slides
+                navButtonsContainer.style.display = 'flex'; // Ensure nav is visible
+                const { slider, prevBtn, nextBtn } = renderPresentationForView(currentCourse.summary);
+                sliderContainer.innerHTML = ''; // Clear before appending
+                sliderContainer.appendChild(slider);
+
+                navButtonsContainer.innerHTML = ''; // Clear before appending
+                if (prevBtn && nextBtn) {
+                    navButtonsContainer.appendChild(prevBtn);
+                    navButtonsContainer.appendChild(nextBtn);
+                }
             }
+
             rightContent.appendChild(sliderContainer);
             rightContent.appendChild(navButtonsContainer);
             container.appendChild(leftSidebar);

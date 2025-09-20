@@ -3,11 +3,77 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env.PEXELS_API_KEY) : null;
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+async function handlePresentationProcessing(jobId, payload) {
+    const supabaseAdmin = createSupabaseAdminClient();
+    const { course_id, presentation_url } = payload;
+
+    const updateJobStatus = async (status, data = null, errorMessage = null) => {
+        const { error } = await supabaseAdmin
+            .from('background_jobs')
+            .update({ status, payload: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .eq('id', jobId);
+        if (error) console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
+    };
+
+    try {
+        console.log(`[Job ${jobId}] Starting presentation processing for course ${course_id} from URL: ${presentation_url}`);
+
+        // 1. Fetch the HTML content from the published Google Slides URL
+        const response = await axios.get(presentation_url);
+        const html = response.data;
+
+        // 2. Extract text using Cheerio
+        const $ = cheerio.load(html);
+        // This selector targets the divs that contain the slide content in Google Slides' "Publish to the web" format.
+        const textContent = $('.punch-viewer-content').text().replace(/\s+/g, ' ').trim();
+
+        if (!textContent) {
+            throw new Error('Could not extract any text from the presentation URL. Please ensure it is a valid, publicly published Google Slides presentation.');
+        }
+
+        console.log(`[Job ${jobId}] Extracted text length: ${textContent.length}. Saving to course description...`);
+
+        // 3. Save the extracted text to the course's description
+        const { error: updateError } = await supabaseAdmin
+            .from('courses')
+            .update({ description: textContent })
+            .eq('id', course_id);
+
+        if (updateError) throw new Error(`Failed to save extracted text to course: ${updateError.message}`);
+
+        console.log(`[Job ${jobId}] Text saved. Triggering content generation for questions only.`);
+
+        // 4. Trigger the handleGenerateContent job for questions only
+        const newJobId = require('crypto').randomUUID();
+        const newJobPayload = { course_id, generation_mode: 'questions_only' };
+
+        await supabaseAdmin.from('background_jobs').insert({
+            id: newJobId,
+            job_type: 'content_generation_questions_only',
+            status: 'pending',
+            payload: newJobPayload
+        });
+
+        // Asynchronously start the job without awaiting its completion
+        handleGenerateContent(newJobId, newJobPayload).catch(console.error);
+
+        await updateJobStatus('completed', { message: `Presentation processed for course ${course_id}. Question generation started.` });
+
+    } catch (error) {
+        console.error(`[Job ${jobId}] Error during presentation processing:`, error);
+        await updateJobStatus('failed', null, error.message);
+    }
+}
+
 
 async function handleUploadAndProcess(jobId, payload) {
     const supabaseAdmin = createSupabaseAdminClient();
@@ -74,30 +140,61 @@ async function handleGenerateContent(jobId, payload) {
     };
 
     try {
-        const { course_id, custom_prompt } = payload;
+        const { course_id, custom_prompt, generation_mode } = payload;
         if (!course_id) {
             throw new Error('Valid course_id is required for content generation.');
         }
-        console.log(`[Job ${jobId}] Starting content generation for course ${course_id}`);
+        console.log(`[Job ${jobId}] Starting content generation for course ${course_id} with mode: ${generation_mode || 'full'}`);
 
-        const { data: courseData, error: fetchError } = await supabaseAdmin.from('courses').select('description').eq('id', course_id).single();
+        const { data: courseData, error: fetchError } = await supabaseAdmin.from('courses').select('description, content').eq('id', course_id).single();
         if (fetchError || !courseData?.description) {
             throw new Error('Course description not found or not yet processed.');
         }
 
-        const outputFormat = {
-            summary: {
-                slides: [
-                    {
+        let finalPrompt;
+        let parsedContent;
+
+        if (generation_mode === 'questions_only') {
+            const outputFormat = {
+                questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
+            };
+            finalPrompt = `ЗАДАНИЕ: На основе ИСХОДНОГО ТЕКСТА, сгенерируй набор тестовых вопросов.
+
+ИСХОДНЫЙ ТЕКСТ:
+${courseData.description}
+
+ТРЕБОВАНИЯ К ФОРМАТУ ВЫВОДА:
+- Обязательно верни результат в формате JSON, соответствующем этой структуре: ${JSON.stringify(outputFormat)}
+- Массив "questions" должен содержать как минимум 5 вопросов для теста.
+- У каждого вопроса должно быть 4 варианта ответа.
+- Укажи правильный вариант ответа в "correct_option_index".
+- Не добавляй в вывод никаких других полей или секций, только "questions".
+`;
+            console.log(`[Job ${jobId}] Generating questions only with Gemini...`);
+            const result = await model.generateContent(finalPrompt);
+            const response = await result.response;
+            const jsonString = response.text().replace(/```json\n|```/g, '').trim();
+
+            // Merge new questions with existing content (which might have summary)
+            const newContent = JSON.parse(jsonString);
+            parsedContent = {
+                ...courseData.content, // Preserve existing content like summary
+                questions: newContent.questions
+            };
+
+        } else {
+            // Full generation logic (summary + questions)
+            const outputFormat = {
+                summary: {
+                    slides: [{
                         slide_title: "string (Заголовок слайда)",
                         html_content: "string (HTML-контент слайда...)",
                         image_search_term: "string (1-2 слова на английском для поиска картинки на Pexels)"
-                    }
-                ]
-            },
-            questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
-        };
-        const finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}
+                    }]
+                },
+                questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
+            };
+            finalPrompt = `Задание: ${custom_prompt || 'Создай исчерпывающий учебный курс на основе текста.'}
 
 ИСХОДНЫЙ ТЕКСТ:
 ${courseData.description}
@@ -110,34 +207,33 @@ ${courseData.description}
 2.  **Тест (questions):** Массив "questions" должен содержать как минимум 5 вопросов для теста с 4 вариантами ответа каждый.
 3.  **Поиск картинок (image_search_term):** Для каждого слайда придумай простой поисковый запрос из 1-2 слов на английском языке для поиска релевантной фотографии на сайте Pexels.
 `;
+            console.log(`[Job ${jobId}] Generating full content with Gemini...`);
+            const result = await model.generateContent(finalPrompt);
+            const response = await result.response;
+            const jsonString = response.text().replace(/```json\n|```/g, '').trim();
+            parsedContent = JSON.parse(jsonString);
 
-        console.log(`[Job ${jobId}] Generating content with Gemini...`);
-        const result = await model.generateContent(finalPrompt);
-        const response = await result.response;
-        const jsonString = response.text().replace(/```json\n|```/g, '').trim();
-
-        const parsedContent = JSON.parse(jsonString);
-
-        if (pexelsClient && parsedContent.summary && Array.isArray(parsedContent.summary.slides)) {
-            for (const slide of parsedContent.summary.slides) {
-                if (slide.image_search_term) {
-                    try {
-                        const query = slide.image_search_term;
-                        const pexelsResponse = await pexelsClient.photos.search({ query, per_page: 1 });
-                        if (pexelsResponse.photos && pexelsResponse.photos.length > 0) {
-                            slide.image_url = pexelsResponse.photos[0].src.large;
+            if (pexelsClient && parsedContent.summary && Array.isArray(parsedContent.summary.slides)) {
+                for (const slide of parsedContent.summary.slides) {
+                    if (slide.image_search_term) {
+                        try {
+                            const query = slide.image_search_term;
+                            const pexelsResponse = await pexelsClient.photos.search({ query, per_page: 1 });
+                            if (pexelsResponse.photos && pexelsResponse.photos.length > 0) {
+                                slide.image_url = pexelsResponse.photos[0].src.large;
+                            }
+                        } catch (pexelsError) {
+                            console.error(`Pexels API call failed for term "${slide.image_search_term}":`, pexelsError);
                         }
-                    } catch (pexelsError) {
-                        console.error(`Pexels API call failed for term "${slide.image_search_term}":`, pexelsError);
                     }
                 }
             }
         }
 
-        console.log(`[Job ${jobId}] Content generated, now with images. Saving to database...`);
+        console.log(`[Job ${jobId}] Content generated. Saving to database...`);
         const { error: dbError } = await supabaseAdmin
             .from('courses')
-            .update({ content: parsedContent })
+            .update({ content: parsedContent, draft_content: parsedContent }) // Also save to draft
             .eq('id', course_id);
 
         if (dbError) throw new Error(`Failed to save generated content: ${dbError.message}`);
@@ -206,6 +302,7 @@ async function handleGenerateSummary(jobId, payload) {
 }
 
 module.exports = {
+    handlePresentationProcessing,
     handleUploadAndProcess,
     handleGenerateContent,
     handleGenerateSummary,

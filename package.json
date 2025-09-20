@@ -6,6 +6,7 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.57.2",
     "axios": "^1.11.0",
+    "cheerio": "^1.0.0-rc.12",
     "c8": "^10.1.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
