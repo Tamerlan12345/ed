@@ -34,9 +34,9 @@ async function handlePresentationProcessing(jobId, payload) {
         // 2. Extract text using Cheerio
         const $ = cheerio.load(html);
 
-        // --- NEW: Remove code blocks before extracting text ---
-        // This targets common tags for code snippets to reduce token count for the AI.
-        $('pre, code').remove();
+        // --- NEW: Remove code and script blocks before extracting text ---
+        // This targets common tags for code, scripts, and styles to reduce token count for the AI.
+        $('pre, code, script, style').remove();
 
         // This selector is now more robust, taking all text from the body to avoid issues with Google's class name changes.
         const textContent = $('body').text().replace(/\s+/g, ' ').trim();
