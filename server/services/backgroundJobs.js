@@ -27,19 +27,23 @@ async function handlePresentationProcessing(jobId, payload) {
     try {
         console.log(`[Job ${jobId}] Starting PDF-based presentation processing for course ${course_id} from URL: ${presentation_url}`);
 
-        // 1. Transform the Google Slides URL to a PDF export URL.
-        // e.g., https://docs.google.com/presentation/d/ID/pub? -> https://docs.google.com/presentation/d/ID/export/pdf
-        if (!presentation_url.includes('/pub?')) {
-            throw new Error('Invalid Google Slides URL. Please provide a "published to the web" URL.');
+        // 1. Extract the presentation ID from any valid Google Slides URL.
+        const match = presentation_url.match(/\/d\/(.*?)\//);
+        if (!match || !match[1]) {
+            throw new Error('Invalid Google Slides URL. Could not extract presentation ID.');
         }
-        const pdfUrl = presentation_url.replace(/\/pub\?.*$/, '/export/pdf');
+        const presentationId = match[1];
+
+        // 2. Construct the PDF export URL.
+        const pdfUrl = `https://docs.google.com/presentation/d/${presentationId}/export/pdf`;
         console.log(`[Job ${jobId}] Converted to PDF URL: ${pdfUrl}`);
 
-        // 2. Fetch the PDF content from the export URL
+
+        // 3. Fetch the PDF content from the export URL
         const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
         const pdfBuffer = response.data;
 
-        // 3. Extract text using pdf-parse
+        // 4. Extract text using pdf-parse
         const data = await pdf(pdfBuffer);
         const textContent = data.text.replace(/\s+/g, ' ').trim();
 
@@ -49,7 +53,7 @@ async function handlePresentationProcessing(jobId, payload) {
 
         console.log(`[Job ${jobId}] Extracted text length: ${textContent.length}. Saving to course description...`);
 
-        // 4. Save the extracted text to the course's description
+        // 5. Save the extracted text to the course's description
         const { error: updateError } = await supabaseAdmin
             .from('courses')
             .update({ description: textContent })
@@ -59,7 +63,7 @@ async function handlePresentationProcessing(jobId, payload) {
 
         console.log(`[Job ${jobId}] Text saved. Triggering content generation for questions only.`);
 
-        // 5. Trigger the handleGenerateContent job for questions only
+        // 6. Trigger the handleGenerateContent job for questions only
         const newJobId = require('crypto').randomUUID();
         const newJobPayload = { course_id, generation_mode: 'questions_only' };
 
