@@ -28,7 +28,7 @@ async function handlePresentationProcessing(jobId, payload) {
         console.log(`[Job ${jobId}] Starting PDF-based presentation processing for course ${course_id} from URL: ${presentation_url}`);
 
         // 1. Extract the presentation ID from any valid Google Slides URL.
-        const match = presentation_url.match(/\/d\/(.*?)\//);
+        const match = presentation_url.match(/\/d\/([a-zA-Z0-9_-]+)/);
         if (!match || !match[1]) {
             throw new Error('Invalid Google Slides URL. Could not extract presentation ID.');
         }
