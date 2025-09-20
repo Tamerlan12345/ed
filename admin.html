@@ -724,10 +724,13 @@
             content = '';
         }
 
-        let materialsHtml = 'Материалы не загружены.';
+        let materialsHtml = 'Материалы не добавлены.';
         if (isEditing && course.course_materials && course.course_materials.length > 0) {
             materialsHtml = course.course_materials.map(mat =>
-                `<div>${escapeHTML(mat.file_name)} <button class="delete-material-btn" data-id="${mat.id}" data-path="${mat.storage_path}">Удалить</button></div>`
+                `<div style="display: flex; align-items: center; justify-content: space-between; padding: 5px; border-bottom: 1px solid #eee;">
+                <a href="${escapeHTML(mat.file_url)}" target="_blank">${escapeHTML(mat.file_name)}</a>
+                <button class="delete-material-btn" data-id="${mat.id}" style="width: auto; padding: 2px 8px; font-size: 12px; background-color: #dc3545;">Удалить</button>
+            </div>`
             ).join('');
         }
 
@@ -770,10 +773,13 @@
                 </div>
                 <button id="cancel-edit-btn" style="background-color: #6c757d; margin-top: 10px;">Отмена</button>
                 <hr>
-                <h3>Сопутствующие материалы</h3>
-                <div id="materials-list">${materialsHtml}</div>
-                <input type="file" id="material-uploader">
-                <button id="upload-material-btn">Загрузить материал</button>
+<h3>Сопутствующие материалы</h3>
+<div id="materials-list" style="margin-bottom: 15px;">${materialsHtml}</div>
+<div id="add-material-form" style="display: flex; gap: 10px; align-items: center;">
+    <input type="text" id="material-name" placeholder="Название файла" style="flex: 1; margin-bottom: 0;">
+    <input type="url" id="material-url" placeholder="https://example.com/file.pdf" style="flex: 2; margin-bottom: 0;">
+    <button id="add-material-btn" style="width: auto; padding: 10px 15px; margin-bottom: 0;">+</button>
+</div>
             </div>
         `;
     }
@@ -785,7 +791,7 @@
         document.getElementById('generate-btn').addEventListener('click', generateContentHandler);
         document.getElementById('text-to-speech-btn').addEventListener('click', textToSpeechHandler);
         document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
-        document.getElementById('upload-material-btn').addEventListener('click', uploadMaterialHandler);
+        document.getElementById('add-material-btn').addEventListener('click', addMaterialHandler); // ИЗМЕНЕНО
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
         document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
     }
@@ -1003,42 +1009,47 @@
         }
     }
 
-    async function uploadMaterialHandler() {
-        const btn = document.getElementById('upload-material-btn');
-        const file = document.getElementById('material-uploader').files[0];
-        if (!currentEditingCourseId || !file) {
-            showStatus('Выберите курс и файл.', 'error');
-            return;
-        }
+async function addMaterialHandler() {
+    const btn = document.getElementById('add-material-btn');
+    const nameInput = document.getElementById('material-name');
+    const urlInput = document.getElementById('material-url');
 
-        btn.disabled = true;
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            try {
-                await apiCall(ACTIONS.UPLOAD_COURSE_MATERIAL, { course_id: currentEditingCourseId, file_name: file.name, file_data: reader.result.split(',')[1] });
-                loadCourseForEditing(currentEditingCourseId);
-            } catch(e) {
-                /* Handled in apiCall */
-            } finally {
-                btn.disabled = false;
-            }
-        };
-        reader.onerror = () => {
-            showToast('Не удалось прочитать файл.', 'error');
-            btn.disabled = false;
-        }
+    const fileName = nameInput.value.trim();
+    const fileUrl = urlInput.value.trim();
+
+    if (!currentEditingCourseId || !fileName || !fileUrl) {
+        showStatus('Выберите курс, введите название и URL.', 'error');
+        return;
     }
+
+    btn.disabled = true;
+    try {
+        await apiCall(ACTIONS.ADD_COURSE_MATERIAL, {
+            course_id: currentEditingCourseId,
+            file_name: fileName,
+            file_url: fileUrl
+        });
+        showToast('Материал добавлен!', 'success');
+        nameInput.value = '';
+        urlInput.value = '';
+        loadCourseForEditing(currentEditingCourseId); // Перезагружаем курс для обновления списка
+    } catch(e) {
+        /* Handled in apiCall */
+    } finally {
+        btn.disabled = false;
+    }
+}
 
     async function deleteMaterialHandler(e) {
         if (e.target.classList.contains('delete-material-btn')) {
             const btn = e.target;
             const materialId = btn.dataset.id;
-            const storagePath = btn.dataset.path;
-            if (confirm(`Удалить материал "${storagePath}"?`)) {
+            // Убрали storage_path
+            if (confirm(`Удалить этот материал?`)) {
                 btn.disabled = true;
                 try {
-                    await apiCall(ACTIONS.DELETE_COURSE_MATERIAL, { material_id: materialId, storage_path: storagePath });
+                    // В payload теперь только material_id
+                    await apiCall(ACTIONS.DELETE_COURSE_MATERIAL, { material_id: materialId });
                     loadCourseForEditing(currentEditingCourseId);
                 } catch(e) {
                     /* Handled */

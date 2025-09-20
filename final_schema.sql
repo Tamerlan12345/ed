@@ -31,8 +31,7 @@ CREATE TABLE public.course_materials (
     course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     file_name text NOT NULL,
-    storage_path text NOT NULL,
-    public_url text NULL
+    file_url text NULL -- ИЗМЕНЕНО: Раньше было storage_path и public_url
 );
 
 CREATE TABLE public.user_progress (
