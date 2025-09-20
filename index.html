@@ -322,9 +322,7 @@
             flex-shrink: 0;
         }
         #grouped-courses-container {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 25px;
+            display: block; /* Make groups stack vertically */
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
@@ -334,21 +332,25 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     </script>
     <style id="layout-override">
-        .main-menu {
+        /* --- Jules's 2-Column Layout Fixes --- */
+        #main-menu, .main-menu {
+            display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
         }
-        .main-menu .menu-item {
-            padding: 15px;
+        .main-menu .menu-item, #main-menu .menu-item {
+            padding: 12px;
         }
-        .main-menu .menu-item h3 {
-            font-size: 1.1em;
+        .main-menu .menu-item h3, #main-menu .menu-item h3 {
+            font-size: 1em;
             margin-bottom: 5px;
         }
-        .main-menu .menu-item-icon {
-            font-size: 1.2em;
-            margin-right: 10px;
+        .main-menu .menu-item-icon, #main-menu .menu-item-icon {
+            font-size: 1.1em;
+            margin-right: 8px;
         }
+        /* --- End of Jules's Fixes --- */
+
         .window-header {
             position: sticky;
             top: 0;
