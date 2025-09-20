@@ -870,10 +870,9 @@
             contentArea.innerHTML = `
                 <div class="message">Не удалось найти выбранный курс.</div>
                 <div style="text-align: center; margin-top: 20px;">
-                    <button id="back-to-menu-from-no-course" class="btn">Вернуться в меню</button>
+                    <button class="btn" onclick="showMainMenu()">Вернуться в меню</button>
                 </div>
             `;
-            document.getElementById('back-to-menu-from-no-course').addEventListener('click', showMainMenu);
             hideLoader();
             return;
         }
@@ -1137,10 +1136,9 @@
             contentArea.innerHTML = `
                 <div class="message">Вопросы для этого курса не найдены или отсутствуют.</div>
                 <div style="text-align: center; margin-top: 20px;">
-                    <button id="back-to-menu-from-no-questions" class="btn">Вернуться в меню</button>
+                    <button class="btn" onclick="showMainMenu()">Вернуться в меню</button>
                 </div>
             `;
-            document.getElementById('back-to-menu-from-no-questions').addEventListener('click', showMainMenu);
             hideLoader();
             return;
         }
