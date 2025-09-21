@@ -81,7 +81,14 @@ async function handlePresentationProcessing(jobId, payload) {
 
     } catch (error) {
         console.error(`[Job ${jobId}] Error during presentation processing:`, error);
-        await updateJobStatus('failed', null, error.message);
+        // NEW: Check for a 404 error and provide a user-friendly message.
+        if (error.isAxiosError && error.response?.status === 404) {
+            const userFriendlyError = 'Failed to download the presentation (404 Not Found). This usually means the Google Slides presentation is not shared publicly. Please check the sharing settings and ensure that "General access" is set to "Anyone with the link".';
+            await updateJobStatus('failed', null, userFriendlyError);
+        } else {
+            // For all other errors, use the default message
+            await updateJobStatus('failed', null, error.message);
+        }
     }
 }
 
