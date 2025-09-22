@@ -11,9 +11,13 @@ const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-
 // Using computed property names to reference constants from shared/constants.js
 const adminActionHandlers = {
     [ACTIONS.CREATE_COURSE]: async ({ payload, supabaseAdmin }) => {
-        const { title } = payload;
+        const { title, deadline_days } = payload;
         if (!title) throw { status: 400, message: 'Title is required to create a course.' };
-        const { data, error } = await supabaseAdmin.from('courses').insert({ title }).select().single();
+        const insertData = { title };
+        if (deadline_days) {
+            insertData.deadline_days = deadline_days;
+        }
+        const { data, error } = await supabaseAdmin.from('courses').insert(insertData).select().single();
         if (error) throw error;
         return data;
     },
@@ -83,7 +87,7 @@ const adminActionHandlers = {
         return data;
     },
     [ACTIONS.PUBLISH_COURSE]: async ({ payload, supabaseAdmin }) => {
-        const { course_id, title, description, content, is_visible } = payload;
+        const { course_id, title, description, content, is_visible, deadline_days } = payload;
         if (!course_id || !title || !content) {
             throw { status: 400, message: 'Course ID, title, and content are required for publishing.' };
         }
@@ -106,7 +110,8 @@ const adminActionHandlers = {
                 status: 'published',
                 is_visible: is_visible,
                 draft_content: null,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                deadline_days: deadline_days || null
             })
             .eq('id', course_id);
 

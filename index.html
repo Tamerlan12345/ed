@@ -561,6 +561,8 @@
     let userProgress = {};
     let simulationHistory = [];
     let backButtonAction = null;
+    let timeTrackingInterval = null;
+    let secondsSinceLastUpdate = 0;
     const authView = document.getElementById('auth-view');
     const appView = document.getElementById('app-view');
     const authForm = document.getElementById('auth-form');
@@ -828,11 +830,13 @@
         }
         if (course.progress?.completed_at) menuItem.classList.add('completed');
         let deadlineHtml = '';
-        if (course.progress?.deadline_date) {
+        if (course.progress?.deadline_date && !course.progress?.completed_at) {
             const deadline = new Date(course.progress.deadline_date);
             const today = new Date();
+            today.setHours(0, 0, 0, 0); // Сравниваем только даты, без времени
             const isOverdue = deadline < today;
-            deadlineHtml = `<p style="font-size: 0.85em; color: ${isOverdue ? 'var(--error-color)' : 'var(--text-light-color)'}; margin-top: 10px;">
+            deadlineHtml = `<p style="font-size: 0.85em; color: ${isOverdue ? 'var(--error-color)' : 'var(--text-light-color)'}; margin-top: 10px; font-weight: bold;">
+                <span class="menu-item-icon" style="font-size: 1em;">${isOverdue ? '🔥' : '🕒'}</span>
                 Срок сдачи: ${deadline.toLocaleDateString('ru-RU')} ${isOverdue ? '(Просрочено)' : ''}
             </p>`;
         }
@@ -947,28 +951,8 @@
             mainMenu.innerHTML = `<p class="message" style="color: var(--error-color);">Не удалось загрузить каталог курсов.</p>`;
         }
     }
-    let timeTrackingInterval = null;
-    let secondsSinceLastUpdate = 0;
-    async function sendTimeUpdate(courseId, seconds) {
-        if (!courseId || seconds <= 0) return;
-        try {
-            await fetchAuthenticated('/api/update-time-spent', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ course_id: courseId, seconds_spent: seconds })
-            });
-        } catch (error) { console.error('Failed to send time update:', error); }
-    }
-    function stopTimeTracking() {
-        if (timeTrackingInterval) {
-            clearInterval(timeTrackingInterval);
-            timeTrackingInterval = null;
-            if (currentCourse) sendTimeUpdate(currentCourse.id, secondsSinceLastUpdate);
-            secondsSinceLastUpdate = 0;
-        }
-    }
     async function showPresentationView(courseId, forceRegenerate = false) {
-        stopTimeTracking();
+        stopTimeTracking(); // Stop any previous timer
         currentCourse = courses.flatMap(group => group.courses).find(c => c.id === courseId);
         if (!currentCourse) {
             contentArea.innerHTML = `
@@ -1228,6 +1212,7 @@
         }
     };
     function startTest(courseId) {
+        stopTimeTracking(); // Stop time tracking when test starts
         const courseGroup = courses.find(group => group.courses.some(c => c.id === courseId));
         if (courseGroup) currentCourse = courseGroup.courses.find(c => c.id === courseId);
         const progress = userProgress[courseId];
@@ -1366,6 +1351,7 @@
     });
     let currentScenario = '';
     function showSimulatorView() {
+        stopTimeTracking(); // Stop time tracking when simulator starts
         windowTitle.textContent = 'Диалоговый тренажер';
         document.getElementById('main-content-wrapper').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');

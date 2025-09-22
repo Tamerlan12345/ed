@@ -794,6 +794,7 @@
         const description = isEditing ? course.description || '' : '';
         const presentationUrl = isEditing ? course.presentation_url || '' : '';
         const isVisible = isEditing ? course.is_visible : false;
+        const deadlineDays = isEditing ? course.deadline_days || '' : '';
         const headerText = isEditing ? `Редактирование: ${title}` : 'Создать новый курс';
 
         let content = isEditing ? course.draft_content || course.content : null;
@@ -847,6 +848,10 @@
                     <input type="checkbox" id="course-is-visible" style="width: auto; margin-right: 10px; vertical-align: middle;" ${isVisible ? 'checked' : ''}>
                     <b style="vertical-align: middle;">Видимость в каталоге:</b> Курс доступен для самостоятельного выбора пользователями.
                 </label>
+                <div style="margin: 15px 0;">
+                    <label for="course-deadline-days"><b>Срок выполнения в днях (для индивидуальных курсов):</b></label>
+                    <input type="number" id="course-deadline-days" placeholder="Оставьте пустым, если срока нет" value="${escapeHTML(deadlineDays)}" style="margin-top: 5px;">
+                </div>
                 <p id="autosave-status" style="font-style: italic; color: #666;"></p>
                 <div style="display: flex; gap: 10px;">
                     <button id="save-draft-btn" style="background-color: #00AEEF; flex: 1;">Сохранить черновик</button>
@@ -958,13 +963,14 @@
         try {
             const file = document.getElementById('file-uploader').files[0];
             const title = document.getElementById('course-title').value.trim();
+            const deadlineDays = document.getElementById('course-deadline-days').value.trim();
             if (!file || !title) {
                 showStatus('Укажите название и выберите файл.', 'error');
                 return;
             }
             let courseId = document.getElementById('course-id').value.trim();
             if (!courseId) {
-                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title });
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title: title, deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null });
                 courseId = newCourse.id;
                 document.getElementById('course-id').value = courseId;
                 showToast(`Создан новый курс. ID: ${courseId}`, 'success');
@@ -987,13 +993,14 @@
         try {
             const presentationUrl = document.getElementById('presentation-url').value.trim();
             const title = document.getElementById('course-title').value.trim();
+            const deadlineDays = document.getElementById('course-deadline-days').value.trim();
             if (!presentationUrl || !title) {
                 showToast('Укажите название курса и ссылку на презентацию.', 'error');
                 return;
             }
             let courseId = document.getElementById('course-id').value.trim();
             if (!courseId) {
-                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title });
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title: title, deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null });
                 courseId = newCourse.id;
                 document.getElementById('course-id').value = courseId;
                 showToast(`Создан новый курс. ID: ${courseId}`, 'success');
@@ -1076,6 +1083,7 @@
             const description = document.getElementById('description').value;
             const contentString = document.getElementById('content').value;
             const isVisible = document.getElementById('course-is-visible').checked;
+            const deadlineDays = document.getElementById('course-deadline-days').value;
 
             if (!title || !contentString) {
                 showToast('Название курса и контент не могут быть пустыми.', 'error');
@@ -1095,7 +1103,8 @@
                 title,
                 description,
                 content,
-                is_visible: isVisible
+                is_visible: isVisible,
+                deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null
             };
 
             await apiCall(ACTIONS.PUBLISH_COURSE, payload);
