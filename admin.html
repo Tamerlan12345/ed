@@ -175,7 +175,15 @@
             <div id="status-box" class="status hidden"></div>
 
             <h3>Существующие курсы</h3>
-            <button id="show-create-form-btn">Создать новый курс</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                <input type="text" id="course-search-input" placeholder="Поиск по названию или группе..." style="flex-grow: 1; min-width: 250px;">
+                <div id="pagination-controls" style="display: flex; align-items: center;">
+                    <button id="prev-page-btn" style="width: auto; padding: 8px 12px;">&lt; Назад</button>
+                    <span id="page-info" style="padding: 0 15px; font-weight: bold;"></span>
+                    <button id="next-page-btn" style="width: auto; padding: 8px 12px;">Вперед &gt;</button>
+                </div>
+            </div>
+            <button id="show-create-form-btn" style="margin-top: 10px;">Создать новый курс</button>
             <table id="courses-table">
                 <thead>
                     <tr>
@@ -343,6 +351,9 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let adminToken = null;
     let allCoursesData = []; // Cache for all courses
+    let currentPage = 1;
+    const coursesPerPage = 2; // As requested by the user
+    let searchQuery = '';
     let allDepartments = []; // Cache for all departments
     let currentEditingCourseId = null;
     let currentEditingGroupId = null;
@@ -1133,11 +1144,44 @@ async function addMaterialHandler() {
         renderWysiwygEditor();
     });
 
+    document.getElementById('courses-view').addEventListener('input', e => {
+        if (e.target.id === 'course-search-input') {
+            searchQuery = e.target.value;
+            currentPage = 1;
+            displayCourses();
+        }
+    });
+
+    document.getElementById('courses-view').addEventListener('click', e => {
+        if (e.target.id === 'prev-page-btn') {
+            if (currentPage > 1) {
+                currentPage--;
+                displayCourses();
+            }
+        }
+        if (e.target.id === 'next-page-btn') {
+             const filteredCount = allCoursesData.filter(course => {
+                const title = course.title || '';
+                const groupName = course.group_name || '';
+                const searchLower = searchQuery.toLowerCase();
+                return title.toLowerCase().includes(searchLower) ||
+                       groupName.toLowerCase().includes(searchLower);
+            }).length;
+            const totalPages = Math.ceil(filteredCount / coursesPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                displayCourses();
+            }
+        }
+    });
+
     function renderCoursesTable(courses) {
-        if (!courses || courses.length === 0) return '<tr><td colspan="4" style="text-align:center;">Курсы не найдены.</td></tr>';
-        return courses.sort((a, b) => a.title.localeCompare(b.title)).map(course => `
+        if (!courses || courses.length === 0) {
+            return '<tr><td colspan="4" style="text-align:center;">Курсы не найдены.</td></tr>';
+        }
+        return courses.map(course => `
             <tr>
-                <td>${escapeHTML(course.title)}</td>
+                <td>${escapeHTML(course.title)}${course.group_name ? ` <span style="color: #6c757d; font-style: italic;">(${escapeHTML(course.group_name)})</span>` : ''}</td>
                 <td>${escapeHTML(course.id)}</td>
                 <td class="status-${course.status || 'draft'}">${course.status === 'published' ? 'Опубликован' : 'Черновик'} ${course.is_visible ? ' (Виден)' : ''}</td>
                 <td class="actions-cell">
@@ -1148,21 +1192,52 @@ async function addMaterialHandler() {
         `).join('');
     }
 
+    function displayCourses() {
+        const filteredCourses = allCoursesData.filter(course => {
+            const title = course.title || '';
+            const groupName = course.group_name || '';
+            const searchLower = searchQuery.toLowerCase();
+            return title.toLowerCase().includes(searchLower) ||
+                   groupName.toLowerCase().includes(searchLower);
+        }).sort((a, b) => a.title.localeCompare(b.title));
+
+        const totalPages = Math.ceil(filteredCourses.length / coursesPerPage);
+        currentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+
+        const startIndex = (currentPage - 1) * coursesPerPage;
+        const paginatedCourses = filteredCourses.slice(startIndex, startIndex + coursesPerPage);
+
+        coursesTableBody.innerHTML = renderCoursesTable(paginatedCourses);
+
+        document.getElementById('page-info').textContent = `Страница ${currentPage} из ${totalPages || 1}`;
+        document.getElementById('prev-page-btn').disabled = currentPage === 1;
+        document.getElementById('next-page-btn').disabled = currentPage >= totalPages;
+    }
+
     async function loadCourses() {
         coursesTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
         try {
             const courses = await apiCall(ACTIONS.GET_COURSES_ADMIN);
             allCoursesData = courses;
-            coursesTableBody.innerHTML = renderCoursesTable(courses);
+            searchQuery = ''; // Reset search on load
+            if(document.getElementById('course-search-input')) {
+                document.getElementById('course-search-input').value = ''; // Clear search box
+            }
+            currentPage = 1; // Reset to first page
+            displayCourses(); // Render with filtering and pagination
+
             const filterCourseSelector = document.getElementById('filter-course');
-            filterCourseSelector.innerHTML = '<option value="">Все курсы</option>';
-            courses.forEach(course => {
-                const option = document.createElement('option');
-                option.value = course.id;
-                option.textContent = `${course.title}`;
-                filterCourseSelector.appendChild(option);
-            });
-        } catch (e) { /* Handled */ }
+            if (filterCourseSelector) {
+                filterCourseSelector.innerHTML = '<option value="">Все курсы</option>';
+                const sortedCourses = [...courses].sort((a, b) => a.title.localeCompare(b.title));
+                sortedCourses.forEach(course => {
+                    const option = document.createElement('option');
+                    option.value = course.id;
+                    option.textContent = `${course.title}${course.group_name ? ` (${course.group_name})` : ''}`;
+                    filterCourseSelector.appendChild(option);
+                });
+            }
+        } catch (e) { /* Handled in apiCall */ }
     }
 
     async function loadCourseForEditing(courseId) {

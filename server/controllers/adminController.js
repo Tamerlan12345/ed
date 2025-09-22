@@ -18,9 +18,43 @@ const adminActionHandlers = {
         return data;
     },
     [ACTIONS.GET_COURSES_ADMIN]: async ({ supabaseAdmin }) => {
-        const { data, error } = await supabaseAdmin.from('courses').select('*');
-        if (error) throw error;
-        return data;
+        // Fetch courses and their associated group name through the join table
+        const { data, error } = await supabaseAdmin
+            .from('courses')
+            .select(`
+                *,
+                course_group_items (
+                    course_groups (
+                        group_name
+                    )
+                )
+            `);
+
+        if (error) {
+            console.error('Error fetching courses with groups:', error);
+            throw error;
+        }
+
+        // Process the data to create a flat structure for the frontend
+        const coursesWithGroup = data.map(course => {
+            // A course can be in a group, so course_group_items is an array. We take the first one.
+            const groupItem = course.course_group_items && course.course_group_items.length > 0
+                ? course.course_group_items[0]
+                : null;
+
+            const groupName = groupItem && groupItem.course_groups
+                ? groupItem.course_groups.group_name
+                : null;
+
+            // Create a new object to avoid modifying the original response object
+            const newCourse = { ...course };
+            delete newCourse.course_group_items; // Clean up the nested structure
+            newCourse.group_name = groupName; // Add the flattened group_name
+
+            return newCourse;
+        });
+
+        return coursesWithGroup;
     },
     [ACTIONS.GET_ALL_USERS]: async ({ supabaseAdmin }) => {
         const { data, error } = await supabaseAdmin.rpc('get_all_users_with_details');
