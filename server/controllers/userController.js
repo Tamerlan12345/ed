@@ -316,9 +316,9 @@ const askAssistant = async (req, res) => {
         if (courseError || !courseData) return res.status(404).json({ error: 'Course not found.' });
 
         let courseTextContent = '';
-        if (courseData.content && typeof courseData.content === 'object' && courseData.content.summary) {
+        if (courseData.content && typeof courseData.content === 'object' && courseData.content.summary && Array.isArray(courseData.content.summary.slides)) {
             // Extract text from presentation slides
-            courseTextContent = courseData.content.summary.map(slide => {
+            courseTextContent = courseData.content.summary.slides.map(slide => {
                 const slideTitle = slide.slide_title || '';
                 const slideContent = slide.html_content || '';
                 // Basic HTML tag stripping and combine title + content
