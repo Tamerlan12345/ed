@@ -4,7 +4,7 @@ const axios = require('axios');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 // --- Service URLs ---
 const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
@@ -358,7 +358,31 @@ ${context}
 ВОПРОС СТУДЕНТА: "${question}"`;
 
         console.log(`Full Prompt Sent to AI:\n---\n${prompt}\n---`);
-        const result = await model.generateContent(prompt);
+
+        const safetySettings = [
+            {
+                category: "HARM_CATEGORY_HARASSMENT",
+                threshold: "BLOCK_NONE",
+            },
+            {
+                category: "HARM_CATEGORY_HATE_SPEECH",
+                threshold: "BLOCK_NONE",
+            },
+            {
+                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                threshold: "BLOCK_NONE",
+            },
+            {
+                category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                threshold: "BLOCK_NONE",
+            },
+        ];
+
+        // The structure of generateContent changes slightly to accept safetySettings
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            safetySettings,
+        });
         const response = result.response;
 
         if (!response || !response.text()) {
