@@ -363,7 +363,7 @@ ${context}
 
         res.status(200).json({ answer: response.text() });
     } catch (error) {
-        console.error('Full error object in /api/askAssistant:', JSON.stringify(error, null, 2));
+        console.error('Error in /api/askAssistant:', error);
         res.status(503).json({ error: 'AI service is currently unavailable.', details: error.message });
     }
 };
