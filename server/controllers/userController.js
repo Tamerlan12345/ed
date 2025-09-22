@@ -4,7 +4,7 @@ const axios = require('axios');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
 // --- Service URLs ---
 const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
@@ -310,6 +310,10 @@ const askAssistant = async (req, res) => {
     const supabase = req.supabase;
     try {
         const { course_id, question } = req.body;
+        console.log(`--- DIAGNOSTIC LOGS FOR /api/askAssistant ---`);
+        console.log(`Course ID: ${course_id}`);
+        console.log(`Question: ${question}`);
+        console.log(`API Key Used: ${process.env.GEMINI_API_KEY ? 'Exists' : 'MISSING'}`);
         if (!course_id || !question) return res.status(400).json({ error: 'course_id and question are required.' });
 
         const { data: courseData, error: courseError } = await supabase.from('courses').select('description, content').eq('id', course_id).single();
@@ -353,6 +357,7 @@ ${context}
 
 ВОПРОС СТУДЕНТА: "${question}"`;
 
+        console.log(`Full Prompt Sent to AI:\n---\n${prompt}\n---`);
         const result = await model.generateContent(prompt);
         const response = result.response;
 
