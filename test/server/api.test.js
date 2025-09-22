@@ -1,3 +1,4 @@
+require('dotenv').config({ path: require('path').join(__dirname, '..', '..', 'config.env') });
 const request = require('supertest');
 const { expect } = require('chai');
 const sinon = require('sinon');
@@ -9,6 +10,7 @@ describe('API Endpoints', () => {
     let createClientStub;
     let adminAuthMiddlewareStub;
     let userAuthMiddlewareStub;
+    let googleDriveServiceMock;
 
     beforeEach(() => {
         // This stub will be used for all tests that require admin authentication
@@ -59,7 +61,12 @@ describe('API Endpoints', () => {
             createSupabaseAdminClient: () => supabaseStub,
         };
 
-        // Use proxyquire to inject the mocked middleware and the mocked supabase client module
+        // Create the mock for the Google Drive service so we can reference its stubs
+        googleDriveServiceMock = {
+            downloadFile: sinon.stub()
+        };
+
+        // Use proxyquire to inject all mocks
         const server = proxyquire('../../server/index', {
             './routes/api': proxyquire('../../server/routes/api', {
                 '../middleware/adminAuth': adminAuthMiddlewareStub,
@@ -73,6 +80,9 @@ describe('API Endpoints', () => {
                 '../controllers/userController': proxyquire('../../server/controllers/userController', {
                     '../lib/supabaseClient': supabaseClientMock
                 }),
+                '../controllers/googleDriveController': proxyquire('../../server/controllers/googleDriveController', {
+                    '../services/googleDriveService': googleDriveServiceMock
+                })
             })
         });
         app = server.app;
@@ -155,6 +165,64 @@ describe('API Endpoints', () => {
 
             expect(response.status).to.equal(400);
             expect(response.body.error).to.equal('Unknown action: unknown_action');
+        });
+    });
+
+    describe('GET /api/google-drive/proxy/:fileId', () => {
+        const fs = require('fs');
+        const path = require('path');
+        const os = require('os');
+        let tempFilePath;
+
+        beforeEach(() => {
+            // Reset the history of the stub before each test in this suite
+            googleDriveServiceMock.downloadFile.reset();
+
+            // Create a dummy file for testing res.sendFile
+            tempFilePath = path.join(os.tmpdir(), `test-file-${Date.now()}.txt`);
+            fs.writeFileSync(tempFilePath, 'hello world');
+        });
+
+        afterEach(() => {
+            // Clean up the dummy file
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+            }
+        });
+
+        it('should return 200 and the file content on success', async () => {
+            googleDriveServiceMock.downloadFile.resolves(tempFilePath);
+
+            const response = await request(app)
+                .get('/api/google-drive/proxy/some-file-id')
+                .set('Authorization', 'Bearer mock-user-token');
+
+            expect(response.status).to.equal(200);
+            expect(response.text).to.equal('hello world');
+            expect(googleDriveServiceMock.downloadFile.calledWith('some-file-id')).to.be.true;
+        });
+
+        it('should return 404 if the file is not found by the service', async () => {
+            const notFoundError = new Error('File not found');
+            googleDriveServiceMock.downloadFile.rejects(notFoundError);
+
+            const response = await request(app)
+                .get('/api/google-drive/proxy/non-existent-file-id')
+                .set('Authorization', 'Bearer mock-user-token');
+
+            expect(response.status).to.equal(404);
+            expect(response.body.error).to.include('File not found');
+        });
+
+        it('should return 500 on other internal errors', async () => {
+            googleDriveServiceMock.downloadFile.rejects(new Error('Some other internal error'));
+
+            const response = await request(app)
+                .get('/api/google-drive/proxy/some-file-id')
+                .set('Authorization', 'Bearer mock-user-token');
+
+            expect(response.status).to.equal(500);
+            expect(response.body.error).to.equal('Failed to proxy file from Google Drive.');
         });
     });
 });
