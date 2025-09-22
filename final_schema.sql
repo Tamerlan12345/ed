@@ -23,7 +23,8 @@ CREATE TABLE public.courses (
     content jsonb NULL,
     status text DEFAULT 'draft'::text NOT NULL, -- 'draft', 'published', 'archived'
     draft_content jsonb NULL, -- Для автосохранения черновиков
-    is_visible boolean DEFAULT false NOT NULL -- Видимость в каталоге
+    is_visible boolean DEFAULT false NOT NULL, -- Видимость в каталоге
+    deadline_days integer NULL -- Срок на прохождение в днях
 );
 
 CREATE TABLE public.course_materials (

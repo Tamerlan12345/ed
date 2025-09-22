@@ -192,7 +192,7 @@ const assignCourse = async (req, res) => {
 
         const { data: course, error: courseError } = await supabase
             .from('courses')
-            .select('id')
+            .select('id, deadline_days')
             .eq('id', course_id)
             .single();
 
@@ -200,9 +200,19 @@ const assignCourse = async (req, res) => {
             return res.status(404).json({ error: `Course with id ${course_id} not found.` });
         }
 
+        const insertData = { user_id: user.id, course_id: course_id };
+
+        // Only calculate deadline if the course is assigned individually (not via a group)
+        // A simple check is to see if the course has a deadline_days value. Group deadlines are handled elsewhere.
+        if (course.deadline_days) {
+            const deadline = new Date();
+            deadline.setDate(deadline.getDate() + course.deadline_days);
+            insertData.deadline_date = deadline.toISOString();
+        }
+
         const { error: insertError } = await supabase
             .from('user_progress')
-            .insert({ user_id: user.id, course_id: course_id });
+            .insert(insertData);
 
         if (insertError) {
              if (insertError.code === '23505') {
@@ -283,7 +293,8 @@ const getCourseCatalog = async (req, res) => {
         const { data: allCatalogCourses, error: coursesError } = await supabase
             .from('courses')
             .select(`id, title, description, course_group_items(course_groups(group_name))`)
-            .eq('status', 'published');
+            .eq('status', 'published')
+            .eq('is_visible', true);
 
         if (coursesError) throw coursesError;
 
