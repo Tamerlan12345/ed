@@ -873,7 +873,7 @@
     }
     async function renderCatalog() {
         mainMenu.innerHTML = '';
-        mainMenu.style.display = 'grid';
+        mainMenu.style.display = 'block';
         mainMenu.innerHTML = '<div class="loader"></div>';
         try {
             const catalogCourses = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
@@ -882,9 +882,66 @@
                 mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
                 return;
             }
+
+            const courseGroups = {};
+            const individualCourses = [];
+
             catalogCourses.forEach(course => {
-                mainMenu.appendChild(createCatalogMenuItem(course));
+                if (course.group_name && course.group_name.trim() !== '') {
+                    if (!courseGroups[course.group_name]) {
+                        courseGroups[course.group_name] = [];
+                    }
+                    courseGroups[course.group_name].push(course);
+                } else {
+                    individualCourses.push(course);
+                }
             });
+
+            mainMenu.innerHTML = `
+                <div class="main-menu-columns">
+                    <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
+                    <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
+                </div>
+            `;
+
+            const groupedContainer = document.getElementById('grouped-courses-container-catalog');
+            const individualContainer = document.getElementById('individual-courses-container-catalog');
+
+            const actualGroupNames = Object.keys(courseGroups);
+
+            if (actualGroupNames.length > 0) {
+                actualGroupNames.forEach(groupName => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'course-group-container';
+                    const groupHeader = document.createElement('h3');
+                    groupHeader.textContent = groupName;
+                    groupContainer.appendChild(groupHeader);
+
+                    const coursesGrid = document.createElement('div');
+                    coursesGrid.className = 'main-menu';
+
+                    courseGroups[groupName].forEach(course => {
+                        coursesGrid.appendChild(createCatalogMenuItem(course));
+                    });
+
+                    groupContainer.appendChild(coursesGrid);
+                    groupedContainer.appendChild(groupContainer);
+                });
+            } else {
+                groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
+            }
+
+            if (individualCourses.length > 0) {
+                const coursesGrid = document.createElement('div');
+                coursesGrid.className = 'main-menu';
+                individualCourses.forEach(course => {
+                    coursesGrid.appendChild(createCatalogMenuItem(course));
+                });
+                individualContainer.appendChild(coursesGrid);
+            } else {
+                individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
+            }
+
         } catch (error) {
             console.error('Failed to load course catalog:', error);
             mainMenu.innerHTML = `<p class="message" style="color: var(--error-color);">Не удалось загрузить каталог курсов.</p>`;
