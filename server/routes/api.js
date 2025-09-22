@@ -4,7 +4,6 @@ const userAuthMiddleware = require('../middleware/userAuth'); // We will create 
 const { handleAdminAction } = require('../controllers/adminController');
 const { getDetailedReport } = require('../controllers/reportController');
 const userController = require('../controllers/userController');
-const googleDriveController = require('../controllers/googleDriveController');
 
 const apiRouter = express.Router();
 
@@ -33,9 +32,6 @@ apiRouter.post('/dialogueSimulator', userController.dialogueSimulator);
 apiRouter.post('/update-time-spent', userController.updateTimeSpent);
 apiRouter.post('/markNotificationsAsRead', userController.markNotificationsAsRead);
 apiRouter.post('/text-to-speech-user', userController.textToSpeechUser);
-
-// --- Google Drive Proxy Route ---
-apiRouter.get('/google-drive/proxy/:fileId', googleDriveController.proxyAndCleanupFile);
 
 
 module.exports = apiRouter;
