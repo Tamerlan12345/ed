@@ -4,7 +4,7 @@ const axios = require('axios');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
 // --- Service URLs ---
 const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
@@ -363,7 +363,7 @@ ${context}
 
         res.status(200).json({ answer: response.text() });
     } catch (error) {
-        console.error('Detailed error in /api/askAssistant:', error);
+        console.error('Full error object in /api/askAssistant:', JSON.stringify(error, null, 2));
         res.status(503).json({ error: 'AI service is currently unavailable.', details: error.message });
     }
 };
