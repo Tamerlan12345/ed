@@ -310,10 +310,6 @@ const askAssistant = async (req, res) => {
     const supabase = req.supabase;
     try {
         const { course_id, question } = req.body;
-        console.log(`--- DIAGNOSTIC LOGS FOR /api/askAssistant ---`);
-        console.log(`Course ID: ${course_id}`);
-        console.log(`Question: ${question}`);
-        console.log(`API Key Used: ${process.env.GEMINI_API_KEY ? 'Exists' : 'MISSING'}`);
         if (!course_id || !question) return res.status(400).json({ error: 'course_id and question are required.' });
 
         const { data: courseData, error: courseError } = await supabase.from('courses').select('description, content').eq('id', course_id).single();
@@ -357,32 +353,7 @@ ${context}
 
 ВОПРОС СТУДЕНТА: "${question}"`;
 
-        console.log(`Full Prompt Sent to AI:\n---\n${prompt}\n---`);
-
-        const safetySettings = [
-            {
-                category: "HARM_CATEGORY_HARASSMENT",
-                threshold: "BLOCK_NONE",
-            },
-            {
-                category: "HARM_CATEGORY_HATE_SPEECH",
-                threshold: "BLOCK_NONE",
-            },
-            {
-                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                threshold: "BLOCK_NONE",
-            },
-            {
-                category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-                threshold: "BLOCK_NONE",
-            },
-        ];
-
-        // The structure of generateContent changes slightly to accept safetySettings
-        const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            safetySettings,
-        });
+        const result = await model.generateContent(prompt);
         const response = result.response;
 
         if (!response || !response.text()) {
