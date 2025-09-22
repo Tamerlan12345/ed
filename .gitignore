@@ -57,7 +57,6 @@ web_modules/
 .env.test.local
 .env.production.local
 config.env
-google-service-account.json
 
 # Netlify local dev
 .netlify
