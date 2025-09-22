@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <title>AI-Платформа Обучения | Centras Insurance</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
@@ -471,10 +472,10 @@
                 </div>
                  <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo">
                 <div id="leaderboard-container">
-                    <h3>🏆 Топ Учеников Недели</h3>
+                    <h3><i class="fa-solid fa-trophy"></i> Топ Учеников Недели</h3>
                     <div id="leaderboard-content"></div>
                 </div>
-                 <button id="logout-btn" style="background: transparent; border: none; cursor: pointer; font-size: 1.5em; margin-left: 20px;" title="Выйти">🚪</button>
+                 <button id="logout-btn" style="background: transparent; border: none; cursor: pointer; font-size: 1.5em; margin-left: 20px;" title="Выйти"><i class="fa-solid fa-right-from-bracket"></i></button>
             </div>
             <div id="content-loader" class="hidden" style="display: flex; justify-content: center; align-items: center; height: 60vh;"><div class="loader"></div></div>
             <div class="content-area" id="content-area">
@@ -501,12 +502,26 @@
                     <div id="answers" class="answers"></div>
                     <button id="next-question-btn" class="hidden">Следующий вопрос</button>
                 </div>
-                <div id="test-results" class="hidden">
-                     <h2>Результаты тестирования</h2>
-                    <p>Продукт: <span id="results-product-name"></span></p>
+                <div id="test-results" class="hidden" style="text-align: center;">
+                    <div style="font-size: 4em; color: var(--success-color);"><i class="fa-solid fa-trophy"></i></div>
+                    <h2>Результаты тестирования</h2>
+                    <p>Курс: <b id="results-product-name"></b></p>
                     <p>Ваш результат: <span id="results-score" class="score"></span></p>
-                    <p id="results-feedback"></p>
-                    <button id="back-to-menu-from-results">Вернуться в меню</button>
+                    <div style="display: flex; justify-content: center; gap: 30px; margin: 20px 0;">
+                        <div>
+                            <p style="margin: 0; color: var(--text-light-color);">Попыток</p>
+                            <p style="margin: 0; font-size: 1.5em; font-weight: bold;" id="results-attempts"></p>
+                        </div>
+                        <div>
+                            <p style="margin: 0; color: var(--text-light-color);">Затрачено времени</p>
+                            <p style="margin: 0; font-size: 1.5em; font-weight: bold;" id="results-time-spent"></p>
+                        </div>
+                    </div>
+                    <p id="results-feedback" style="font-style: italic;"></p>
+                    <div id="results-buttons" style="margin-top: 25px; display: flex; justify-content: center; gap: 15px;">
+                        <button id="back-to-menu-from-results" class="btn">Вернуться в меню</button>
+                        <button id="retry-test-btn" class="btn hidden" style="background-color: transparent; border: 1px solid var(--primary-color); color: var(--primary-color);">Пройти заново</button>
+                    </div>
                 </div>
                 <div id="simulator-view" class="hidden">
                     <div id="simulator-setup">
@@ -835,8 +850,9 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Сравниваем только даты, без времени
             const isOverdue = deadline < today;
+            const iconHtml = isOverdue ? '<i class="fa-solid fa-fire"></i>' : '<i class="fa-solid fa-clock"></i>';
             deadlineHtml = `<p style="font-size: 0.85em; color: ${isOverdue ? 'var(--error-color)' : 'var(--text-light-color)'}; margin-top: 10px; font-weight: bold;">
-                <span class="menu-item-icon" style="font-size: 1em;">${isOverdue ? '🔥' : '🕒'}</span>
+                <span class="menu-item-icon" style="font-size: 1em;">${iconHtml}</span>
                 Срок сдачи: ${deadline.toLocaleDateString('ru-RU')} ${isOverdue ? '(Просрочено)' : ''}
             </p>`;
         }
@@ -844,8 +860,9 @@
         if(course.progress?.percentage > 0 && !course.progress?.completed_at) {
             progressBarHtml = `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${course.progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
         }
+        const courseIcon = course.is_locked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-book-open"></i>';
         menuItem.innerHTML = `
-            <div><h3><span class="menu-item-icon">${course.is_locked ? '🔒' : '📖'}</span>${course.title}</h3></div>
+            <div><h3><span class="menu-item-icon">${courseIcon}</span>${course.title}</h3></div>
             <div>${progressBarHtml}${deadlineHtml}</div>`;
         menuItem.style.display = 'flex';
         menuItem.style.flexDirection = 'column';
@@ -870,8 +887,9 @@
                 break;
         }
         const descriptionText = course.group_name ? `Курс из группы: <strong>${course.group_name}</strong>` : (truncateText(course.description) || 'Нет описания.');
+        const iconHtml = course.user_status === 'completed' ? '<i class="fa-solid fa-trophy"></i>' : '<i class="fa-solid fa-book"></i>';
         menuItem.innerHTML = `
-            <div><h3><span class="menu-item-icon">${course.user_status === 'completed' ? '🏆' : '📚'}</span>${course.title}</h3><p style="font-size: 0.9em; color: var(--text-light-color);">${descriptionText}</p></div>
+            <div><h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3><p style="font-size: 0.9em; color: var(--text-light-color);">${descriptionText}</p></div>
             <div style="text-align: right;">${buttonHtml}</div>`;
         return menuItem;
     }
@@ -994,14 +1012,14 @@
             instrumentsPanel.className = 'sidebar-panel instruments-panel';
             instrumentsPanel.innerHTML = '<h3>Инструменты</h3>';
             const testBtn = document.createElement('button');
-            testBtn.innerHTML = '🎯 Начать тестирование';
+            testBtn.innerHTML = '<i class="fa-solid fa-bullseye"></i> Начать тестирование';
             testBtn.className = 'action-btn primary';
             testBtn.onclick = () => {
                 stopTimeTracking();
                 startTest(currentCourse.id);
             };
             const simBtn = document.createElement('button');
-            simBtn.innerHTML = '💬 Диалоговый тренажер';
+            simBtn.innerHTML = '<i class="fa-solid fa-comments"></i> Диалоговый тренажер';
             simBtn.className = 'action-btn';
             simBtn.style.marginTop = '10px';
             simBtn.onclick = showSimulatorView;
@@ -1026,6 +1044,20 @@
             leftSidebar.appendChild(backBtnSidebar);
             const rightContent = document.createElement('div');
             rightContent.className = 'presentation-view-right-content';
+
+            const progressContainerHtml = `
+                <div class="presentation-progress-container" style="padding-bottom: 10px; border-bottom: 1px solid var(--border-color); margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <span style="font-size: 0.9em; color: var(--text-light-color);">Прогресс</span>
+                        <span id="slide-counter" style="font-size: 0.9em; font-weight: bold;"></span>
+                    </div>
+                    <div class="progress-bar-background" style="background-color: var(--border-color); border-radius: 5px; height: 8px;">
+                        <div id="slide-progress-bar" style="width: 0%; height: 100%; background-color: var(--success-color); border-radius: 5px; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            `;
+            rightContent.innerHTML += progressContainerHtml;
+
             const sliderContainer = document.createElement('div');
             sliderContainer.className = 'presentation-slider-container';
             const navButtonsContainer = document.createElement('div');
@@ -1037,12 +1069,56 @@
                     return { slider: messageDiv, prevBtn: null, nextBtn: null };
                 }
                 const slider = document.createElement('div');
-                summaryData.forEach((slideData) => {
+                summaryData.forEach((slideData, slideIndex) => {
                     const slideDiv = document.createElement('div');
                     slideDiv.className = 'presentation-slide';
                     let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="Slide Image">` : '';
-                    slideDiv.innerHTML = `${imageHtml}<div class="presentation-slide-content"><h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}</div>`;
+                    let questionHtml = '';
+
+                    if (slideData.slide_question) {
+                        const question = slideData.slide_question;
+                        questionHtml = `
+                            <div class="micro-question-view" style="margin-top: 20px; padding: 15px; border: 2px solid var(--secondary-color); border-radius: 8px;">
+                                <h4>Проверьте себя:</h4>
+                                <p style="font-weight: bold;">${question.question_text}</p>
+                                <div class="micro-answers">
+                                    ${question.options.map((option, index) => `
+                                        <div class="answer micro-answer" data-correct="${index === question.correct_index}" style="padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; cursor: pointer; border-radius: 5px;">
+                                            ${option}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    slideDiv.innerHTML = `${imageHtml}<div class="presentation-slide-content"><h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}</div>${questionHtml}`;
                     slider.appendChild(slideDiv);
+                });
+
+                // Add event listener for all micro-questions
+                slider.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('micro-answer')) {
+                        const parent = e.target.parentElement;
+                        if (parent.dataset.answered) return; // Already answered
+                        parent.dataset.answered = 'true';
+
+                        const slide = e.target.closest('.presentation-slide');
+                        slide.dataset.answered = 'true'; // Mark slide as answered
+
+                        const isCorrect = e.target.dataset.correct === 'true';
+                        e.target.style.backgroundColor = isCorrect ? 'hsl(145, 63%, 90%)' : 'hsl(354, 70%, 90%)';
+                        e.target.style.borderColor = isCorrect ? 'var(--success-color)' : 'var(--error-color)';
+                        e.target.style.fontWeight = 'bold';
+
+                        // Disable other options
+                        parent.querySelectorAll('.micro-answer').forEach(ans => {
+                            if (ans !== e.target) ans.style.opacity = '0.6';
+                            ans.style.cursor = 'default';
+                        });
+
+                        updateSliderUI(); // Re-evaluate button states
+                    }
                 });
                 const slides = slider.querySelectorAll('.presentation-slide');
                 const prevBtn = document.createElement('button');
@@ -1053,7 +1129,21 @@
                 const updateSliderUI = () => {
                     slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
                     prevBtn.disabled = currentIndex === 0;
-                    nextBtn.disabled = currentIndex === slides.length - 1;
+
+                    const currentSlideData = summaryData[currentIndex];
+                    const hasMicroQuestion = currentSlideData && currentSlideData.slide_question;
+
+                    // Disable next button if there's an unanswered micro-question
+                    nextBtn.disabled = (currentIndex === slides.length - 1) || (hasMicroQuestion && !slides[currentIndex].dataset.answered);
+
+                    // Update progress bar
+                    const progressBar = document.getElementById('slide-progress-bar');
+                    const slideCounter = document.getElementById('slide-counter');
+                    if(progressBar && slideCounter) {
+                        const progress = slides.length > 1 ? ((currentIndex) / (slides.length - 1)) * 100 : (slides.length === 1 ? 100 : 0);
+                        progressBar.style.width = progress + '%';
+                        slideCounter.textContent = `Слайд ${currentIndex + 1} из ${slides.length}`;
+                    }
                 };
                 prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateSliderUI(); } });
                 nextBtn.addEventListener('click', () => { if (currentIndex < slides.length - 1) { currentIndex++; updateSliderUI(); } });
@@ -1291,23 +1381,52 @@
         const percentage = Math.round((score / currentQuestions.length) * 100);
         document.getElementById('results-product-name').textContent = currentCourse.title;
         document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`;
+
         let feedback = '';
-        if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.';
-        else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.';
-        else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.';
+        if (percentage >= 80) {
+            feedback = 'Отличный результат! Материал усвоен.';
+            document.querySelector('#test-results .fa-trophy').style.color = 'var(--success-color)';
+        } else if (percentage >= 60) {
+            feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.';
+            document.querySelector('#test-results .fa-trophy').style.color = 'var(--primary-color)';
+        } else {
+            feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.';
+            document.querySelector('#test-results .fa-trophy').style.color = 'var(--text-light-color)';
+        }
         document.getElementById('results-feedback').textContent = feedback;
+
         try {
-            await fetchAuthenticated('/api/saveTestResult', {
+            const resultData = await fetchAuthenticated('/api/saveTestResult', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     course_id: currentCourse.id,
                     score: score,
                     total_questions: currentQuestions.length,
-                    percentage: percentage
+                    percentage: percentage,
+                    time_spent_seconds: secondsSinceLastUpdate // Send the tracked time
                 })
             });
-        } catch(error) { console.error('Не удалось сохранить результат:', error); }
+
+            const attempts = resultData.updated_progress?.attempts || 1;
+            const timeSpent = resultData.updated_progress?.time_spent_seconds || secondsSinceLastUpdate;
+
+            document.getElementById('results-attempts').textContent = `${attempts} / ${MAX_ATTEMPTS}`;
+            document.getElementById('results-time-spent').textContent = `${Math.round(timeSpent / 60)} мин`;
+
+            const retryBtn = document.getElementById('retry-test-btn');
+            if (attempts < MAX_ATTEMPTS) {
+                retryBtn.classList.remove('hidden');
+                retryBtn.onclick = () => startTest(currentCourse.id);
+            } else {
+                retryBtn.classList.add('hidden');
+            }
+
+        } catch(error) {
+            console.error('Не удалось сохранить результат:', error);
+            document.getElementById('results-feedback').textContent += " (Ошибка сохранения результата)";
+        }
+        secondsSinceLastUpdate = 0; // Reset time tracker
     }
     document.addEventListener('DOMContentLoaded', () => {
         mainMenu.addEventListener('click', async (e) => {

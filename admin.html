@@ -5,33 +5,46 @@
     <title>Админ-панель</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/shared/constants.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f4f7f6; }
-        h1, h2, h3 { color: #005A9C; }
+        :root {
+            --primary-color: #005A9C;
+            --secondary-color: #00AEEF;
+            --bg-color: #f4f7f6;
+            --surface-color: #ffffff;
+            --text-color: #333333;
+            --text-light-color: #777777;
+            --border-color: #e0e0e0;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; background-color: var(--bg-color); color: var(--text-color); }
+        h1, h2, h3 { color: var(--primary-color); }
         .hidden { display: none; }
-        input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #e0e0e0; font-size: 16px; }
-        button { background-color: #005A9C; color: white; cursor: pointer; border: none; font-weight: bold; }
-        button:hover { background-color: #00AEEF; }
+        input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 16px; }
+        button { background-color: var(--primary-color); color: white; cursor: pointer; border: none; font-weight: bold; transition: background-color 0.2s; }
+        button:hover { background-color: var(--secondary-color); }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         textarea { height: 150px; resize: vertical; }
         .status { padding: 15px; border-radius: 8px; margin: 10px 0; text-align: center; }
-        .error { color: #dc3545; background-color: #fdeeee; }
-        .success { color: #28a745; background-color: #eaf7ec; }
-        .info { color: #005A9C; background-color: #e9f7fe; }
-        .tabs button { width: auto; padding: 10px 20px; margin-right: 10px; background-color: #e0e0e0; color: #333; }
-        .tabs button.active { background-color: #005A9C; color: white; }
+        .error { color: var(--error-color); background-color: #fdeeee; }
+        .success { color: var(--success-color); background-color: #eaf7ec; }
+        .info { color: var(--primary-color); background-color: #e9f7fe; }
+        .tabs button { width: auto; padding: 10px 20px; margin-right: 10px; background-color: var(--border-color); color: var(--text-color); }
+        .tabs button.active { background-color: var(--primary-color); color: white; }
         #results-view { margin-top: 20px; }
         #results-filters { display: flex; gap: 10px; margin-bottom: 10px; }
         #results-table { width: 100%; border-collapse: collapse; }
-        #results-table th, #results-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        #results-table th { background-color: #f2f2f2; }
-        #delete-course-btn { background-color: #dc3545; }
+        #results-table th, #results-table td { border: 1px solid var(--border-color); padding: 8px; text-align: left; }
+        #results-table th { background-color: var(--bg-color); }
+        #delete-course-btn { background-color: var(--error-color); }
         #delete-course-btn:hover { background-color: #c82333; }
         #courses-table, #groups-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        #courses-table th, #courses-table td, #groups-table th, #groups-table td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: middle; }
-        #courses-table th, #groups-table th { background-color: #f2f2f2; font-weight: bold; }
+        #courses-table th, #courses-table td, #groups-table th, #groups-table td { border: 1px solid var(--border-color); padding: 10px; text-align: left; vertical-align: middle; }
+        #courses-table th, #groups-table th { background-color: var(--bg-color); font-weight: bold; }
         #courses-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -39,25 +52,30 @@
             margin-top: 15px;
         }
         .course-card {
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 15px;
-            background-color: #fff;
+            background-color: var(--surface-color);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .course-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
         }
         .course-card h4 {
             margin-top: 0;
             margin-bottom: 10px;
             font-size: 1.1em;
-            color: #005A9C;
+            color: var(--primary-color);
         }
         .course-card p {
             margin: 4px 0;
             font-size: 0.9em;
-            color: #333;
+            color: var(--text-color);
         }
         .course-card .actions-cell {
             margin-top: 15px;
@@ -65,25 +83,25 @@
             gap: 5px;
         }
         .actions-cell button { width: auto; padding: 6px 12px; font-size: 14px; margin-right: 5px; }
-        .status-published { color: #28a745; font-weight: bold; }
+        .status-published { color: var(--success-color); font-weight: bold; }
         .status-processed { color: #ffc107; }
-        .inline-error { color: #dc3545; font-size: 0.9em; margin-top: -5px; margin-bottom: 10px; }
+        .inline-error { color: var(--error-color); font-size: 0.9em; margin-top: -5px; margin-bottom: 10px; }
         #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1050; }
-        .toast { padding: 15px 20px; margin-bottom: 10px; border-radius: 8px; color: white; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1); opacity: 0.9; width: 300px; }
-        .toast-error { background-color: #dc3545; }
-        .toast-success { background-color: #28a745; }
-        .toast-info { background-color: #00AEEF; }
+        .toast { padding: 15px 20px; margin-bottom: 10px; border-radius: 8px; color: white; font-weight: bold; box-shadow: var(--shadow); opacity: 0.9; width: 300px; }
+        .toast-error { background-color: var(--error-color); }
+        .toast-success { background-color: var(--success-color); }
+        .toast-info { background-color: var(--secondary-color); }
 
         /* WYSIWYG Editor Styles */
         #wysiwyg-editor {
-            border: 1px solid #ccc;
+            border: 1px solid var(--border-color);
             padding: 15px;
             border-radius: 8px;
-            background-color: #fff;
+            background-color: var(--surface-color);
             min-height: 200px;
         }
         .wysiwyg-slide {
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--border-color);
             padding: 15px;
             margin-bottom: 15px;
             border-radius: 5px;
@@ -93,23 +111,23 @@
             font-size: 1.3em;
             font-weight: bold;
             margin-bottom: 10px;
-            border-bottom: 2px solid #005A9C;
+            border-bottom: 2px solid var(--primary-color);
             padding-bottom: 10px;
-            color: #005A9C;
+            color: var(--primary-color);
         }
         .wysiwyg-slide-content, .wysiwyg-question-text, .wysiwyg-option-label {
             min-height: 30px;
             padding: 8px;
-            border: 1px dashed #ced4da;
+            border: 1px dashed var(--border-color);
         }
         .wysiwyg-slide-content:focus, .wysiwyg-question-text:focus, .wysiwyg-option-label:focus {
-            outline: 1px solid #00AEEF;
-            border: 1px solid #00AEEF;
+            outline: 1px solid var(--secondary-color);
+            border: 1px solid var(--secondary-color);
             background-color: #f8f9fa;
         }
         .wysiwyg-questions-container h4 {
             margin-top: 25px;
-            border-top: 1px solid #ddd;
+            border-top: 1px solid var(--border-color);
             padding-top: 15px;
         }
         .wysiwyg-question {
@@ -117,7 +135,7 @@
             padding: 15px;
             margin-top: 15px;
             border-radius: 5px;
-            border-left: 4px solid #00AEEF;
+            border-left: 4px solid var(--secondary-color);
         }
         .wysiwyg-options {
             list-style-type: none;
@@ -177,9 +195,12 @@
     </div>
 
     <div id="panel-view" class="hidden">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h1>Панель управления</h1>
-            <button id="logout-btn" style="width: auto; background-color: #6c757d;">Выйти</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" style="height: 40px;">
+                <h1>Панель управления</h1>
+            </div>
+            <button id="logout-btn" style="width: auto; background-color: var(--text-light-color);">Выйти</button>
         </div>
         <div class="tabs">
             <button id="courses-tab-btn" class="active">Управление курсами</button>
@@ -300,6 +321,8 @@
             <p>Здесь вы можете найти любого ученика и назначить ему курс индивидуально.</p>
             <button id="load-students-btn">Загрузить список всех учеников</button>
 
+            <input type="text" id="student-search-input" placeholder="Поиск по имени или email..." class="hidden" style="margin-top: 15px;">
+
             <table id="students-table" class="hidden" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
                 <thead>
                     <tr>
@@ -312,6 +335,12 @@
                     <!-- Student rows will be inserted here -->
                 </tbody>
             </table>
+
+            <div id="student-pagination-controls" class="hidden" style="display: flex; align-items: center; justify-content: center; margin-top: 10px;">
+                <button id="student-prev-page-btn" style="width: auto; padding: 8px 12px;">&lt; Назад</button>
+                <span id="student-page-info" style="padding: 0 15px; font-weight: bold;"></span>
+                <button id="student-next-page-btn" style="width: auto; padding: 8px 12px;">Вперед &gt;</button>
+            </div>
 
             <div id="student-actions-panel" class="hidden" style="margin-top: 15px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
                 <h4>Назначить курс для: <b id="selected-student-email-span"></b></h4>
@@ -412,6 +441,27 @@
     const groupCoursesList = document.getElementById('group-courses-list');
 
     // --- UTILITY FUNCTIONS ---
+    function renderMicroQuestionEditor(question, slideIndex) {
+        if (!question) {
+            return `<button class="add-micro-question-btn" data-slide-index="${slideIndex}" style="width: auto; font-size: 12px; padding: 5px 10px;">+ Добавить вопрос к слайду</button>`;
+        }
+        return `
+            <div class="micro-question" data-slide-index="${slideIndex}">
+                <button class="delete-micro-question-btn" data-slide-index="${slideIndex}" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px;">×</button>
+                <h5 style="margin:0 0 5px 0;">Вопрос после слайда:</h5>
+                <div class="wysiwyg-question-text" contenteditable="true">${question.question_text || ''}</div>
+                <ul class="wysiwyg-options" style="margin-top: 5px;">
+                    ${(question.options || ['', '']).map((opt, oIndex) => `
+                        <li class="wysiwyg-option-item">
+                            <input type="radio" name="correct_micro_q_${slideIndex}" ${oIndex === question.correct_index ? 'checked' : ''}>
+                            <span class="wysiwyg-option-label" contenteditable="true">${escapeHTML(opt)}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
     function updateJsonFromWysiwyg(triggerAutosave = true) {
         const editor = document.getElementById('wysiwyg-editor');
         const contentTextarea = document.getElementById('content');
@@ -419,11 +469,32 @@
 
         const data = { summary: { slides: [] }, questions: [] };
 
-        editor.querySelectorAll('.wysiwyg-slide').forEach(slideEl => {
-            data.summary.slides.push({
+        editor.querySelectorAll('.wysiwyg-slide').forEach((slideEl, slideIndex) => {
+            const slideData = {
                 slide_title: slideEl.querySelector('.wysiwyg-slide-title').textContent,
                 html_content: slideEl.querySelector('.wysiwyg-slide-content').innerHTML,
-            });
+                slide_question: null
+            };
+
+            const microQuestionEl = slideEl.querySelector('.micro-question');
+            if (microQuestionEl) {
+                const questionData = {
+                    question_text: microQuestionEl.querySelector('.wysiwyg-question-text').textContent,
+                    options: [],
+                    correct_index: -1
+                };
+                microQuestionEl.querySelectorAll('.wysiwyg-option-item').forEach((optEl, oIndex) => {
+                    questionData.options.push(optEl.querySelector('.wysiwyg-option-label').textContent);
+                    if (optEl.querySelector('input[type="radio"]').checked) {
+                        questionData.correct_index = oIndex;
+                    }
+                });
+                // Only save if question text and at least one option is filled
+                if (questionData.question_text && questionData.options.some(o => o)) {
+                    slideData.slide_question = questionData;
+                }
+            }
+            data.summary.slides.push(slideData);
         });
 
         editor.querySelectorAll('.wysiwyg-question').forEach(qEl => {
@@ -476,9 +547,12 @@
 
             const slidesHtml = (data.summary?.slides || []).map((slide, index) => `
                 <div class="wysiwyg-slide" data-index="${index}">
-                    <div class="wysiwyg-slide-title" contenteditable="true">${slide.slide_title || 'Новый слайд'}</div>
+                    <div class="wysiwyg-slide-title" contenteditable="true">${escapeHTML(slide.slide_title) || 'Новый слайд'}</div>
                     <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || '<p>Начните вводить текст...</p>'}</div>
                     ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
+                    <div class="micro-question-area" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
+                        ${renderMicroQuestionEditor(slide.slide_question, index)}
+                    </div>
                 </div>
             `).join('');
             editor.innerHTML += slidesHtml;
@@ -511,6 +585,29 @@
 
             // --- Add/Delete Question Logic ---
             editor.addEventListener('click', (e) => {
+                if (e.target.classList.contains('add-micro-question-btn')) {
+                    e.preventDefault();
+                    const slideIndex = e.target.dataset.slideIndex;
+                    const container = e.target.closest('.micro-question-area');
+                    if (container) {
+                        const newQuestionData = { question_text: 'Новый вопрос', options: ['Вариант 1', 'Вариант 2'], correct_index: 0 };
+                        container.innerHTML = renderMicroQuestionEditor(newQuestionData, slideIndex);
+                        updateJsonFromWysiwyg();
+                    }
+                }
+
+                if (e.target.classList.contains('delete-micro-question-btn')) {
+                    e.preventDefault();
+                     if (confirm('Удалить этот вопрос к слайду?')) {
+                        const slideIndex = e.target.dataset.slideIndex;
+                        const container = e.target.closest('.micro-question-area');
+                        if (container) {
+                            container.innerHTML = renderMicroQuestionEditor(null, slideIndex);
+                            updateJsonFromWysiwyg();
+                        }
+                    }
+                }
+
                 if (e.target.id === 'add-question-btn') {
                     e.preventDefault();
                     const newQuestionIndex = editor.querySelectorAll('.wysiwyg-question').length;
@@ -635,12 +732,7 @@
                 headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, ...payload })
             });
-            if (response.status === 202) {
-                const data = await response.json();
-                startJobPolling(data.jobId);
-                showToast(`Задача запущена (ID: ${data.jobId}).`, 'info');
-                return data;
-            }
+            // Job handling is now done by the caller
             if (!response.ok) {
                 if (response.status === 403) {
                     showToast('Доступ запрещен. У вас нет прав.', 'error');
@@ -649,7 +741,9 @@
                 let errorData;
                 try { errorData = await response.json(); } catch (e) { errorData = { error: `Ошибка ${response.status}` }; }
                 console.error('API Error Response:', errorData);
-                showToast(errorData.error || `Ошибка ${response.status}.`, 'error');
+                // Use handleApiError for consistent form error display
+                if (response.status === 400) handleApiError(errorData);
+                else showToast(errorData.error || `Ошибка ${response.status}.`, 'error');
                 throw new Error(errorData.error || `API Call Failed`);
             }
             return await response.json();
@@ -664,40 +758,61 @@
         }
     }
 
-    function startJobPolling(jobId) {
-        if (!jobId) return;
-        apiState.jobs[jobId] = { status: 'pending' };
+    function startJobPolling(jobId, courseId) {
+        if (!jobId || !courseId) return;
+
+        const statusIndicator = document.getElementById(`job-status-${courseId}`);
+        const editBtn = document.getElementById(`edit-btn-${courseId}`);
+
+        if (statusIndicator) statusIndicator.innerHTML = '⏳ Задача запущена...';
+        if (editBtn) editBtn.disabled = true;
+
+        apiState.jobs[jobId] = { status: 'pending', courseId: courseId };
         const intervalId = setInterval(async () => {
             try {
                 if (!adminToken) return clearInterval(intervalId);
-                const response = await fetch('/api/get-job-status', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ jobId })
-                });
-                if (!response.ok) {
-                    showToast(`Не удалось отследить статус задачи ${jobId}.`, 'error');
-                    return clearInterval(intervalId);
-                }
-                const job = await response.json();
+                const job = await apiCall(ACTIONS.GET_JOB_STATUS, { jobId });
                 apiState.jobs[jobId].status = job.status;
+
+                if (statusIndicator) {
+                    statusIndicator.textContent = `⏳ ${job.status_message || job.status}...`;
+                }
+
                 if (job.status === 'completed' || job.status === 'failed') {
                     clearInterval(intervalId);
-                    const successMessage = job.payload?.message || (job.status === 'completed' ? 'Задача успешно завершена' : 'Задача не удалась');
-                    showToast(`Задача (ID: ${jobId}) ${job.status}: ${job.last_error || successMessage}`, job.status === 'completed' ? 'success' : 'error');
+                    delete apiState.jobs[jobId];
 
-                    // If a new description was generated, update the textarea
-                    if (job.job_type === 'summary_generation' && job.status === 'completed' && job.payload?.new_description) {
-                         const descriptionArea = document.getElementById('description');
-                         if (descriptionArea) {
-                             descriptionArea.value = job.payload.new_description;
-                         }
+                    const successMessage = job.payload?.message || (job.status === 'completed' ? 'Задача успешно завершена' : 'Задача не удалась');
+                    showToast(`Задача для курса ${courseId} ${job.status}: ${job.last_error || successMessage}`, job.status === 'completed' ? 'success' : 'error');
+
+                    if (statusIndicator) statusIndicator.innerHTML = '';
+                    if (editBtn) editBtn.disabled = false;
+
+                    // More efficient update: find course in cache, update it, and re-render
+                    const courseIndex = allCoursesData.findIndex(c => c.id === courseId);
+                    if (courseIndex !== -1) {
+                         // Refetch just this one course's details to get the most up-to-date info
+                        const updatedCourse = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
+                        allCoursesData[courseIndex] = { ...allCoursesData[courseIndex], ...updatedCourse };
+                        displayCourses();
+                    } else {
+                        loadCourses(); // Fallback to full reload
                     }
 
-                    if (window.loadCourses) loadCourses();
+                    // If we are currently editing the course that just finished, update its form fields
+                    if (currentEditingCourseId === courseId) {
+                        if (job.job_type === 'summary_generation' && job.status === 'completed' && job.payload?.new_description) {
+                             const descriptionArea = document.getElementById('description');
+                             if (descriptionArea) descriptionArea.value = job.payload.new_description;
+                        }
+                        // Potentially reload the whole form to reflect new content
+                        loadCourseForEditing(courseId);
+                    }
                 }
             } catch (error) {
                 showToast(`Ошибка при проверке статуса задачи ${jobId}.`, 'error');
+                if (statusIndicator) statusIndicator.textContent = 'Ошибка отслеживания.';
+                if (editBtn) editBtn.disabled = false;
                 clearInterval(intervalId);
             }
         }, 5000);
@@ -979,10 +1094,15 @@
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = async () => {
-                const base64File = reader.result.split(',')[1];
-                await apiCall(ACTIONS.UPLOAD_AND_PROCESS, { course_id: courseId, file_name: sanitizeForPath(file.name), file_data: base64File });
-                document.getElementById('description').value = 'Файл обрабатывается...';
-                await loadCourses();
+                try {
+                    const base64File = reader.result.split(',')[1];
+                    const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, { course_id: courseId, file_name: sanitizeForPath(file.name), file_data: base64File });
+                    if (data.jobId) {
+                        startJobPolling(data.jobId, courseId);
+                        showToast(`Задача обработки файла запущена (ID: ${data.jobId}).`, 'info');
+                    }
+                    document.getElementById('description').value = 'Файл обрабатывается...';
+                } catch(e) { /* Handled in apiCall */ }
             };
         } catch(e) { /* Handled */ }
     }
@@ -1007,9 +1127,12 @@
                 currentEditingCourseId = courseId;
             }
 
-            await apiCall(ACTIONS.PROCESS_PRESENTATION, { course_id: courseId, presentation_url: presentationUrl });
+            const data = await apiCall(ACTIONS.PROCESS_PRESENTATION, { course_id: courseId, presentation_url: presentationUrl });
+            if (data.jobId) {
+                startJobPolling(data.jobId, courseId);
+                showToast(`Задача обработки презентации запущена (ID: ${data.jobId}).`, 'info');
+            }
             document.getElementById('description').value = 'Презентация обрабатывается... Текст появится здесь после завершения фоновой задачи.';
-            await loadCourses();
 
         } catch(e) {
             // handled in apiCall
@@ -1028,7 +1151,11 @@
                 return;
             }
             document.getElementById('content').value = 'Генерация...';
-            await apiCall(ACTIONS.GENERATE_CONTENT, { course_id: courseId, custom_prompt: document.getElementById('custom-prompt').value });
+            const data = await apiCall(ACTIONS.GENERATE_CONTENT, { course_id: courseId, custom_prompt: document.getElementById('custom-prompt').value });
+            if (data.jobId) {
+                startJobPolling(data.jobId, courseId);
+                showToast(`Задача генерации контента запущена (ID: ${data.jobId}).`, 'info');
+            }
         } catch(e) {
             /* Handled in apiCall */
         } finally {
@@ -1211,14 +1338,15 @@ async function addMaterialHandler() {
             return '<p style="text-align:center; grid-column: 1 / -1;">Курсы не найдены.</p>';
         }
         return courses.map(course => `
-            <div class="course-card">
+            <div class="course-card" id="course-card-${course.id}">
                 <div>
                     <h4>${escapeHTML(course.title)}${course.group_name ? ` <span style="color: #6c757d; font-style: italic;">(${escapeHTML(course.group_name)})</span>` : ''}</h4>
                     <p><strong>ID:</strong> ${escapeHTML(course.id)}</p>
                     <p><strong>Статус:</strong> <span class="status-${course.status || 'draft'}">${course.status === 'published' ? 'Опубликован' : 'Черновик'} ${course.is_visible ? ' (Виден)' : ''}</span></p>
+                    <div class="job-status-indicator" id="job-status-${course.id}" style="font-style: italic; color: #005A9C; margin-top: 5px;"></div>
                 </div>
                 <div class="actions-cell">
-                    <button onclick="loadCourseForEditing('${escapeHTML(course.id)}')">Редактировать</button>
+                    <button id="edit-btn-${course.id}" onclick="loadCourseForEditing('${escapeHTML(course.id)}')">Редактировать</button>
                     <button style="background-color: #dc3545;" onclick="deleteCourse('${escapeHTML(course.id)}', '${escapeHTML(course.title)}')">Удалить</button>
                 </div>
             </div>
@@ -1556,25 +1684,99 @@ async function addMaterialHandler() {
 
     // --- STUDENT MANAGEMENT (within Groups tab) ---
     let selectedStudentEmail = null;
+    let allStudents = []; // Cache for holding all student data
+    let currentFilteredStudents = []; // Cache for the currently filtered list
+    let studentCurrentPage = 1;
+    const studentsPerPage = 50;
+
+    function renderStudents(studentsToRender) {
+        const studentsTbody = document.getElementById('students-table-body');
+        studentsTbody.innerHTML = ''; // Clear existing rows
+
+        if (studentsToRender.length === 0) {
+            const row = studentsTbody.insertRow();
+            row.className = 'not-found-row';
+            const cell = row.insertCell(0);
+            cell.colSpan = 3;
+            cell.style.textAlign = 'center';
+            cell.textContent = 'Ученики не найдены';
+            return;
+        }
+
+        studentsToRender.forEach(student => {
+            const row = studentsTbody.insertRow();
+            row.dataset.email = student.email;
+            row.insertCell(0).textContent = student.email;
+            row.insertCell(1).textContent = student.full_name;
+            row.insertCell(2).textContent = student.department;
+        });
+    }
+
+    function displayStudentPage() {
+        const totalPages = Math.ceil(currentFilteredStudents.length / studentsPerPage);
+        studentCurrentPage = Math.max(1, Math.min(studentCurrentPage, totalPages || 1));
+
+        const startIndex = (studentCurrentPage - 1) * studentsPerPage;
+        const paginatedStudents = currentFilteredStudents.slice(startIndex, startIndex + studentsPerPage);
+
+        renderStudents(paginatedStudents);
+
+        document.getElementById('student-page-info').textContent = `Страница ${studentCurrentPage} из ${totalPages || 1}`;
+        document.getElementById('student-prev-page-btn').disabled = studentCurrentPage === 1;
+        document.getElementById('student-next-page-btn').disabled = studentCurrentPage >= totalPages;
+
+        const paginationControls = document.getElementById('student-pagination-controls');
+        if (totalPages > 1) {
+            paginationControls.style.display = 'flex';
+            paginationControls.classList.remove('hidden');
+        } else {
+            paginationControls.classList.add('hidden');
+        }
+    }
+
+    function handleStudentSearch() {
+        const searchQuery = document.getElementById('student-search-input').value.toLowerCase();
+        currentFilteredStudents = allStudents.filter(student => {
+            const email = student.email ? student.email.toLowerCase() : '';
+            const name = student.full_name ? student.full_name.toLowerCase() : '';
+            return email.includes(searchQuery) || name.includes(searchQuery);
+        });
+        studentCurrentPage = 1; // Reset to page 1 on new search
+        displayStudentPage();
+    }
+
+    document.getElementById('student-search-input').addEventListener('input', handleStudentSearch);
+
+    document.getElementById('student-prev-page-btn').addEventListener('click', () => {
+        if (studentCurrentPage > 1) {
+            studentCurrentPage--;
+            displayStudentPage();
+        }
+    });
+
+    document.getElementById('student-next-page-btn').addEventListener('click', () => {
+        const totalPages = Math.ceil(currentFilteredStudents.length / studentsPerPage);
+        if (studentCurrentPage < totalPages) {
+            studentCurrentPage++;
+            displayStudentPage();
+        }
+    });
 
     document.getElementById('load-students-btn').addEventListener('click', async (e) => {
         const btn = e.target;
         btn.disabled = true;
         try {
             showStatus('Загрузка списка учеников...', 'info');
-            const students = await apiCall(ACTIONS.GET_ALL_USERS);
-            const studentsTable = document.getElementById('students-table');
-            const studentsTbody = document.getElementById('students-table-body');
-            studentsTbody.innerHTML = '';
-            students.forEach(student => {
-                const row = studentsTbody.insertRow();
-                row.dataset.email = student.email;
-                row.insertCell(0).textContent = student.email;
-                row.insertCell(1).textContent = student.full_name;
-                row.insertCell(2).textContent = student.department;
-            });
-            studentsTable.classList.remove('hidden');
-            showStatus(`Загружено ${students.length} учеников.`, 'success');
+            allStudents = await apiCall(ACTIONS.GET_ALL_USERS);
+            currentFilteredStudents = allStudents; // Initially, all students are the filtered list
+
+            document.getElementById('student-search-input').value = ''; // Clear search
+            studentCurrentPage = 1; // Reset to page 1
+            displayStudentPage(); // Render the first page
+
+            document.getElementById('students-table').classList.remove('hidden');
+            document.getElementById('student-search-input').classList.remove('hidden');
+            showStatus(`Загружено ${allStudents.length} учеников.`, 'success');
         } catch(e) {
             /* Handled in apiCall */
         } finally {
