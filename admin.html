@@ -1431,7 +1431,10 @@ async function addMaterialHandler() {
             // Вызываем редактор WYSIWYG сразу после отрисовки формы, чтобы он корректно инициализировался с данными.
             renderWysiwygEditor();
             window.scrollTo(0, wrapper.offsetTop);
-        } catch (e) { /* Handled in apiCall */ }
+        } catch (e) {
+            console.error('Failed to load course for editing:', e);
+            showToast('Произошла ошибка при загрузке курса для редактирования. См. консоль для деталей.', 'error');
+        }
     }
 
     async function deleteCourse(courseId, courseTitle) {
