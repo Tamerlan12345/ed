@@ -290,7 +290,8 @@ const getCourseCatalog = async (req, res) => {
         if (progressError) throw progressError;
         const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
 
-        const { data: allCatalogCourses, error: coursesError } = await supabase
+        const supabaseAdmin = createSupabaseAdminClient();
+        const { data: allCatalogCourses, error: coursesError } = await supabaseAdmin
             .from('courses')
             .select(`id, title, description, course_group_items(order_index, course_groups(id, group_name))`)
             .eq('status', 'published')
