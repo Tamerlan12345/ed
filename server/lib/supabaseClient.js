@@ -26,7 +26,9 @@ const createSupabaseClient = (token) => {
  * @returns A Supabase admin client instance.
  */
 const createSupabaseAdminClient = () => {
-    return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+    return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+        db: { schema: 'public' }
+    });
 };
 
 module.exports = {
