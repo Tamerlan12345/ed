@@ -906,7 +906,7 @@
                 buttonHtml = `<p style="margin-top: 15px; font-weight: bold; color: var(--success-color);">✓ Курс пройден</p>`;
                 break;
         }
-        const descriptionText = course.group_name ? `Курс из группы: <strong>${course.group_name}</strong>` : (truncateText(course.description) || 'Нет описания.');
+        const descriptionText = truncateText(course.description) || 'Нет описания.';
         const iconHtml = course.user_status === 'completed' ? '<i class="fa-solid fa-trophy"></i>' : '<i class="fa-solid fa-book"></i>';
         menuItem.innerHTML = `
             <div><h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3><p style="font-size: 0.9em; color: var(--text-light-color);">${descriptionText}</p></div>
@@ -918,26 +918,19 @@
         mainMenu.style.display = 'block';
         mainMenu.innerHTML = '<div class="loader"></div>';
         try {
-            const catalogCourses = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
+            const catalogGroups = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
             mainMenu.innerHTML = '';
-            if (!catalogCourses || catalogCourses.length === 0) {
+            if (!catalogGroups || catalogGroups.length === 0) {
                 mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
                 return;
             }
 
-            const courseGroups = {};
-            const individualCourses = [];
+            const filteredGroups = catalogGroups.filter(group => group.courses && group.courses.length > 0);
 
-            catalogCourses.forEach(course => {
-                if (course.group_name && course.group_name.trim() !== '') {
-                    if (!courseGroups[course.group_name]) {
-                        courseGroups[course.group_name] = [];
-                    }
-                    courseGroups[course.group_name].push(course);
-                } else {
-                    individualCourses.push(course);
-                }
-            });
+            if (filteredGroups.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
+                return;
+            }
 
             mainMenu.innerHTML = `
                 <div class="main-menu-columns">
@@ -949,23 +942,22 @@
             const groupedContainer = document.getElementById('grouped-courses-container-catalog');
             const individualContainer = document.getElementById('individual-courses-container-catalog');
 
-            const actualGroupNames = Object.keys(courseGroups);
+            const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
+            const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
 
-            if (actualGroupNames.length > 0) {
-                actualGroupNames.forEach(groupName => {
+            if (actualGroups.length > 0) {
+                actualGroups.forEach(group => {
                     const groupContainer = document.createElement('div');
                     groupContainer.className = 'course-group-container';
                     const groupHeader = document.createElement('h3');
-                    groupHeader.textContent = groupName;
+                    groupHeader.textContent = group.group_name;
                     groupContainer.appendChild(groupHeader);
 
                     const coursesGrid = document.createElement('div');
                     coursesGrid.className = 'main-menu';
-
-                    courseGroups[groupName].forEach(course => {
+                    group.courses.forEach(course => {
                         coursesGrid.appendChild(createCatalogMenuItem(course));
                     });
-
                     groupContainer.appendChild(coursesGrid);
                     groupedContainer.appendChild(groupContainer);
                 });
@@ -973,10 +965,10 @@
                 groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
             }
 
-            if (individualCourses.length > 0) {
+            if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
                 const coursesGrid = document.createElement('div');
                 coursesGrid.className = 'main-menu';
-                individualCourses.forEach(course => {
+                individualCoursesGroup.courses.forEach(course => {
                     coursesGrid.appendChild(createCatalogMenuItem(course));
                 });
                 individualContainer.appendChild(coursesGrid);
