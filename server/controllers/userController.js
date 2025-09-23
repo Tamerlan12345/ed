@@ -282,9 +282,8 @@ const getCourseCatalog = async (req, res) => {
     try {
         const supabase = req.supabase;
         const user = req.user;
-        const supabaseAdmin = createSupabaseAdminClient();
 
-        // Step 1: Get user's progress
+        // Step 1: Get user's progress for all courses
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
             .select('course_id, completed_at')
@@ -292,46 +291,58 @@ const getCourseCatalog = async (req, res) => {
         if (progressError) throw progressError;
         const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
 
-        // Step 2: Get all visible courses
-        const { data: allCatalogCourses, error: coursesError } = await supabaseAdmin
+        // Step 2: Get all visible courses with their group info
+        const { data: allCatalogCourses, error: coursesError } = await supabase
             .from('courses')
-            .select('id, title, description')
+            .select(`
+                id, title, description,
+                course_group_items ( course_groups (id, group_name) )
+            `)
             .eq('status', 'published')
             .eq('is_visible', true);
+
         if (coursesError) throw coursesError;
 
-        // Step 3: Get all course-to-group mappings
-        const { data: groupItems, error: groupItemsError } = await supabaseAdmin
-            .from('course_group_items')
-            .select('course_id, course_groups(group_name)');
-        if (groupItemsError) throw groupItemsError;
+        const groupsMap = new Map();
+        const individualCourses = [];
 
-        // Step 4: Create a lookup map for course groups
-        const courseGroupMap = new Map();
-        for (const item of groupItems) {
-            if (item.course_id && item.course_groups?.group_name) {
-                courseGroupMap.set(item.course_id, item.course_groups.group_name);
-            }
-        }
-
-        // Step 5: Combine all data
-        const finalCatalog = allCatalogCourses.map(course => {
+        // Step 3: Process and group the courses
+        for (const course of allCatalogCourses) {
             const progress = userProgressMap.get(course.id);
             let user_status = 'not_assigned';
             if (progress) {
                 user_status = progress.completed_at ? 'completed' : 'assigned';
             }
-            const groupName = courseGroupMap.get(course.id) || null;
-            return {
-                id: course.id,
-                title: course.title,
-                description: course.description,
-                group_name: groupName,
-                user_status: user_status
-            };
-        });
 
-        res.status(200).json(finalCatalog);
+            const { course_group_items, ...courseDetails } = course;
+            const courseWithStatus = { ...courseDetails, user_status };
+
+            if (course.course_group_items && course.course_group_items.length > 0) {
+                 for (const item of course.course_group_items) {
+                    const group = item.course_groups;
+                    if (!group) continue; // Skip if group data is missing
+                    if (!groupsMap.has(group.id)) {
+                        groupsMap.set(group.id, { ...group, courses: [] });
+                    }
+                    groupsMap.get(group.id).courses.push(courseWithStatus);
+                }
+            } else {
+                individualCourses.push(courseWithStatus);
+            }
+        }
+
+        // Step 4: Add individual courses as a separate group
+        if (individualCourses.length > 0) {
+            groupsMap.set('individual', {
+                id: 'individual',
+                group_name: 'Индивидуальные курсы',
+                courses: individualCourses
+            });
+        }
+
+        // Step 5: Return the grouped structure
+        res.status(200).json(Array.from(groupsMap.values()));
+
     } catch (error) {
         console.error('Error in /api/getCourseCatalog:', error);
         res.status(500).json({ error: 'Internal Server Error', details: error.message });
