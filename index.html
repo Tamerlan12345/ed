@@ -906,15 +906,16 @@
                 buttonHtml = `<p style="margin-top: 15px; font-weight: bold; color: var(--success-color);">✓ Курс пройден</p>`;
                 break;
         }
+        const descriptionText = course.group_name ? `Курс из группы: <strong>${course.group_name}</strong>` : (truncateText(course.description) || 'Нет описания.');
         const iconHtml = course.user_status === 'completed' ? '<i class="fa-solid fa-trophy"></i>' : '<i class="fa-solid fa-book"></i>';
         menuItem.innerHTML = `
-            <div><h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3></div>
+            <div><h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3><p style="font-size: 0.9em; color: var(--text-light-color);">${descriptionText}</p></div>
             <div style="text-align: right;">${buttonHtml}</div>`;
         return menuItem;
     }
     async function renderCatalog() {
         mainMenu.innerHTML = '';
-        mainMenu.style.display = 'block'; // Ensure block display for containers
+        mainMenu.style.display = 'block';
         mainMenu.innerHTML = '<div class="loader"></div>';
         try {
             const catalogCourses = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
@@ -924,17 +925,19 @@
                 return;
             }
 
-            const groups = catalogCourses.reduce((acc, course) => {
-                const groupName = course.group_name || 'Индивидуальные курсы';
-                if (!acc[groupName]) {
-                    acc[groupName] = [];
-                }
-                acc[groupName].push(course);
-                return acc;
-            }, {});
+            const courseGroups = {};
+            const individualCourses = [];
 
-            const individualCourses = groups['Индивидуальные курсы'] || [];
-            delete groups['Индивидуальные курсы'];
+            catalogCourses.forEach(course => {
+                if (course.group_name && course.group_name.trim() !== '') {
+                    if (!courseGroups[course.group_name]) {
+                        courseGroups[course.group_name] = [];
+                    }
+                    courseGroups[course.group_name].push(course);
+                } else {
+                    individualCourses.push(course);
+                }
+            });
 
             mainMenu.innerHTML = `
                 <div class="main-menu-columns">
@@ -946,17 +949,25 @@
             const groupedContainer = document.getElementById('grouped-courses-container-catalog');
             const individualContainer = document.getElementById('individual-courses-container-catalog');
 
-            const groupNames = Object.keys(groups);
-            if (groupNames.length > 0) {
-                groupNames.forEach(groupName => {
-                    const groupDiv = document.createElement('div');
-                    groupDiv.className = 'course-group-container';
-                    groupDiv.innerHTML = `<h3>${groupName}</h3>`;
+            const actualGroupNames = Object.keys(courseGroups);
+
+            if (actualGroupNames.length > 0) {
+                actualGroupNames.forEach(groupName => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'course-group-container';
+                    const groupHeader = document.createElement('h3');
+                    groupHeader.textContent = groupName;
+                    groupContainer.appendChild(groupHeader);
+
                     const coursesGrid = document.createElement('div');
                     coursesGrid.className = 'main-menu';
-                    groups[groupName].forEach(course => coursesGrid.appendChild(createCatalogMenuItem(course)));
-                    groupDiv.appendChild(coursesGrid);
-                    groupedContainer.appendChild(groupDiv);
+
+                    courseGroups[groupName].forEach(course => {
+                        coursesGrid.appendChild(createCatalogMenuItem(course));
+                    });
+
+                    groupContainer.appendChild(coursesGrid);
+                    groupedContainer.appendChild(groupContainer);
                 });
             } else {
                 groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
@@ -965,7 +976,9 @@
             if (individualCourses.length > 0) {
                 const coursesGrid = document.createElement('div');
                 coursesGrid.className = 'main-menu';
-                individualCourses.forEach(course => coursesGrid.appendChild(createCatalogMenuItem(course)));
+                individualCourses.forEach(course => {
+                    coursesGrid.appendChild(createCatalogMenuItem(course));
+                });
                 individualContainer.appendChild(coursesGrid);
             } else {
                 individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
@@ -1450,7 +1463,7 @@
                         body: JSON.stringify({ course_id: courseId })
                     });
                     showToast('Вы успешно записаны на курс!', 'success');
-                    await showMainMenu();
+                    document.querySelector('.tab-btn[data-filter="assigned"]').click();
                 } catch (error) {
                     console.error('Failed to assign course:', error);
                     showToast(`Не удалось записаться на курс: ${error.message}`, 'error');

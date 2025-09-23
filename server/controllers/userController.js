@@ -282,7 +282,9 @@ const getCourseCatalog = async (req, res) => {
     try {
         const supabase = req.supabase;
         const user = req.user;
+        const supabaseAdmin = createSupabaseAdminClient();
 
+        // Step 1: Get user's progress
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
             .select('course_id, completed_at')
@@ -290,23 +292,43 @@ const getCourseCatalog = async (req, res) => {
         if (progressError) throw progressError;
         const userProgressMap = new Map(progressData.map(p => [p.course_id, p]));
 
-        const supabaseAdmin = createSupabaseAdminClient();
+        // Step 2: Get all visible courses
         const { data: allCatalogCourses, error: coursesError } = await supabaseAdmin
             .from('courses')
-            .select(`id, title, description, course_group_items(order_index, course_groups(id, group_name))`)
+            .select('id, title, description')
             .eq('status', 'published')
             .eq('is_visible', true);
-
         if (coursesError) throw coursesError;
 
+        // Step 3: Get all course-to-group mappings
+        const { data: groupItems, error: groupItemsError } = await supabaseAdmin
+            .from('course_group_items')
+            .select('course_id, course_groups(group_name)');
+        if (groupItemsError) throw groupItemsError;
+
+        // Step 4: Create a lookup map for course groups
+        const courseGroupMap = new Map();
+        for (const item of groupItems) {
+            if (item.course_id && item.course_groups?.group_name) {
+                courseGroupMap.set(item.course_id, item.course_groups.group_name);
+            }
+        }
+
+        // Step 5: Combine all data
         const finalCatalog = allCatalogCourses.map(course => {
             const progress = userProgressMap.get(course.id);
             let user_status = 'not_assigned';
             if (progress) {
                 user_status = progress.completed_at ? 'completed' : 'assigned';
             }
-            const groupName = course.course_group_items?.[0]?.course_groups?.group_name || null;
-            return { id: course.id, title: course.title, description: course.description, group_name: groupName, user_status };
+            const groupName = courseGroupMap.get(course.id) || null;
+            return {
+                id: course.id,
+                title: course.title,
+                description: course.description,
+                group_name: groupName,
+                user_status: user_status
+            };
         });
 
         res.status(200).json(finalCatalog);
