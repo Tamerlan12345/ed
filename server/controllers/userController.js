@@ -296,7 +296,7 @@ const getCourseCatalog = async (req, res) => {
             .from('courses')
             .select(`
                 id, title, description,
-                course_group_items ( course_groups (id, group_name) )
+                course_group_items ( order_index, course_groups (id, group_name) )
             `)
             .eq('status', 'published')
             .eq('is_visible', true);
