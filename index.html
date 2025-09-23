@@ -796,62 +796,6 @@
             showMessage('Не удалось загрузить список курсов.', error.message);
         }
     }
-    function renderCourseGroups(filter = 'assigned') {
-        mainMenu.innerHTML = '';
-        mainMenu.style.display = 'block';
-        const filteredGroups = courses.map(group => ({
-            ...group,
-            courses: group.courses.filter(course => {
-                const isCompleted = course.progress?.completed_at;
-                return filter === 'completed' ? isCompleted : !isCompleted;
-            })
-        })).filter(group => group.courses.length > 0);
-        if (filteredGroups.length === 0) {
-            let message = 'Нет данных для отображения.';
-            if (filter === 'assigned') message = 'У вас нет активных назначенных курсов. Так держать!';
-            if (filter === 'completed') message = 'Вы еще не завершили ни одного курса.';
-            mainMenu.innerHTML = `<p class="message">${message}</p>`;
-            return;
-        }
-        mainMenu.innerHTML = `
-            <div class="main-menu-columns">
-                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
-                <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
-            </div>
-        `;
-        const groupedContainer = document.getElementById('grouped-courses-container');
-        const individualContainer = document.getElementById('individual-courses-container');
-        const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
-        const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
-        if (actualGroups.length > 0) {
-            actualGroups.forEach(group => {
-                const groupContainer = document.createElement('div');
-                groupContainer.className = 'course-group-container';
-                const groupHeader = document.createElement('h3');
-                groupHeader.textContent = group.group_name;
-                groupContainer.appendChild(groupHeader);
-                const coursesGrid = document.createElement('div');
-                coursesGrid.className = 'main-menu';
-                group.courses.forEach(course => {
-                    coursesGrid.appendChild(createCourseMenuItem(course));
-                });
-                groupContainer.appendChild(coursesGrid);
-                groupedContainer.appendChild(groupContainer);
-            });
-        } else {
-            groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет назначенных курсов в группах.</p>';
-        }
-        if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
-            const coursesGrid = document.createElement('div');
-            coursesGrid.className = 'main-menu';
-            individualCoursesGroup.courses.forEach(course => {
-                coursesGrid.appendChild(createCourseMenuItem(course));
-            });
-            individualContainer.appendChild(coursesGrid);
-        } else {
-            individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
-        }
-    }
     function createCourseMenuItem(course) {
         const menuItem = document.createElement('div');
         menuItem.className = 'menu-item';
@@ -913,13 +857,97 @@
             <div style="text-align: right;">${buttonHtml}</div>`;
         return menuItem;
     }
-    async function renderCatalog() {
+
+    function renderCourseDisplay(groups, courseItemCreator, emptyGroupMsg, emptyIndividualMsg) {
+        mainMenu.innerHTML = '';
+
+        if (!groups || groups.length === 0) {
+            mainMenu.innerHTML = `<p class="message">Нет данных для отображения.</p>`;
+            return;
+        }
+
+        mainMenu.innerHTML = `
+            <div class="main-menu-columns">
+                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
+                <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
+            </div>
+        `;
+
+        const groupedContainer = document.getElementById('grouped-courses-container');
+        const individualContainer = document.getElementById('individual-courses-container');
+
+        const individualCoursesGroup = groups.find(g => g.id === 'individual');
+        const actualGroups = groups.filter(g => g.id !== 'individual');
+
+        if (actualGroups.length > 0) {
+            actualGroups.forEach(group => {
+                const groupContainer = document.createElement('div');
+                groupContainer.className = 'course-group-container';
+
+                const groupHeader = document.createElement('h3');
+                groupHeader.textContent = group.group_name;
+                groupContainer.appendChild(groupHeader);
+
+                const coursesGrid = document.createElement('div');
+                coursesGrid.className = 'main-menu';
+                group.courses.forEach(course => {
+                    coursesGrid.appendChild(courseItemCreator(course));
+                });
+                groupContainer.appendChild(coursesGrid);
+
+                groupedContainer.appendChild(groupContainer);
+            });
+        } else {
+            groupedContainer.innerHTML = `<p class="message" style="font-size: 0.9em;">${emptyGroupMsg}</p>`;
+        }
+
+        if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
+            const coursesGrid = document.createElement('div');
+            coursesGrid.className = 'main-menu';
+            individualCoursesGroup.courses.forEach(course => {
+                coursesGrid.appendChild(courseItemCreator(course));
+            });
+            individualContainer.appendChild(coursesGrid);
+        } else {
+            individualContainer.innerHTML = `<p class="message" style="font-size: 0.9em;">${emptyIndividualMsg}</p>`;
+        }
+    }
+
+    function renderCourseGroups(filter = 'assigned') {
         mainMenu.innerHTML = '';
         mainMenu.style.display = 'block';
+
+        const filteredGroups = courses.map(group => ({
+            ...group,
+            courses: group.courses.filter(course => {
+                const isCompleted = course.progress?.completed_at;
+                return filter === 'completed' ? isCompleted : !isCompleted;
+            })
+        })).filter(group => group.courses.length > 0);
+
+        if (filteredGroups.length === 0) {
+            let message = 'Нет данных для отображения.';
+            if (filter === 'assigned') message = 'У вас нет активных назначенных курсов. Так держать!';
+            if (filter === 'completed') message = 'Вы еще не завершили ни одного курса.';
+            mainMenu.innerHTML = `<p class="message">${message}</p>`;
+            return;
+        }
+
+        renderCourseDisplay(
+            filteredGroups,
+            createCourseMenuItem,
+            'Нет назначенных курсов в группах.',
+            'Нет индивидуальных курсов.'
+        );
+    }
+
+    async function renderCatalog() {
         mainMenu.innerHTML = '<div class="loader"></div>';
+        mainMenu.style.display = 'block';
+
         try {
             const catalogGroups = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
-            mainMenu.innerHTML = '';
+
             if (!catalogGroups || catalogGroups.length === 0) {
                 mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
                 return;
@@ -932,49 +960,12 @@
                 return;
             }
 
-            mainMenu.innerHTML = `
-                <div class="main-menu-columns">
-                    <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
-                    <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
-                </div>
-            `;
-
-            const groupedContainer = document.getElementById('grouped-courses-container-catalog');
-            const individualContainer = document.getElementById('individual-courses-container-catalog');
-
-            const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
-            const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
-
-            if (actualGroups.length > 0) {
-                actualGroups.forEach(group => {
-                    const groupContainer = document.createElement('div');
-                    groupContainer.className = 'course-group-container';
-                    const groupHeader = document.createElement('h3');
-                    groupHeader.textContent = group.group_name;
-                    groupContainer.appendChild(groupHeader);
-
-                    const coursesGrid = document.createElement('div');
-                    coursesGrid.className = 'main-menu';
-                    group.courses.forEach(course => {
-                        coursesGrid.appendChild(createCatalogMenuItem(course));
-                    });
-                    groupContainer.appendChild(coursesGrid);
-                    groupedContainer.appendChild(groupContainer);
-                });
-            } else {
-                groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
-            }
-
-            if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
-                const coursesGrid = document.createElement('div');
-                coursesGrid.className = 'main-menu';
-                individualCoursesGroup.courses.forEach(course => {
-                    coursesGrid.appendChild(createCatalogMenuItem(course));
-                });
-                individualContainer.appendChild(coursesGrid);
-            } else {
-                individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
-            }
+            renderCourseDisplay(
+                filteredGroups,
+                createCatalogMenuItem,
+                'Нет курсов, сгруппированных по категориям.',
+                'Нет индивидуальных курсов.'
+            );
 
         } catch (error) {
             console.error('Failed to load course catalog:', error);
