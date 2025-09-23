@@ -578,6 +578,26 @@
     let backButtonAction = null;
     let timeTrackingInterval = null;
     let secondsSinceLastUpdate = 0;
+
+    function stopTimeTracking() {
+        if (timeTrackingInterval) {
+            clearInterval(timeTrackingInterval);
+            timeTrackingInterval = null;
+        }
+    }
+
+    async function sendTimeUpdate(courseId, seconds) {
+        try {
+            await fetchAuthenticated('/api/updateTimeSpent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: courseId, time_spent_seconds: seconds })
+            });
+        } catch (error) {
+            console.error('Failed to update time spent:', error);
+        }
+    }
+
     const authView = document.getElementById('auth-view');
     const appView = document.getElementById('app-view');
     const authForm = document.getElementById('auth-form');
