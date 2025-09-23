@@ -481,6 +481,10 @@
             <div class="content-area" id="content-area">
                 <div id="main-flex-container" style="display: flex;">
                     <div id="main-content-wrapper" style="flex: 1;">
+                        <div class="search-container" style="margin-bottom: 15px; position: relative;">
+                            <i class="fa-solid fa-search" style="position: absolute; top: 50%; left: 15px; transform: translateY(-50%); color: var(--text-light-color);"></i>
+                            <input type="text" id="course-search-input" placeholder="Поиск по названию или описанию..." style="padding-left: 40px; width: 100%;">
+                        </div>
                         <div id="main-menu-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
                             <button class="tab-btn active" data-filter="assigned">📥 Назначенные</button>
                             <button class="tab-btn" data-filter="completed">✅ Пройденные</button>
@@ -781,25 +785,52 @@
             const courseGroups = await fetchAuthenticated(`/api/getCourses`, { method: 'POST' });
             if (!Array.isArray(courseGroups)) throw new Error("Ответ сервера не является массивом групп курсов.");
             courses = courseGroups;
+            const searchInput = document.getElementById('course-search-input');
+
+            const handleFilterAndSearch = () => {
+                const activeTab = document.querySelector('.tab-btn.active');
+                if (!activeTab) return;
+                const filter = activeTab.dataset.filter;
+                const searchTerm = searchInput.value;
+
+                if (filter === 'catalog') {
+                    renderCatalog(searchTerm);
+                } else {
+                    renderCourseGroups(filter, searchTerm);
+                }
+            };
+
+            searchInput.addEventListener('input', handleFilterAndSearch);
+
             document.getElementById('main-menu-tabs').onclick = (e) => {
                 if (e.target.matches('.tab-btn')) {
                     document.querySelector('.tab-btn.active').classList.remove('active');
                     e.target.classList.add('active');
-                    const filter = e.target.dataset.filter;
-                    if (filter === 'catalog') renderCatalog();
-                    else renderCourseGroups(filter);
+                    handleFilterAndSearch();
                 }
             };
-            renderCourseGroups('assigned');
+            renderCourseGroups('assigned', searchInput.value);
         } catch (error) {
             console.error('Failed to load courses:', error);
             showMessage('Не удалось загрузить список курсов.', error.message);
         }
     }
-    function renderCourseGroups(filter = 'assigned') {
+    function renderCourseGroups(filter = 'assigned', searchTerm = '') {
         mainMenu.innerHTML = '';
         mainMenu.style.display = 'block';
-        const filteredGroups = courses.map(group => ({
+
+        const sourceGroups = courses;
+
+        const term = searchTerm.toLowerCase();
+        const searchedGroups = !term ? sourceGroups : sourceGroups.map(group => ({
+            ...group,
+            courses: group.courses.filter(course =>
+                (course.title && course.title.toLowerCase().includes(term)) ||
+                (course.description && course.description.toLowerCase().includes(term))
+            )
+        })).filter(group => group.courses.length > 0);
+
+        const filteredGroups = searchedGroups.map(group => ({
             ...group,
             courses: group.courses.filter(course => {
                 const isCompleted = course.progress?.completed_at;
@@ -913,12 +944,23 @@
             <div style="text-align: right;">${buttonHtml}</div>`;
         return menuItem;
     }
-    async function renderCatalog() {
+    async function renderCatalog(searchTerm = '') {
         mainMenu.innerHTML = '';
         mainMenu.style.display = 'block';
         mainMenu.innerHTML = '<div class="loader"></div>';
         try {
-            const catalogGroups = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
+            let catalogGroups = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
+
+            const term = searchTerm.toLowerCase();
+            if (term) {
+                catalogGroups = catalogGroups.map(group => ({
+                    ...group,
+                    courses: group.courses.filter(course =>
+                        (course.title && course.title.toLowerCase().includes(term)) ||
+                        (course.description && course.description.toLowerCase().includes(term))
+                    )
+                })).filter(group => group.courses.length > 0);
+            }
             mainMenu.innerHTML = '';
             if (!catalogGroups || catalogGroups.length === 0) {
                 mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
