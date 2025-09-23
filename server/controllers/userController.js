@@ -292,7 +292,7 @@ const getCourseCatalog = async (req, res) => {
 
         const { data: allCatalogCourses, error: coursesError } = await supabase
             .from('courses')
-            .select(`id, title, description, course_group_items(course_groups(group_name))`)
+            .select(`id, title, description, course_group_items(order_index, course_groups(id, group_name))`)
             .eq('status', 'published')
             .eq('is_visible', true);
 
