@@ -507,6 +507,68 @@ const textToSpeechUser = async (req, res) => {
     }
 };
 
+// GET /api/public/course/:access_key
+const getPublicCourseByAccessKey = async (req, res) => {
+    const { access_key } = req.params;
+    if (!access_key) {
+        return res.status(400).json({ error: 'Access key is required.' });
+    }
+
+    const supabaseAdmin = createSupabaseAdminClient();
+
+    try {
+        // Step 1: Find the course_id from the access_key
+        const { data: generation, error: generationError } = await supabaseAdmin
+            .from('course_generations')
+            .select('course_id')
+            .eq('access_key', access_key)
+            .single();
+
+        if (generationError) {
+            // This will catch not found as an error, which is fine.
+            return res.status(404).json({ error: 'Technical link not found or invalid.' });
+        }
+
+        const { course_id } = generation;
+
+        // Step 2: Fetch the full course details using the course_id
+        const { data: course, error: courseError } = await supabaseAdmin
+            .from('courses')
+            .select('title, description, content, presentation_url, course_materials(*)')
+            .eq('id', course_id)
+            .single();
+
+        if (courseError || !course) {
+            return res.status(404).json({ error: 'Course associated with this link not found.' });
+        }
+
+        // We can reuse the content parsing logic from getCourseContent
+        let parsedContent = { summary: { slides: [] }, questions: [] };
+        if (course.content) {
+            try {
+                parsedContent = typeof course.content === 'string' ? JSON.parse(course.content) : course.content;
+            } catch (e) {
+                console.error(`Failed to parse content for public course ${course_id}:`, e);
+                // Send empty content to avoid crashing the client
+                parsedContent = { summary: { slides: [] }, questions: [] };
+            }
+        }
+
+        res.status(200).json({
+            title: course.title,
+            description: course.description,
+            presentation_url: course.presentation_url,
+            summary: (parsedContent.summary && parsedContent.summary.slides) ? parsedContent.summary.slides : [],
+            questions: parsedContent.questions || [],
+            materials: course.course_materials || []
+        });
+
+    } catch (error) {
+        console.error(`Error getting public course with key ${access_key}:`, error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
+};
+
 module.exports = {
     getCourseContent,
     getJobStatus,
@@ -521,4 +583,5 @@ module.exports = {
     updateTimeSpent,
     markNotificationsAsRead,
     textToSpeechUser,
+    getPublicCourseByAccessKey,
 };

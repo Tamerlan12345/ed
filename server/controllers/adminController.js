@@ -73,9 +73,32 @@ const adminActionHandlers = {
     [ACTIONS.GET_COURSE_DETAILS]: async ({ payload, supabaseAdmin }) => {
         const { course_id } = payload;
         if (!course_id) throw { status: 400, message: 'A valid course_id is required.' };
-        const { data, error } = await supabaseAdmin.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
+
+        // Step 1: Fetch the main course data
+        const { data: course, error } = await supabaseAdmin.from('courses').select('*, course_materials(*)').eq('id', course_id).single();
         if (error) throw error;
-        return data;
+        if (!course) return null; // Or throw a 404 error
+
+        // Step 2: Fetch the latest technical link generation for this course
+        const { data: latestGeneration, error: generationError } = await supabaseAdmin
+            .from('course_generations')
+            .select('access_key, generated_at')
+            .eq('course_id', course_id)
+            .order('generated_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        // It's not a critical error if no generation is found, so we don't throw.
+        if (generationError) {
+            console.error(`Could not fetch latest generation for course ${course_id}:`, generationError);
+        }
+
+        // Step 3: Attach the generation info to the course object if it exists
+        if (latestGeneration) {
+            course.latest_generation = latestGeneration;
+        }
+
+        return course;
     },
     [ACTIONS.SAVE_COURSE_DRAFT]: async ({ payload, supabaseAdmin }) => {
         const { course_id, draft_data } = payload;
