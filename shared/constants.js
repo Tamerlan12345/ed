@@ -40,6 +40,7 @@ const ACTIONS = {
 
     // Misc Actions
     TEXT_TO_SPEECH: 'text_to_speech',
+    GET_JOB_STATUS: 'get_job_status',
 };
 
 // Check if we are in a Node.js environment
