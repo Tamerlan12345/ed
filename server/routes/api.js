@@ -14,7 +14,6 @@ apiRouter.post('/admin', adminAuthMiddleware, handleAdminAction);
 apiRouter.post('/getDetailedReport', adminAuthMiddleware, getDetailedReport);
 
 // --- Public Routes (No Auth Required) ---
-apiRouter.get('/public/course/:access_key', userController.getPublicCourseByAccessKey);
 
 
 // --- User-facing Authenticated Routes ---
