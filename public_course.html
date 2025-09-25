@@ -5,6 +5,7 @@
     <title>Просмотр курса</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --primary-color: #005A9C;
@@ -25,11 +26,25 @@
         .materials-list li { margin-bottom: 10px; }
         .materials-list a { text-decoration: none; color: var(--primary-color); font-weight: bold; }
         .loading, .error { text-align: center; font-size: 1.2em; padding: 40px; }
+        #download-btn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+        #download-btn:hover {
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
     <div id="course-container">
         <h1 id="course-title" class="loading">Загрузка курса...</h1>
+        <button id="download-btn" style="display: none;">Скачать материал</button>
         <div id="course-content"></div>
     </div>
 
@@ -97,6 +112,59 @@
                 }
 
                 container.innerHTML = contentHtml;
+
+                const downloadBtn = document.getElementById('download-btn');
+                downloadBtn.style.display = 'block'; // Show the button
+                downloadBtn.addEventListener('click', () => {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+
+                    doc.setFontSize(22);
+                    doc.text(course.title || 'Course', 10, 20);
+
+                    let y = 40;
+
+                    if (course.summary && course.summary.length > 0) {
+                        doc.setFontSize(16);
+                        doc.text('Презентация', 10, y);
+                        y += 10;
+
+                        course.summary.forEach(slide => {
+                            doc.setFontSize(12);
+                            doc.text(slide.slide_title || '', 10, y);
+                            y += 7;
+
+                            const slideContent = doc.splitTextToSize(slide.html_content || '', 180);
+                            doc.text(slideContent, 10, y);
+                            y += slideContent.length * 7 + 10;
+                        });
+                    }
+
+                    if (course.questions && course.questions.length > 0) {
+                        doc.addPage();
+                        y = 20;
+                        doc.setFontSize(16);
+                        doc.text('Тестовые вопросы', 10, y);
+                        y += 10;
+
+                        course.questions.forEach(q => {
+                            doc.setFontSize(12);
+                            const questionText = doc.splitTextToSize(q.question || '', 180);
+                            doc.text(questionText, 10, y);
+                            y += questionText.length * 7 + 5;
+
+                            (q.options || []).forEach((opt, i) => {
+                                const optionText = `${i === q.correct_option_index ? '✅ ' : '⬜️ '}${opt}`;
+                                const splitOption = doc.splitTextToSize(optionText, 170);
+                                doc.text(splitOption, 15, y);
+                                y += splitOption.length * 7 + 5;
+                            });
+                            y += 5;
+                        });
+                    }
+
+                    doc.save(`${course.title || 'course'}.pdf`);
+                });
 
             } catch (error) {
                 titleElement.textContent = 'Не удалось загрузить курс';
