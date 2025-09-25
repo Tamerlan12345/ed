@@ -82,16 +82,15 @@ describe('API Endpoints', () => {
         sinon.restore();
     });
 
-    describe('POST /api/get-job-status', () => {
+    describe('POST /api/admin with action get_job_status', () => {
         it('should return job status if job is found', async () => {
             const fakeJob = { id: 'some-job-id', status: 'completed' };
-            // The admin client is used for job status, so we mock its call chain
             supabaseStub.single.resolves({ data: fakeJob, error: null });
 
             const response = await request(app)
-                .post('/api/get-job-status')
-                .set('Authorization', 'Bearer mock-token') // Pass auth middleware
-                .send({ jobId: 'some-job-id' });
+                .post('/api/admin')
+                .set('Authorization', 'Bearer mock-admin-token')
+                .send({ action: 'get_job_status', jobId: 'some-job-id' });
 
             expect(response.status).to.equal(200);
             expect(response.body).to.deep.equal(fakeJob);
@@ -100,21 +99,21 @@ describe('API Endpoints', () => {
         });
 
         it('should return 404 if job is not found', async () => {
-            supabaseStub.single.resolves({ data: null, error: { message: 'Not found' } });
+            supabaseStub.single.resolves({ data: null, error: null });
 
             const response = await request(app)
-                .post('/api/get-job-status')
-                .set('Authorization', 'Bearer mock-token')
-                .send({ jobId: 'non-existent-job-id' });
+                .post('/api/admin')
+                .set('Authorization', 'Bearer mock-admin-token')
+                .send({ action: 'get_job_status', jobId: 'non-existent-job-id' });
 
             expect(response.status).to.equal(404);
         });
 
         it('should return 400 if jobId is missing', async () => {
             const response = await request(app)
-                .post('/api/get-job-status')
-                .set('Authorization', 'Bearer mock-token')
-                .send({});
+                .post('/api/admin')
+                .set('Authorization', 'Bearer mock-admin-token')
+                .send({ action: 'get_job_status' });
 
             expect(response.status).to.equal(400);
         });
@@ -123,9 +122,9 @@ describe('API Endpoints', () => {
             supabaseStub.single.rejects(new Error('Internal DB Error'));
 
             const response = await request(app)
-                .post('/api/get-job-status')
-                .set('Authorization', 'Bearer mock-token')
-                .send({ jobId: 'some-job-id' });
+                .post('/api/admin')
+                .set('Authorization', 'Bearer mock-admin-token')
+                .send({ action: 'get_job_status', jobId: 'some-job-id' });
 
             expect(response.status).to.equal(500);
         });
