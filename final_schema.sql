@@ -110,6 +110,16 @@ CREATE TABLE public.group_assignments (
     CONSTRAINT unique_department_assignment UNIQUE (group_id, department)
 );
 
+CREATE TABLE public.course_generations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+    generated_at timestamp with time zone DEFAULT now() NOT NULL,
+    access_key text NOT NULL UNIQUE
+);
+CREATE INDEX idx_course_generations_access_key ON public.course_generations(access_key);
+COMMENT ON TABLE public.course_generations IS 'Stores a record of each course content generation event, providing a unique key for technical access.';
+
+
 -- ===========
 -- # ФУНКЦИИ #
 -- ===========
@@ -253,6 +263,7 @@ ALTER TABLE public.simulation_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_group_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.group_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.course_generations ENABLE ROW LEVEL SECURITY;
 
 -- ОБНОВЛЕННЫЕ ПОЛИТИКИ
 CREATE POLICY "Enable read access for user on their own user record" ON public.users FOR SELECT USING (auth.uid() = id);
@@ -273,6 +284,9 @@ CREATE POLICY "Admins have full access to simulation_results" ON public.simulati
 CREATE POLICY "Admins have full access to course groups" ON public.course_groups FOR ALL USING (public.is_claims_admin());
 CREATE POLICY "Admins have full access to course group items" ON public.course_group_items FOR ALL USING (public.is_claims_admin());
 CREATE POLICY "Admins have full access to group assignments" ON public.group_assignments FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Admins have full access to course generations" ON public.course_generations FOR ALL USING (public.is_claims_admin());
+CREATE POLICY "Enable public read access for course generations" ON public.course_generations FOR SELECT USING (true);
+
 
 -- Политики для аутентифицированных пользователей остаются без изменений
 CREATE POLICY "Authenticated users can read visible course groups" ON public.course_groups FOR SELECT USING (auth.role() = 'authenticated' AND is_visible = true);

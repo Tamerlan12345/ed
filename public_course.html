@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Просмотр курса</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        :root {
+            --primary-color: #005A9C;
+            --bg-color: #f4f7f6;
+            --surface-color: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: var(--bg-color); color: var(--text-color); }
+        h1, h2, h3 { color: var(--primary-color); }
+        #course-container { background-color: var(--surface-color); padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .slide { border: 1px solid var(--border-color); padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .slide-title { font-size: 1.5em; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; color: var(--primary-color); }
+        .question { background-color: #f1f3f5; padding: 15px; margin-top: 15px; border-radius: 5px; border-left: 4px solid var(--primary-color); }
+        .options { list-style-type: none; padding-left: 0; }
+        .option { margin-bottom: 8px; }
+        .materials-list { list-style-type: none; padding: 0; margin-top: 20px; }
+        .materials-list li { margin-bottom: 10px; }
+        .materials-list a { text-decoration: none; color: var(--primary-color); font-weight: bold; }
+        .loading, .error { text-align: center; font-size: 1.2em; padding: 40px; }
+    </style>
+</head>
+<body>
+    <div id="course-container">
+        <h1 id="course-title" class="loading">Загрузка курса...</h1>
+        <div id="course-content"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const container = document.getElementById('course-content');
+            const titleElement = document.getElementById('course-title');
+            const params = new URLSearchParams(window.location.search);
+            const accessKey = params.get('key');
+
+            if (!accessKey) {
+                titleElement.textContent = 'Ошибка';
+                container.innerHTML = '<p class="error">Ключ доступа не найден в ссылке.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/public/course/${accessKey}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Ошибка ${response.status}`);
+                }
+                const course = await response.json();
+
+                titleElement.textContent = course.title || 'Курс без названия';
+
+                let contentHtml = '<h2>Презентация</h2>';
+                if (course.summary && course.summary.length > 0) {
+                    course.summary.forEach(slide => {
+                        contentHtml += `
+                            <div class="slide">
+                                <div class="slide-title">${slide.slide_title || ''}</div>
+                                <div class="slide-content">${slide.html_content || ''}</div>
+                                ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
+                            </div>
+                        `;
+                    });
+                } else {
+                    contentHtml += '<p>Слайды для этого курса не найдены.</p>';
+                }
+
+                contentHtml += '<h2>Тестовые вопросы</h2>';
+                if (course.questions && course.questions.length > 0) {
+                    course.questions.forEach(q => {
+                        contentHtml += `
+                            <div class="question">
+                                <strong>Вопрос:</strong> ${q.question || ''}
+                                <ul class="options">
+                                    ${(q.options || []).map((opt, i) => `<li class="option">${i === q.correct_option_index ? '<b>✅ ' : '⬜️ '}${opt}${i === q.correct_option_index ? '</b>' : ''}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    });
+                } else {
+                    contentHtml += '<p>Тестовые вопросы для этого курса не найдены.</p>';
+                }
+
+                if (course.materials && course.materials.length > 0) {
+                    contentHtml += '<h2>Сопутствующие материалы</h2>';
+                    contentHtml += '<ul class="materials-list">';
+                    course.materials.forEach(mat => {
+                        contentHtml += `<li><a href="${mat.file_url}" target="_blank" rel="noopener noreferrer">${mat.file_name}</a></li>`;
+                    });
+                    contentHtml += '</ul>';
+                }
+
+                container.innerHTML = contentHtml;
+
+            } catch (error) {
+                titleElement.textContent = 'Не удалось загрузить курс';
+                container.innerHTML = `<p class="error">${error.message}</p>`;
+                console.error('Fetch course error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

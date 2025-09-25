@@ -256,6 +256,28 @@ ${courseData.description}
 
         if (dbError) throw new Error(`Failed to save generated content: ${dbError.message}`);
 
+        // Create a technical link for this generation
+        try {
+            console.log(`[Job ${jobId}] Creating technical access link for course ${course_id}...`);
+            const access_key = require('crypto').randomBytes(16).toString('hex');
+            const { error: generationError } = await supabaseAdmin
+                .from('course_generations')
+                .insert({
+                    course_id: course_id,
+                    access_key: access_key,
+                    generated_at: new Date().toISOString()
+                });
+
+            if (generationError) {
+                // Log the error but don't fail the main job, as it's non-critical.
+                console.error(`[Job ${jobId}] Could not create technical link for course ${course_id}:`, generationError);
+            } else {
+                console.log(`[Job ${jobId}] Technical link created successfully with key: ${access_key}`);
+            }
+        } catch (e) {
+            console.error(`[Job ${jobId}] Exception while creating technical link for course ${course_id}:`, e);
+        }
+
         console.log(`[Job ${jobId}] Content generation completed successfully.`);
         await updateJobStatus('completed', { message: 'Content generated and saved.' });
 

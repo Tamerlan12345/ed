@@ -13,6 +13,9 @@ apiRouter.post('/admin', adminAuthMiddleware, handleAdminAction);
 // The detailed report also requires admin privileges.
 apiRouter.post('/getDetailedReport', adminAuthMiddleware, getDetailedReport);
 
+// --- Public Routes (No Auth Required) ---
+apiRouter.get('/public/course/:access_key', userController.getPublicCourseByAccessKey);
+
 
 // --- User-facing Authenticated Routes ---
 // All routes below this middleware will require a valid user token.
