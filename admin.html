@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/shared/constants.js"></script>
     <style>
@@ -931,18 +932,6 @@
         }
 
         let techLinkHtml = '';
-        if (isEditing && course.latest_generation) {
-            const link = `${window.location.origin}/public_course.html?key=${course.latest_generation.access_key}`;
-            const genDate = new Date(course.latest_generation.generated_at).toLocaleString('ru-RU');
-            techLinkHtml = `
-                <div id="tech-link-info" style="background-color: #e9f7fe; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <h4><i class="fa-solid fa-link"></i> Техническая ссылка (для просмотра)</h4>
-                    <p style="font-size: 0.9em; color: #666; margin-top: -5px;">Эта ссылка позволяет просмотреть материалы курса без входа в систему. Она обновляется каждый раз при полной генерации контента.</p>
-                    <input type="text" readonly value="${link}" style="background-color: #fff; cursor: pointer;" onclick="this.select(); document.execCommand('copy'); showToast('Ссылка скопирована!', 'success');">
-                    <p style="font-size: 0.9em; color: #333;">Последняя генерация: <b>${genDate}</b></p>
-                </div>
-            `;
-        }
 
         return `
             <div id="course-form-container">
@@ -986,6 +975,7 @@
                 <div style="display: flex; gap: 10px;">
                     <button id="save-draft-btn" style="background-color: #00AEEF; flex: 1;">Сохранить черновик</button>
                     <button id="publish-btn" style="background-color: #28a745; flex: 2;">ОПУБЛИКОВАТЬ</button>
+                    <button id="download-pdf-btn" style="background-color: #17a2b8; flex: 1;">Скачать PDF</button>
                 </div>
                 <button id="cancel-edit-btn" style="background-color: #6c757d; margin-top: 10px;">Отмена</button>
                 <hr>
@@ -1010,6 +1000,7 @@
         document.getElementById('add-material-btn').addEventListener('click', addMaterialHandler); // ИЗМЕНЕНО
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
         document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
+        document.getElementById('download-pdf-btn').addEventListener('click', downloadPdfHandler);
 
         // --- Live Preview for Google Slides ---
         const presentationUrlInput = document.getElementById('presentation-url');
@@ -1205,6 +1196,98 @@
             /* Handled in apiCall */
         } finally {
             btn.disabled = false;
+        }
+    }
+
+    async function downloadPdfHandler() {
+        const btn = document.getElementById('download-pdf-btn');
+        btn.disabled = true;
+        btn.textContent = 'Генерация...';
+
+        try {
+            const title = document.getElementById('course-title').value || 'Course';
+            const contentString = document.getElementById('content').value;
+            if (!contentString) {
+                showToast('Нет контента для генерации PDF.', 'error');
+                return;
+            }
+
+            let content;
+            try {
+                content = JSON.parse(contentString);
+            } catch (e) {
+                showToast('Ошибка в формате JSON контента. Невозможно сгенерировать PDF.', 'error');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(22);
+            doc.text(title, 10, 20);
+
+            let y = 40;
+
+            if (content.summary && content.summary.slides && content.summary.slides.length > 0) {
+                doc.setFontSize(16);
+                doc.text('Презентация', 10, y);
+                y += 10;
+
+                content.summary.slides.forEach(slide => {
+                    doc.setFontSize(12);
+                    doc.text(slide.slide_title || '', 10, y);
+                    y += 7;
+
+                    const slideContent = doc.splitTextToSize(slide.html_content || '', 180);
+                    doc.text(slideContent, 10, y);
+                    y += slideContent.length * 7 + 10;
+
+                    if (y > 280) {
+                        doc.addPage();
+                        y = 20;
+                    }
+                });
+            }
+
+            if (content.questions && content.questions.length > 0) {
+                if (y > 40) { // Add a new page if there was content before
+                    doc.addPage();
+                }
+                y = 20;
+                doc.setFontSize(16);
+                doc.text('Тестовые вопросы', 10, y);
+                y += 10;
+
+                content.questions.forEach(q => {
+                    doc.setFontSize(12);
+                    const questionText = doc.splitTextToSize(q.question || '', 180);
+                    doc.text(questionText, 10, y);
+                    y += questionText.length * 7 + 5;
+
+                    (q.options || []).forEach((opt, i) => {
+                        const optionText = `${i === q.correct_option_index ? '✅ ' : '⬜️ '}${opt}`;
+                        const splitOption = doc.splitTextToSize(optionText, 170);
+                        doc.text(splitOption, 15, y);
+                        y += splitOption.length * 7 + 5;
+                    });
+                    y += 5;
+
+                    if (y > 280) {
+                        doc.addPage();
+                        y = 20;
+                    }
+                });
+            }
+
+            doc.save(`${title}.pdf`);
+
+        } catch (error) {
+            showToast('Не удалось сгенерировать PDF.', 'error');
+            console.error('PDF Generation Error:', error);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Скачать PDF';
         }
     }
 
