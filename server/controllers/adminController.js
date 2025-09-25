@@ -21,14 +21,6 @@ const adminActionHandlers = {
         if (error) throw error;
         return data;
     },
-    [ACTIONS.GET_JOB_STATUS]: async ({ payload, supabaseAdmin }) => {
-        const { jobId } = payload;
-        if (!jobId) throw { status: 400, message: 'A jobId is required.' };
-        const { data, error } = await supabaseAdmin.from('background_jobs').select('*').eq('id', jobId).single();
-        if (error) throw error;
-        if (!data) throw { status: 404, message: 'Job not found.' };
-        return data;
-    },
     [ACTIONS.GET_COURSES_ADMIN]: async ({ supabaseAdmin }) => {
         // Fetch courses and their associated group name through the join table
         const { data, error } = await supabaseAdmin
