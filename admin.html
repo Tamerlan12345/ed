@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/shared/constants.js"></script>
     <style>
@@ -22,7 +24,7 @@
             --error-color: #dc3545;
             --shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; background-color: var(--bg-color); color: var(--text-color); }
+        body { font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; background-color: var(--bg-color); color: var(--text-color); }
         h1, h2, h3 { color: var(--primary-color); }
         .hidden { display: none; }
         input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 16px; }
@@ -1209,83 +1211,44 @@
             const contentString = document.getElementById('content').value;
             if (!contentString) {
                 showToast('Нет контента для генерации PDF.', 'error');
-                return;
-            }
-
-            let content;
-            try {
-                content = JSON.parse(contentString);
-            } catch (e) {
-                showToast('Ошибка в формате JSON контента. Невозможно сгенерировать PDF.', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Скачать PDF';
                 return;
             }
 
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
+            const contentElement = document.getElementById('wysiwyg-editor');
 
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(22);
-            doc.text(title, 10, 20);
-
-            let y = 40;
-
-            if (content.summary && content.summary.slides && content.summary.slides.length > 0) {
-                doc.setFontSize(16);
-                doc.text('Презентация', 10, y);
-                y += 10;
-
-                content.summary.slides.forEach(slide => {
-                    doc.setFontSize(12);
-                    doc.text(slide.slide_title || '', 10, y);
-                    y += 7;
-
-                    const slideContent = doc.splitTextToSize(slide.html_content || '', 180);
-                    doc.text(slideContent, 10, y);
-                    y += slideContent.length * 7 + 10;
-
-                    if (y > 280) {
-                        doc.addPage();
-                        y = 20;
-                    }
-                });
-            }
-
-            if (content.questions && content.questions.length > 0) {
-                if (y > 40) { // Add a new page if there was content before
-                    doc.addPage();
+            html2canvas(contentElement, {
+                scale: 2,
+                useCORS: true,
+                onclone: (document) => {
+                    // Ensure the font is loaded in the cloned document
+                    const robotoFont = document.createElement('link');
+                    robotoFont.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap';
+                    robotoFont.rel = 'stylesheet';
+                    document.head.appendChild(robotoFont);
                 }
-                y = 20;
-                doc.setFontSize(16);
-                doc.text('Тестовые вопросы', 10, y);
-                y += 10;
-
-                content.questions.forEach(q => {
-                    doc.setFontSize(12);
-                    const questionText = doc.splitTextToSize(q.question || '', 180);
-                    doc.text(questionText, 10, y);
-                    y += questionText.length * 7 + 5;
-
-                    (q.options || []).forEach((opt, i) => {
-                        const optionText = `${i === q.correct_option_index ? '✅ ' : '⬜️ '}${opt}`;
-                        const splitOption = doc.splitTextToSize(optionText, 170);
-                        doc.text(splitOption, 15, y);
-                        y += splitOption.length * 7 + 5;
-                    });
-                    y += 5;
-
-                    if (y > 280) {
-                        doc.addPage();
-                        y = 20;
-                    }
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({
+                    orientation: 'p',
+                    unit: 'px',
+                    format: [canvas.width, canvas.height]
                 });
-            }
-
-            doc.save(`${title}.pdf`);
+                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+                pdf.save(`${title}.pdf`);
+            }).catch(err => {
+                showToast('Не удалось сгенерировать PDF.', 'error');
+                console.error('PDF Generation Error:', err);
+            }).finally(() => {
+                btn.disabled = false;
+                btn.textContent = 'Скачать PDF';
+            });
 
         } catch (error) {
             showToast('Не удалось сгенерировать PDF.', 'error');
             console.error('PDF Generation Error:', error);
-        } finally {
             btn.disabled = false;
             btn.textContent = 'Скачать PDF';
         }
