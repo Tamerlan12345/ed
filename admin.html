@@ -1217,44 +1217,45 @@
             }
 
             const { jsPDF } = window.jspdf;
-            const contentElement = document.getElementById('wysiwyg-editor');
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const editor = document.getElementById('wysiwyg-editor');
+            const elements = editor.querySelectorAll('.wysiwyg-slide, .wysiwyg-question');
 
-            // Temporarily expand the element to its full scroll height
-            const originalHeight = contentElement.style.height;
-            contentElement.style.height = `${contentElement.scrollHeight}px`;
+            let y = 0; // Current y position on the page
 
-            html2canvas(contentElement, {
-                scale: 2,
-                useCORS: true,
-                onclone: (document) => {
-                    // Ensure the font is loaded in the cloned document
-                    const robotoFont = document.createElement('link');
-                    robotoFont.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap';
-                    robotoFont.rel = 'stylesheet';
-                    document.head.appendChild(robotoFont);
-                }
-            }).then(canvas => {
-                // Restore original height
-                contentElement.style.height = originalHeight;
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF({
-                    orientation: 'p',
-                    unit: 'px',
-                    format: [canvas.width, canvas.height]
+            for (const element of elements) {
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    onclone: (doc) => {
+                        const robotoFont = doc.createElement('link');
+                        robotoFont.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap';
+                        robotoFont.rel = 'stylesheet';
+                        doc.head.appendChild(robotoFont);
+                    }
                 });
-                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-                pdf.save(`${title}.pdf`);
-            }).catch(err => {
-                showToast('Не удалось сгенерировать PDF.', 'error');
-                console.error('PDF Generation Error:', err);
-            }).finally(() => {
-                btn.disabled = false;
-                btn.textContent = 'Скачать PDF';
-            });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const pdfHeight = doc.internal.pageSize.getHeight();
+                const imgProps = doc.getImageProperties(imgData);
+                const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                if (y + imgHeight > pdfHeight) {
+                    doc.addPage();
+                    y = 0;
+                }
+
+                doc.addImage(imgData, 'JPEG', 0, y, pdfWidth, imgHeight);
+                y += imgHeight;
+            }
+
+            doc.save(`${title}.pdf`);
 
         } catch (error) {
             showToast('Не удалось сгенерировать PDF.', 'error');
             console.error('PDF Generation Error:', error);
+        } finally {
             btn.disabled = false;
             btn.textContent = 'Скачать PDF';
         }
