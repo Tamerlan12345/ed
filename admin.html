@@ -1219,6 +1219,10 @@
             const { jsPDF } = window.jspdf;
             const contentElement = document.getElementById('wysiwyg-editor');
 
+            // Temporarily expand the element to its full scroll height
+            const originalHeight = contentElement.style.height;
+            contentElement.style.height = `${contentElement.scrollHeight}px`;
+
             html2canvas(contentElement, {
                 scale: 2,
                 useCORS: true,
@@ -1230,6 +1234,8 @@
                     document.head.appendChild(robotoFont);
                 }
             }).then(canvas => {
+                // Restore original height
+                contentElement.style.height = originalHeight;
                 const imgData = canvas.toDataURL('image/png');
                 const pdf = new jsPDF({
                     orientation: 'p',
