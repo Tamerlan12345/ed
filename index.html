@@ -303,12 +303,6 @@
         .toast-info { background-color: #00AEEF; }
     </style>
     <style id="jules-layout-fixes">
-        .main-menu-columns {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 20px;
-            align-items: flex-start;
-        }
         .courses-column h3 {
             color: var(--primary-color);
             border-bottom: 2px solid var(--border-color);
@@ -896,10 +890,8 @@
             return;
         }
         mainMenu.innerHTML = `
-            <div class="main-menu-columns">
-                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
-                <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
-            </div>
+            <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
+            <div class="courses-column individual-courses-column" style="margin-top: 20px;"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
         `;
         const groupedContainer = document.getElementById('grouped-courses-container');
         const individualContainer = document.getElementById('individual-courses-container');
@@ -963,12 +955,10 @@
             progressBarHtml = `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${course.progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
         }
         const courseIcon = course.is_locked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-book-open"></i>';
-        const descriptionText = truncateText(course.description) || 'Нет описания.';
 
         menuItem.innerHTML = `
             <div>
                 <h3><span class="menu-item-icon">${courseIcon}</span>${course.title}</h3>
-                <p class="menu-item-description">${descriptionText}</p>
             </div>
             <div>${progressBarHtml}${deadlineHtml}</div>`;
         menuItem.style.display = 'flex';
@@ -982,22 +972,22 @@
         let buttonHtml = '';
         switch (course.user_status) {
             case 'not_assigned':
-                buttonHtml = `<button class="btn assign-course-btn" data-course-id="${course.id}" style="margin-top: 15px;">Начать изучение</button>`;
+                buttonHtml = `<button class="btn assign-course-btn" data-course-id="${course.id}">Начать изучение</button>`;
                 break;
             case 'assigned':
-                buttonHtml = `<button class="btn" disabled style="margin-top: 15px; background-color: var(--text-light-color); cursor: not-allowed;">Курс уже назначен</button>`;
+                buttonHtml = `<button class="btn" disabled style="background-color: var(--text-light-color); cursor: not-allowed;">Курс уже назначен</button>`;
                 break;
             case 'completed':
-                menuItem.style.borderLeft = '5px solid var(--success-color)';
-                menuItem.style.backgroundColor = '#f8f9fa';
-                buttonHtml = `<p style="margin-top: 15px; font-weight: bold; color: var(--success-color);">✓ Курс пройден</p>`;
+                menuItem.classList.add('completed');
+                buttonHtml = `<p style="font-weight: bold; color: var(--success-color); margin-top: 10px; text-align: right;">✓ Курс пройден</p>`;
                 break;
         }
-        const descriptionText = truncateText(course.description) || 'Нет описания.';
         const iconHtml = course.user_status === 'completed' ? '<i class="fa-solid fa-trophy"></i>' : '<i class="fa-solid fa-book"></i>';
         menuItem.innerHTML = `
-            <div><h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3><p style="font-size: 0.9em; color: var(--text-light-color);">${descriptionText}</p></div>
-            <div style="text-align: right;">${buttonHtml}</div>`;
+            <div>
+                <h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3>
+            </div>
+            <div style="margin-top: 10px;">${buttonHtml}</div>`;
         return menuItem;
     }
     async function renderCatalog(searchTerm = '') {
@@ -1031,10 +1021,8 @@
             }
 
             mainMenu.innerHTML = `
-                <div class="main-menu-columns">
-                    <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
-                    <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
-                </div>
+                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
+                <div class="courses-column individual-courses-column" style="margin-top: 20px;"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
             `;
 
             const groupedContainer = document.getElementById('grouped-courses-container-catalog');
