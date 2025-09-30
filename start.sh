@@ -1,6 +1,13 @@
 #!/bin/bash
 
-# This script starts the main application and the background worker.
+# This script starts all necessary services for the application.
+
+# Start the Redis server in the background
+echo "Starting Redis server..."
+redis-server --daemonize yes
+
+# Give Redis a moment to start up
+sleep 2
 
 # Start the main Node.js server in the background
 echo "Starting Node.js server..."
