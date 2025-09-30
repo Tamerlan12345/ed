@@ -22,10 +22,6 @@
             transform: translateY(-4px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.1);
         }
-        .tab-btn:not(.active):hover {
-            background-color: rgba(0,0,0,0.03);
-            border-bottom-color: var(--border-color);
-        }
         .course-group-container {
             background-color: var(--surface-color);
             border-radius: 12px;
@@ -44,7 +40,30 @@
         @keyframes shimmer { 0% { left: -150%; } 100% { left: 150%; } }
     </style>
     <style>
-        .tab-btn{padding:10px 20px;border:none;background-color:transparent;cursor:pointer;font-size:1em;color:var(--text-light-color);border-bottom:3px solid transparent;margin-bottom:-2px}.tab-btn.active{color:var(--primary-color);border-bottom-color:var(--primary-color);font-weight:bold}
+        #main-menu-tabs {
+            border-bottom: none !important; /* Override inline style for pill design */
+        }
+        .tab-btn {
+            padding: 8px 20px;
+            border: none;
+            background-color: transparent;
+            cursor: pointer;
+            font-size: 1em;
+            color: var(--text-light-color);
+            border-radius: 20px; /* pill shape */
+            transition: all 0.2s ease-in-out;
+            font-weight: 600;
+            margin: 0 2px;
+        }
+        .tab-btn.active {
+            color: white;
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 8px rgba(0, 90, 166, 0.2);
+        }
+        .tab-btn:not(.active):hover {
+           background-color: #e9ecef;
+           color: var(--primary-color);
+        }
     </style>
     <style id="presentation-styles">
         #app-view.presentation-mode-active #main-menu-tabs,
@@ -912,8 +931,13 @@
             progressBarHtml = `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${course.progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
         }
         const courseIcon = course.is_locked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-book-open"></i>';
+        const descriptionText = truncateText(course.description) || 'Нет описания.';
+
         menuItem.innerHTML = `
-            <div><h3><span class="menu-item-icon">${courseIcon}</span>${course.title}</h3></div>
+            <div>
+                <h3><span class="menu-item-icon">${courseIcon}</span>${course.title}</h3>
+                <p style="font-size: 0.9em; color: var(--text-light-color); margin-top: 5px;">${descriptionText}</p>
+            </div>
             <div>${progressBarHtml}${deadlineHtml}</div>`;
         menuItem.style.display = 'flex';
         menuItem.style.flexDirection = 'column';
