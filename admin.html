@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ-панель</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/shared/constants.js"></script>
+    <script src="/public/js/ui.js"></script>
+    <style>
+        :root {
+            --primary-color: #005A9C;
+            --secondary-color: #00AEEF;
+            --bg-color: #f4f7f6;
+            --surface-color: #ffffff;
+            --text-color: #333333;
+            --text-light-color: #777777;
+            --border-color: #e0e0e0;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        body { font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; background-color: var(--bg-color); color: var(--text-color); }
+        h1, h2, h3 { color: var(--primary-color); }
+        .hidden { display: none; }
+        input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 16px; }
+        button { background-color: var(--primary-color); color: white; cursor: pointer; border: none; font-weight: bold; transition: background-color 0.2s; }
+        button:hover { background-color: var(--secondary-color); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        textarea { height: 150px; resize: vertical; }
+        .status { padding: 15px; border-radius: 8px; margin: 10px 0; text-align: center; }
+        .error { color: var(--error-color); background-color: #fdeeee; }
+        .success { color: var(--success-color); background-color: #eaf7ec; }
+        .info { color: var(--primary-color); background-color: #e9f7fe; }
+        .tabs button { width: auto; padding: 10px 20px; margin-right: 10px; background-color: var(--border-color); color: var(--text-color); }
+        .tabs button.active { background-color: var(--primary-color); color: white; }
+        #results-view { margin-top: 20px; }
+        #results-filters { display: flex; gap: 10px; margin-bottom: 10px; }
+        #results-table { width: 100%; border-collapse: collapse; }
+        #results-table th, #results-table td { border: 1px solid var(--border-color); padding: 8px; text-align: left; }
+        #results-table th { background-color: var(--bg-color); }
+        #delete-course-btn { background-color: var(--error-color); }
+        #delete-course-btn:hover { background-color: #c82333; }
+        #courses-table, #groups-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        #courses-table th, #courses-table td, #groups-table th, #groups-table td { border: 1px solid var(--border-color); padding: 10px; text-align: left; vertical-align: middle; }
+        #courses-table th, #groups-table th { background-color: var(--bg-color); font-weight: bold; }
+        #courses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .course-card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            background-color: var(--surface-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .course-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+        .course-card h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: var(--primary-color);
+        }
+        .course-card p {
+            margin: 4px 0;
+            font-size: 0.9em;
+            color: var(--text-color);
+        }
+        .course-card .actions-cell {
+            margin-top: 15px;
+            display: flex;
+            gap: 5px;
+        }
+        .actions-cell button { width: auto; padding: 6px 12px; font-size: 14px; margin-right: 5px; }
+        .status-published { color: var(--success-color); font-weight: bold; }
+        .status-processed { color: #ffc107; }
+        .inline-error { color: var(--error-color); font-size: 0.9em; margin-top: -5px; margin-bottom: 10px; }
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+        .toast { padding: 15px 20px; margin-bottom: 10px; border-radius: 8px; color: white; font-weight: bold; box-shadow: var(--shadow); opacity: 0.9; width: 300px; }
+        .toast-error { background-color: var(--error-color); }
+        .toast-success { background-color: var(--success-color); }
+        .toast-info { background-color: var(--secondary-color); }
+
+        /* WYSIWYG Editor Styles */
+        #wysiwyg-editor {
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+            background-color: var(--surface-color);
+            min-height: 200px;
+        }
+        .wysiwyg-slide {
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background-color: #fcfcfc;
+        }
+        .wysiwyg-slide-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+            color: var(--primary-color);
+        }
+        .wysiwyg-slide-content, .wysiwyg-question-text, .wysiwyg-option-label {
+            min-height: 30px;
+            padding: 8px;
+            border: 1px dashed var(--border-color);
+        }
+        .wysiwyg-slide-content:focus, .wysiwyg-question-text:focus, .wysiwyg-option-label:focus {
+            outline: 1px solid var(--secondary-color);
+            border: 1px solid var(--secondary-color);
+            background-color: #f8f9fa;
+        }
+        .wysiwyg-questions-container h4 {
+            margin-top: 25px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+        }
+        .wysiwyg-question {
+            background-color: #f1f3f5;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+            border-left: 4px solid var(--secondary-color);
+        }
+        .wysiwyg-options {
+            list-style-type: none;
+            padding-left: 0;
+            margin-top: 10px;
+        }
+        .wysiwyg-option-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            background-color: #fff;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .wysiwyg-option-item input[type="radio"] {
+            width: auto;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .wysiwyg-option-label {
+            flex-grow: 1;
+        }
+        .course-list {
+            list-style-type: none;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            background-color: #fff;
+        }
+        .course-list li {
+            padding: 8px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            cursor: grab;
+        }
+        .course-list li:hover {
+            background-color: #e9f7fe;
+        }
+        .course-list li.dragging {
+            opacity: 0.5;
+            background-color: #cce5ff;
+        }
+    </style>
+</head>
+<body>
+    <div id="toast-container"></div>
+    <div id="login-view" class="hidden">
+        <h1>Вход для администратора</h1>
+        <input type="email" id="admin-email" value="test1@cic.kz">
+        <input type="password" id="admin-password" placeholder="Пароль">
+        <button id="login-btn">Войти</button>
+        <div id="login-error" class="status error hidden"></div>
+    </div>
+
+    <div id="panel-view" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" style="height: 40px;">
+                <h1>Панель управления</h1>
+            </div>
+            <button id="logout-btn" style="width: auto; background-color: var(--text-light-color);">Выйти</button>
+        </div>
+        <div class="tabs">
+            <button id="courses-tab-btn" class="active">Управление курсами</button>
+            <button id="groups-tab-btn">Управление группами</button>
+            <button id="results-tab-btn">Отчеты и Результаты</button>
+            <button id="leaderboard-tab-btn">Лидерборд</button>
+            <button id="simulator-tab-btn">Результаты Тренажера</button>
+        </div>
+        <hr>
+
+        <div id="leaderboard-view" class="hidden">
+            <h2>Настройки Лидерборда "Топ учеников недели"</h2>
+            <p>Выберите метрики, по которым будет строиться рейтинг. Пользователи будут отсортированы по первой выбранной метрике.</p>
+            <div id="leaderboard-settings-form">
+                <label><input type="checkbox" name="metric" value="courses_completed"> Количество пройденных курсов</label><br>
+                <label><input type="checkbox" name="metric" value="time_spent"> Общее время обучения (в минутах)</label><br>
+                <label><input type="checkbox" name="metric" value="avg_score"> Средний балл по тестам</label><br>
+                <br>
+                <button id="save-leaderboard-settings-btn">Сохранить настройки</button>
+            </div>
+        </div>
+
+        <div id="courses-view">
+            <h2>Панель управления курсами</h2>
+            <div id="status-box" class="status hidden"></div>
+
+            <h3>Существующие курсы</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                <input type="text" id="course-search-input" placeholder="Поиск по названию или группе..." style="flex-grow: 1; min-width: 250px;">
+                <div id="pagination-controls" style="display: flex; align-items: center;">
+                    <button id="prev-page-btn" style="width: auto; padding: 8px 12px;">&lt; Назад</button>
+                    <span id="page-info" style="padding: 0 15px; font-weight: bold;"></span>
+                    <button id="next-page-btn" style="width: auto; padding: 8px 12px;">Вперед &gt;</button>
+                </div>
+            </div>
+            <button id="show-create-form-btn" style="margin-top: 10px;">Создать новый курс</button>
+            <div id="courses-grid">
+                <!-- Course cards will be inserted here by JavaScript -->
+            </div>
+            <hr>
+
+            <div id="course-form-wrapper"></div>
+        </div>
+
+        <div id="groups-view" class="hidden">
+            <h2>Управление группами курсов (Блоками)</h2>
+
+            <h3>Существующие группы</h3>
+            <button id="show-create-group-form-btn">Создать новую группу</button>
+            <table id="groups-table">
+                <thead>
+                    <tr>
+                        <th>Название группы</th>
+                        <th>Назначать новым</th>
+                        <th>Видимость</th>
+                        <th>Порядок</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Group rows will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+            <hr>
+
+            <div id="group-form-container" class="hidden">
+                <h2 id="group-form-header">Создать новую группу</h2>
+                <input type="text" id="group-name" placeholder="Название новой группы">
+                <div id="group_name-error" class="inline-error"></div>
+
+                <div style="display: flex; gap: 20px; margin-top: 10px; margin-bottom: 10px; align-items: center;">
+                    <div style="flex: 1;">
+                        <label for="group-deadline-days" style="display: block; margin-bottom: 5px;">Срок прохождения (в днях)</label>
+                        <input type="number" id="group-deadline-days" placeholder="Например: 30" style="width: 100%;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="group-recurrence" style="display: block; margin-bottom: 5px;">Периодичность</label>
+                        <select id="group-recurrence" style="width: 100%;">
+                            <option value="">Однократно</option>
+                            <option value="1">Раз в 1 месяц</option>
+                            <option value="3">Раз в 3 месяца</option>
+                            <option value="6">Раз в 6 месяцев</option>
+                            <option value="12">Раз в 12 месяцев</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label style="display: block; margin-bottom: 5px;"><input type="checkbox" id="group-is-visible"> <b>Видимость:</b> Группа видна пользователям в каталоге</label>
+                <label style="display: block; margin-bottom: 5px;"><input type="checkbox" id="group-enforce-order"> <b>Строгий порядок:</b> Требовать последовательного прохождения курсов</label>
+                <label style="display: block; margin-bottom: 15px;"><input type="checkbox" id="group-for-new-employees"> <b>Авто-назначение:</b> Назначать новым сотрудникам</label>
+
+                <button id="save-group-btn">Сохранить/Создать группу</button>
+                <button id="cancel-group-edit-btn" class="hidden" style="background-color: #6c757d;">Отмена</button>
+                <hr>
+            </div>
+
+            <h3>Курсы в группе</h3>
+            <p>Перетащите курсы между списками и отсортируйте их в правом списке.</p>
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <h4>Доступные курсы</h4>
+                    <ul id="all-courses-list" class="course-list"></ul>
+                </div>
+                <div style="flex: 1;">
+                    <h4>Курсы в этой группе (сортируемый список)</h4>
+                    <ul id="group-courses-list" class="course-list"></ul>
+                </div>
+            </div>
+            <button id="save-courses-in-group-btn">Сохранить состав группы</button>
+            <hr>
+            <h3>Назначить группу подразделению</h3>
+            <select id="assign-department-select" style="width: 100%;"><option value="">Выберите подразделение...</option></select>
+            <button id="assign-group-btn">Назначить</button>
+
+            <hr style="margin-top: 25px; margin-bottom: 25px;">
+
+            <h3>Управление учениками</h3>
+            <p>Здесь вы можете найти любого ученика и назначить ему курс индивидуально.</p>
+            <button id="load-students-btn">Загрузить список всех учеников</button>
+
+            <input type="text" id="student-search-input" placeholder="Поиск по имени или email..." class="hidden" style="margin-top: 15px;">
+
+            <table id="students-table" class="hidden" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Email</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Имя</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Подразделение</th>
+                    </tr>
+                </thead>
+                <tbody id="students-table-body">
+                    <!-- Student rows will be inserted here -->
+                </tbody>
+            </table>
+
+            <div id="student-pagination-controls" class="hidden" style="display: flex; align-items: center; justify-content: center; margin-top: 10px;">
+                <button id="student-prev-page-btn" style="width: auto; padding: 8px 12px;">&lt; Назад</button>
+                <span id="student-page-info" style="padding: 0 15px; font-weight: bold;"></span>
+                <button id="student-next-page-btn" style="width: auto; padding: 8px 12px;">Вперед &gt;</button>
+            </div>
+
+            <div id="student-actions-panel" class="hidden" style="margin-top: 15px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
+                <h4>Назначить курс для: <b id="selected-student-email-span"></b></h4>
+                <select id="student-course-assignment-list"></select>
+                <button id="assign-course-to-student-btn" style="width: auto; padding: 10px 20px; margin-top: 10px;">Назначить выбранный курс</button>
+            </div>
+        </div>
+
+        <div id="results-view" class="hidden">
+            <h2>Отчеты по результатам тестов</h2>
+            <div id="results-filters">
+                <input type="text" id="filter-user" placeholder="Email пользователя...">
+                <input type="text" id="filter-department" placeholder="Подразделение...">
+                <select id="filter-course"><option value="">Все курсы</option></select>
+                <button id="apply-filters-btn">Применить фильтр</button>
+                <button id="export-csv-btn" style="background-color: #218838;">Выгрузить в Excel (CSV)</button>
+            </div>
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>Пользователь</th>
+                        <th>Курс</th>
+                        <th>Результат (%)</th>
+                        <th>Время (мин)</th>
+                        <th>Дата</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Сюда будут добавляться строки с результатами -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="simulator-results-view" class="hidden">
+            <h2>Результаты диалогового тренажера</h2>
+            <button id="refresh-sim-results-btn">Обновить</button>
+            <table id="simulator-results-table" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Дата</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Пользователь</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Сценарий</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Персонаж</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Средний балл</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Simulator results will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+    // --- CORE SETUP ---
+    // The ACTIONS constant is now loaded from /shared/constants.js
+    const SUPABASE_URL = 'https://wnsdlibhrlmgyszbyxat.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2RsaWJocmxtZ3lzemJ5eGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE0MjgsImV4cCI6MjA2OTg1NzQyOH0.Sgz-50dHj8M599sIjTRYs0kMP7b6kX2BJ-Gc-trMUQ4';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let adminToken = null;
+    let allCoursesData = []; // Cache for all courses
+    let currentPage = 1;
+    const coursesPerPage = 10;
+    let searchQuery = '';
+    let allDepartments = []; // Cache for all departments
+    let currentEditingCourseId = null;
+    let currentEditingGroupId = null;
+    let autosaveTimer = null;
+
+    // --- DOM ELEMENTS ---
+    const loginView = document.getElementById('login-view');
+    const panelView = document.getElementById('panel-view');
+    const statusBox = document.getElementById('status-box');
+    const allViews = [
+        document.getElementById('courses-view'),
+        document.getElementById('groups-view'),
+        document.getElementById('results-view'),
+        document.getElementById('leaderboard-view'),
+        document.getElementById('simulator-results-view')
+    ];
+    const allBtns = [
+        document.getElementById('courses-tab-btn'),
+        document.getElementById('groups-tab-btn'),
+        document.getElementById('results-tab-btn'),
+        document.getElementById('leaderboard-tab-btn'),
+        document.getElementById('simulator-tab-btn')
+    ];
+    // Course UI elements
+    const coursesGrid = document.getElementById('courses-grid');
+    // Group UI elements
+    const groupFormContainer = document.getElementById('group-form-container');
+    const groupFormHeader = document.getElementById('group-form-header');
+    const groupsTableBody = document.getElementById('groups-table').getElementsByTagName('tbody')[0];
+    const cancelGroupEditBtn = document.getElementById('cancel-group-edit-btn');
+    const groupNameInput = document.getElementById('group-name');
+    const newEmployeesCheckbox = document.getElementById('group-for-new-employees');
+    const allCoursesList = document.getElementById('all-courses-list');
+    const groupCoursesList = document.getElementById('group-courses-list');
+
+    // --- UTILITY FUNCTIONS ---
+    function renderMicroQuestionEditor(question, slideIndex) {
+        if (!question) {
+            return `<button class="add-micro-question-btn" data-slide-index="${slideIndex}" style="width: auto; font-size: 12px; padding: 5px 10px;">+ Добавить вопрос к слайду</button>`;
+        }
+        return `
+            <div class="micro-question" data-slide-index="${slideIndex}">
+                <button class="delete-micro-question-btn" data-slide-index="${slideIndex}" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px;">×</button>
+                <h5 style="margin:0 0 5px 0;">Вопрос после слайда:</h5>
+                <div class="wysiwyg-question-text" contenteditable="true">${question.question_text || ''}</div>
+                <ul class="wysiwyg-options" style="margin-top: 5px;">
+                    ${(question.options || ['', '']).map((opt, oIndex) => `
+                        <li class="wysiwyg-option-item">
+                            <input type="radio" name="correct_micro_q_${slideIndex}" ${oIndex === question.correct_index ? 'checked' : ''}>
+                            <span class="wysiwyg-option-label" contenteditable="true">${escapeHTML(opt)}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    function updateJsonFromWysiwyg(triggerAutosave = true) {
+        const editor = document.getElementById('wysiwyg-editor');
+        const contentTextarea = document.getElementById('content');
+        if (!editor || !contentTextarea) return;
+
+        const data = { summary: { slides: [] }, questions: [] };
+
+        editor.querySelectorAll('.wysiwyg-slide').forEach((slideEl, slideIndex) => {
+            const slideData = {
+                slide_title: slideEl.querySelector('.wysiwyg-slide-title').textContent,
+                html_content: slideEl.querySelector('.wysiwyg-slide-content').innerHTML,
+                slide_question: null
+            };
+
+            const microQuestionEl = slideEl.querySelector('.micro-question');
+            if (microQuestionEl) {
+                const questionData = {
+                    question_text: microQuestionEl.querySelector('.wysiwyg-question-text').textContent,
+                    options: [],
+                    correct_index: -1
+                };
+                microQuestionEl.querySelectorAll('.wysiwyg-option-item').forEach((optEl, oIndex) => {
+                    questionData.options.push(optEl.querySelector('.wysiwyg-option-label').textContent);
+                    if (optEl.querySelector('input[type="radio"]').checked) {
+                        questionData.correct_index = oIndex;
+                    }
+                });
+                // Only save if question text and at least one option is filled
+                if (questionData.question_text && questionData.options.some(o => o)) {
+                    slideData.slide_question = questionData;
+                }
+            }
+            data.summary.slides.push(slideData);
+        });
+
+        editor.querySelectorAll('.wysiwyg-question').forEach(qEl => {
+            const questionData = {
+                question: qEl.querySelector('.wysiwyg-question-text').textContent,
+                options: [],
+                correct_option_index: -1
+            };
+            qEl.querySelectorAll('.wysiwyg-option-item').forEach((optEl, oIndex) => {
+                questionData.options.push(optEl.querySelector('.wysiwyg-option-label').textContent);
+                if (optEl.querySelector('input[type="radio"]').checked) {
+                    questionData.correct_option_index = oIndex;
+                }
+            });
+            data.questions.push(questionData);
+        });
+
+        try {
+            const originalData = JSON.parse(contentTextarea.value || '{}');
+            if (originalData.summary && Array.isArray(originalData.summary.slides)) {
+                data.summary.slides.forEach((slide, index) => {
+                    if (originalData.summary.slides[index]) {
+                        slide.image_search_term = originalData.summary.slides[index].image_search_term;
+                        slide.image_url = originalData.summary.slides[index].image_url;
+                    }
+                });
+            }
+        } catch (e) { console.warn("Could not merge non-editable fields."); }
+
+        contentTextarea.value = JSON.stringify(data, null, 2);
+        if (triggerAutosave) {
+            handleAutosave();
+        }
+    }
+
+    function renderWysiwygEditor() {
+        const editor = document.getElementById('wysiwyg-editor');
+        const contentTextarea = document.getElementById('content');
+        if (!editor || !contentTextarea) return;
+
+        editor.innerHTML = '';
+        const jsonString = contentTextarea.value || '{}';
+
+        try {
+            const data = JSON.parse(jsonString);
+            if (!data || (!data.summary && !data.questions)) {
+                 editor.innerHTML = '<p style="color: #888;">Контент пуст или имеет неверный формат. Сгенерируйте его на Шаге 2.</p>';
+                 return;
+            }
+
+            const slidesHtml = (data.summary?.slides || []).map((slide, index) => `
+                <div class="wysiwyg-slide" data-index="${index}">
+                    <div class="wysiwyg-slide-title" contenteditable="true">${escapeHTML(slide.slide_title) || 'Новый слайд'}</div>
+                    <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || '<p>Начните вводить текст...</p>'}</div>
+                    ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
+                    <div class="micro-question-area" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
+                        ${renderMicroQuestionEditor(slide.slide_question, index)}
+                    </div>
+                </div>
+            `).join('');
+            editor.innerHTML += slidesHtml;
+
+            const questionsHtml = (data.questions || []).map((q, qIndex) => `
+                <div class="wysiwyg-question" data-index="${qIndex}">
+                    <button class="delete-question-btn" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
+                    <div class="wysiwyg-question-text" contenteditable="true">${q.question || 'Текст вопроса'}</div>
+                    <ul class="wysiwyg-options">
+                        ${(q.options || []).map((opt, oIndex) => `
+                            <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${qIndex}" ${oIndex === q.correct_option_index ? 'checked' : ''}>
+                                <span class="wysiwyg-option-label" contenteditable="true">${escapeHTML(opt)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `).join('');
+
+            const questionsContainer = document.createElement('div');
+            questionsContainer.className = 'wysiwyg-questions-container';
+            questionsContainer.innerHTML = `
+                <h4>Тестовые вопросы</h4>
+                ${questionsHtml}
+                <button id="add-question-btn" style="margin-top: 15px; background-color: #28a745;">+ Добавить вопрос</button>
+            `;
+            editor.appendChild(questionsContainer);
+
+            ['input', 'change'].forEach(evt => editor.addEventListener(evt, () => updateJsonFromWysiwyg()));
+
+            // --- Add/Delete Question Logic ---
+            editor.addEventListener('click', (e) => {
+                if (e.target.classList.contains('add-micro-question-btn')) {
+                    e.preventDefault();
+                    const slideIndex = e.target.dataset.slideIndex;
+                    const container = e.target.closest('.micro-question-area');
+                    if (container) {
+                        const newQuestionData = { question_text: 'Новый вопрос', options: ['Вариант 1', 'Вариант 2'], correct_index: 0 };
+                        container.innerHTML = renderMicroQuestionEditor(newQuestionData, slideIndex);
+                        updateJsonFromWysiwyg();
+                    }
+                }
+
+                if (e.target.classList.contains('delete-micro-question-btn')) {
+                    e.preventDefault();
+                     if (confirm('Удалить этот вопрос к слайду?')) {
+                        const slideIndex = e.target.dataset.slideIndex;
+                        const container = e.target.closest('.micro-question-area');
+                        if (container) {
+                            container.innerHTML = renderMicroQuestionEditor(null, slideIndex);
+                            updateJsonFromWysiwyg();
+                        }
+                    }
+                }
+
+                if (e.target.id === 'add-question-btn') {
+                    e.preventDefault();
+                    const newQuestionIndex = editor.querySelectorAll('.wysiwyg-question').length;
+                    const newQuestionEl = document.createElement('div');
+                    newQuestionEl.className = 'wysiwyg-question';
+                    newQuestionEl.dataset.index = newQuestionIndex;
+                    newQuestionEl.innerHTML = `
+                        <button class="delete-question-btn" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
+                        <div class="wysiwyg-question-text" contenteditable="true">Новый вопрос</div>
+                        <ul class="wysiwyg-options">
+                            <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${newQuestionIndex}" checked>
+                                <span class="wysiwyg-option-label" contenteditable="true">Вариант 1</span>
+                            </li>
+                             <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${newQuestionIndex}">
+                                <span class="wysiwyg-option-label" contenteditable="true">Вариант 2</span>
+                            </li>
+                        </ul>
+                    `;
+                    e.target.before(newQuestionEl); // Insert before the "Add" button
+                    updateJsonFromWysiwyg();
+                }
+
+                if (e.target.classList.contains('delete-question-btn')) {
+                    e.preventDefault();
+                    const questionToDelete = e.target.closest('.wysiwyg-question');
+                    if (questionToDelete && confirm('Удалить этот вопрос?')) {
+                        questionToDelete.remove();
+                        // Re-index remaining questions to maintain data integrity
+                        editor.querySelectorAll('.wysiwyg-question').forEach((q, index) => {
+                            q.dataset.index = index;
+                            q.querySelectorAll('input[type="radio"]').forEach(radio => radio.name = `correct_q_${index}`);
+                        });
+                        updateJsonFromWysiwyg();
+                    }
+                }
+            });
+
+        } catch (e) {
+            console.error("Error parsing content JSON for WYSIWYG editor:", e);
+            editor.innerHTML = `<p class="error">Ошибка: Не удалось разобрать JSON контент. Проверьте его валидность. <br><small>${escapeHTML(e.message)}</small></p>`;
+            document.getElementById('content').style.display = 'block';
+        }
+    }
+
+    function showToast(message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    function handleApiError(errorData) {
+        document.querySelectorAll('.inline-error').forEach(el => el.textContent = '');
+        if (errorData.details && typeof errorData.details === 'object') {
+            for (const fieldName in errorData.details) {
+                const errorElement = document.getElementById(`${fieldName}-error`);
+                if (errorElement) errorElement.textContent = errorData.details[fieldName];
+                else showToast(`${fieldName}: ${errorData.details[fieldName]}`, 'error');
+            }
+            showToast(errorData.error || 'Пожалуйста, проверьте ошибки в форме.', 'error');
+        } else if (errorData.error) {
+            showToast(errorData.error, 'error');
+        } else {
+            showToast('Произошла неизвестная ошибка.', 'error');
+        }
+    }
+
+    const showStatus = showToast;
+
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+    }
+
+    function sanitizeForPath(text) {
+        const sanitized = text.replace(/[^a-zA-Z0-9-._]/g, '-');
+        const collapsed = sanitized.replace(/-+/g, '-');
+        return collapsed.replace(/^-+|-+$/g, '').toLowerCase();
+    }
+
+    // --- API & State Management ---
+    const apiState = { activeCalls: 0, jobs: {} };
+
+    function showGlobalLoader() {
+        let loader = document.getElementById('global-loader');
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.id = 'global-loader';
+            loader.style.cssText = 'position:fixed; top:10px; left:50%; transform:translateX(-50%); background-color:#005A9C; color:white; padding:10px 20px; border-radius:8px; z-index:2000; font-weight:bold;';
+            loader.textContent = 'Загрузка...';
+            document.body.appendChild(loader);
+        }
+        loader.classList.remove('hidden');
+    }
+
+    function hideGlobalLoader() {
+        const loader = document.getElementById('global-loader');
+        if (loader) loader.classList.add('hidden');
+    }
+
+    function updateApiState(change) {
+        const wasActive = apiState.activeCalls > 0;
+        apiState.activeCalls += change;
+        const isActive = apiState.activeCalls > 0;
+        if (!wasActive && isActive) showGlobalLoader();
+        else if (wasActive && !isActive) hideGlobalLoader();
+    }
+
+    async function apiCall(action, payload = {}) {
+        if (!adminToken) {
+            showToast('Ошибка: вы не авторизованы.', 'error');
+            throw new Error('Not authorized');
+        }
+        updateApiState(1);
+        try {
+            const response = await fetch('/api/admin', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, ...payload })
+            });
+            // Job handling is now done by the caller
+            if (!response.ok) {
+                if (response.status === 403) {
+                    showToast('Доступ запрещен. У вас нет прав.', 'error');
+                    throw new Error('Forbidden');
+                }
+                let errorData;
+                try { errorData = await response.json(); } catch (e) { errorData = { error: `Ошибка ${response.status}` }; }
+                console.error('API Error Response:', errorData);
+                // Use handleApiError for consistent form error display
+                if (response.status === 400) handleApiError(errorData);
+                else showToast(errorData.error || `Ошибка ${response.status}.`, 'error');
+                throw new Error(errorData.error || `API Call Failed`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('API Call failed:', error);
+            if (!error.message.includes('API Call Failed')) {
+                 showToast('Сетевая ошибка или сервер недоступен.', 'error');
+            }
+            throw error;
+        } finally {
+            updateApiState(-1);
+        }
+    }
+
+    function startJobPolling(jobId, courseId) {
+        if (!jobId || !courseId) return;
+
+        const statusIndicator = document.getElementById(`job-status-${courseId}`);
+        const editBtn = document.getElementById(`edit-btn-${courseId}`);
+
+        if (statusIndicator) statusIndicator.innerHTML = '⏳ Задача запущена...';
+        if (editBtn) editBtn.disabled = true;
+
+        apiState.jobs[jobId] = { status: 'pending', courseId: courseId };
+        const intervalId = setInterval(async () => {
+            try {
+                if (!adminToken) return clearInterval(intervalId);
+                const job = await apiCall(ACTIONS.GET_JOB_STATUS, { jobId });
+                apiState.jobs[jobId].status = job.status;
+
+                if (statusIndicator) {
+                    statusIndicator.textContent = `⏳ ${job.status_message || job.status}...`;
+                }
+
+                if (job.status === 'completed' || job.status === 'failed') {
+                    clearInterval(intervalId);
+                    delete apiState.jobs[jobId];
+
+                    const successMessage = job.payload?.message || (job.status === 'completed' ? 'Задача успешно завершена' : 'Задача не удалась');
+                    showToast(`Задача для курса ${courseId} ${job.status}: ${job.last_error || successMessage}`, job.status === 'completed' ? 'success' : 'error');
+
+                    if (statusIndicator) statusIndicator.innerHTML = '';
+                    if (editBtn) editBtn.disabled = false;
+
+                    // More efficient update: find course in cache, update it, and re-render
+                    const courseIndex = allCoursesData.findIndex(c => c.id === courseId);
+                    if (courseIndex !== -1) {
+                         // Refetch just this one course's details to get the most up-to-date info
+                        const updatedCourse = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
+                        allCoursesData[courseIndex] = { ...allCoursesData[courseIndex], ...updatedCourse };
+                        displayCourses();
+                    } else {
+                        loadCourses(); // Fallback to full reload
+                    }
+
+                    // If we are currently editing the course that just finished, update its form fields
+                    if (currentEditingCourseId === courseId) {
+                        if (job.job_type === 'summary_generation' && job.status === 'completed' && job.payload?.new_description) {
+                             const descriptionArea = document.getElementById('description');
+                             if (descriptionArea) descriptionArea.value = job.payload.new_description;
+                        }
+                        // Potentially reload the whole form to reflect new content
+                        loadCourseForEditing(courseId);
+                    }
+                }
+            } catch (error) {
+                showToast(`Ошибка при проверке статуса задачи ${jobId}.`, 'error');
+                if (statusIndicator) statusIndicator.textContent = 'Ошибка отслеживания.';
+                if (editBtn) editBtn.disabled = false;
+                clearInterval(intervalId);
+            }
+        }, 5000);
+        apiState.jobs[jobId].intervalId = intervalId;
+    }
+
+    // --- TAB SWITCHING ---
+    function switchTab(activeTab, activeBtn) {
+        allViews.forEach(view => view.classList.add('hidden'));
+        allBtns.forEach(btn => btn.classList.remove('active'));
+        activeTab.classList.remove('hidden');
+        activeBtn.classList.add('active');
+    }
+
+    allBtns.forEach((btn, index) => {
+        btn.addEventListener('click', async () => {
+            switchTab(allViews[index], btn);
+            if (allViews[index].id === 'courses-view') loadCourses();
+            if (allViews[index].id === 'groups-view') {
+                loadGroups();
+                loadAllCoursesForGrouping();
+                await loadDepartments();
+                populateDepartmentDropdown();
+            }
+            if (allViews[index].id === 'results-view') loadResults();
+            if (allViews[index].id === 'leaderboard-view') loadLeaderboardSettings();
+            if (allViews[index].id === 'simulator-results-view') loadSimulatorResults();
+        });
+    });
+
+    // --- AUTHENTICATION & SESSION ---
+    async function onLoginSuccess(session) {
+        try {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) throw new Error('Не удалось получить данные пользователя.');
+            const { data: adminCheck, error } = await supabaseClient.from('users').select('is_admin').eq('id', user.id).single();
+            if (error) throw error;
+            if (!adminCheck || !adminCheck.is_admin) throw new Error('У вас нет прав администратора.');
+            adminToken = session.access_token;
+            loginView.classList.add('hidden');
+            panelView.classList.remove('hidden');
+            await loadCourses();
+        } catch (error) {
+            showStatus(`Ошибка проверки прав: ${error.message}`, 'error');
+            await supabaseClient.auth.signOut();
+            loginView.classList.remove('hidden');
+            panelView.classList.add('hidden');
+        }
+    }
+
+    async function handleLogin() {
+        const email = document.getElementById('admin-email').value;
+        const password = document.getElementById('admin-password').value;
+        const loginBtn = document.getElementById('login-btn');
+        loginBtn.disabled = true; loginBtn.textContent = 'Вход...';
+        document.getElementById('login-error').classList.add('hidden');
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            await onLoginSuccess(data.session);
+        } catch (error) {
+            document.getElementById('login-error').textContent = `Ошибка входа: ${error.message}`;
+            document.getElementById('login-error').classList.remove('hidden');
+        } finally {
+            loginBtn.disabled = false; loginBtn.textContent = 'Войти';
+        }
+    }
+
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        adminToken = null;
+        loginView.classList.remove('hidden');
+        panelView.classList.add('hidden');
+    }
+
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) await onLoginSuccess(session);
+        else {
+            loginView.classList.remove('hidden');
+            panelView.classList.add('hidden');
+        }
+        document.getElementById('login-btn').addEventListener('click', handleLogin);
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+        initDragAndDrop();
+    });
+
+    // --- DYNAMIC FORM RENDERING ---
+    function renderCourseForm(course = null) {
+        const isEditing = course !== null;
+        const courseId = isEditing ? course.id : '';
+        const title = isEditing ? course.title || '' : '';
+        const description = isEditing ? course.description || '' : '';
+        const presentationUrl = isEditing ? course.presentation_url || '' : '';
+        const isVisible = isEditing ? course.is_visible : false;
+        const deadlineDays = isEditing ? course.deadline_days || '' : '';
+        const headerText = isEditing ? `Редактирование: ${title}` : 'Создать новый курс';
+
+        let content = isEditing ? course.draft_content || course.content : null;
+        // The content can be an object or a string from the DB. Let's ensure it's a string for the textarea.
+        if (typeof content === 'object' && content !== null) {
+            content = JSON.stringify(content, null, 2);
+        } else if (content === null) {
+            content = '';
+        }
+
+        let materialsHtml = 'Материалы не добавлены.';
+        if (isEditing && course.course_materials && course.course_materials.length > 0) {
+            materialsHtml = course.course_materials.map(mat =>
+                `<div style="display: flex; align-items: center; justify-content: space-between; padding: 5px; border-bottom: 1px solid #eee;">
+                <a href="${escapeHTML(mat.file_url)}" target="_blank">${escapeHTML(mat.file_name)}</a>
+                <button class="delete-material-btn" data-id="${mat.id}" style="width: auto; padding: 2px 8px; font-size: 12px; background-color: #dc3545;">Удалить</button>
+            </div>`
+            ).join('');
+        }
+
+        let techLinkHtml = '';
+
+        return `
+            <div id="course-form-container">
+                <h2>${headerText}</h2>
+                ${techLinkHtml}
+                <input type="hidden" id="course-id" value="${escapeHTML(courseId)}">
+                <input type="text" id="course-title" placeholder="Название курса" value="${escapeHTML(title)}">
+                <h3>Шаг 1А: Генерация из файла (текущий функционал)</h3>
+                <input type="file" id="file-uploader" accept=".pdf,.docx">
+                <button id="process-file-btn">Загрузить и извлечь текст</button>
+                <hr style="margin: 20px 0;">
+                <h3>ИЛИ Шаг 1Б: Генерация по ссылке на Google Slides</h3>
+                <p style="font-size: 0.9em; color: #666; margin-top: -5px;">Для корректной работы опубликуйте презентацию в интернете (Файл -> Поделиться -> Опубликовать в интернете) и вставьте ссылку сюда.</p>
+                <input type="url" id="presentation-url" placeholder="Вставьте ссылку на опубликованную Google Slides презентацию" value="${escapeHTML(presentationUrl)}">
+                <div id="presentation-preview-container" style="margin-top: 15px; min-height: 400px; border: 1px solid #e0e0e0; display: none; background-color: #f9f9f9; padding: 5px; border-radius: 8px;"></div>
+                <button id="process-presentation-btn">Создать/Обновить курс по презентации</button>
+                <hr style="margin: 20px 0;">
+                <h3>Описание (Источник для AI)</h3>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button id="text-to-speech-btn" style="flex: 1;">Озвучить описание</button>
+                </div>
+                <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
+                <textarea id="description" placeholder="Здесь появится текст...">${escapeHTML(description)}</textarea>
+                <h3>Шаг 2: Сгенерируйте контент</h3>
+                <textarea id="custom-prompt" placeholder="Оставьте пустым для стандартного промпта..."></textarea>
+                <button id="generate-btn">Сгенерировать черновик</button>
+                <h3>Шаг 3: Проверьте и отредактируйте контент</h3>
+                <div id="wysiwyg-editor"></div>
+                <textarea id="content" style="display: none;">${content}</textarea>
+                <h3>Шаг 4: Сохранение и публикация</h3>
+                <p>При нажатии на "Опубликовать", курс станет видимым для пользователей, если установлен флажок ниже.</p>
+                <label style="display: block; margin: 15px 0; background-color: #e9f7fe; padding: 10px; border-radius: 8px;">
+                    <input type="checkbox" id="course-is-visible" style="width: auto; margin-right: 10px; vertical-align: middle;" ${isVisible ? 'checked' : ''}>
+                    <b style="vertical-align: middle;">Видимость в каталоге:</b> Курс доступен для самостоятельного выбора пользователями.
+                </label>
+                <div style="margin: 15px 0;">
+                    <label for="course-deadline-days"><b>Срок выполнения в днях (для индивидуальных курсов):</b></label>
+                    <input type="number" id="course-deadline-days" placeholder="Оставьте пустым, если срока нет" value="${deadlineDays}" style="margin-top: 5px;">
+                </div>
+                <p id="autosave-status" style="font-style: italic; color: #666;"></p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="save-draft-btn" style="background-color: #00AEEF; flex: 1;">Сохранить черновик</button>
+                    <button id="publish-btn" style="background-color: #28a745; flex: 2;">ОПУБЛИКОВАТЬ</button>
+                    <button id="download-pdf-btn" style="background-color: #17a2b8; flex: 1;">Скачать PDF</button>
+                </div>
+                <button id="cancel-edit-btn" style="background-color: #6c757d; margin-top: 10px;">Отмена</button>
+                <hr>
+<h3>Сопутствующие материалы</h3>
+<div id="materials-list" style="margin-bottom: 15px;">${materialsHtml}</div>
+<div id="add-material-form" style="display: flex; gap: 10px; align-items: center;">
+    <input type="text" id="material-name" placeholder="Название файла" style="flex: 1; margin-bottom: 0;">
+    <input type="url" id="material-url" placeholder="https://example.com/file.pdf" style="flex: 2; margin-bottom: 0;">
+    <button id="add-material-btn" style="width: auto; padding: 10px 15px; margin-bottom: 0;">+</button>
+</div>
+            </div>
+        `;
+    }
+
+    function attachCourseFormListeners() {
+        document.getElementById('cancel-edit-btn').addEventListener('click', clearCourseForm);
+        document.getElementById('process-file-btn').addEventListener('click', processFileHandler);
+        document.getElementById('process-presentation-btn').addEventListener('click', processPresentationHandler);
+        document.getElementById('generate-btn').addEventListener('click', generateContentHandler);
+        document.getElementById('text-to-speech-btn').addEventListener('click', textToSpeechHandler);
+        document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
+        document.getElementById('add-material-btn').addEventListener('click', addMaterialHandler); // ИЗМЕНЕНО
+        document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
+        document.getElementById('save-draft-btn').addEventListener('click', saveDraftHandler);
+        document.getElementById('download-pdf-btn').addEventListener('click', downloadPdfHandler);
+
+        // --- Live Preview for Google Slides ---
+        const presentationUrlInput = document.getElementById('presentation-url');
+        const previewContainer = document.getElementById('presentation-preview-container');
+
+        const updatePreview = () => {
+            const url = presentationUrlInput.value;
+            if (url && url.includes('docs.google.com/presentation/d/')) {
+                const embedUrl = url.split('/pub')[0].replace('/edit', '') + '/embed?start=false&loop=false&delayms=3000';
+                previewContainer.innerHTML = `<iframe src="${embedUrl}" style="width: 100%; height: 400px; border: none;"></iframe>`;
+                previewContainer.style.display = 'block';
+            } else {
+                previewContainer.style.display = 'none';
+                previewContainer.innerHTML = '';
+            }
+        };
+
+        presentationUrlInput.addEventListener('input', updatePreview);
+        updatePreview(); // Also run on form load
+    }
+
+    // --- COURSE MANAGEMENT ---
+    function clearCourseForm() {
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        document.getElementById('course-form-wrapper').innerHTML = '';
+        currentEditingCourseId = null;
+    }
+
+    function handleAutosave() {
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        const statusEl = document.getElementById('autosave-status');
+        if (statusEl) statusEl.textContent = 'Изменения не сохранены...';
+        autosaveTimer = setTimeout(async () => {
+            const courseId = document.getElementById('course-id').value;
+            if (!courseId) return;
+
+            // Autosave only saves the content, not title/description.
+            const draftData = JSON.parse(document.getElementById('content').value || '{}');
+
+            try {
+                await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
+                if (statusEl) statusEl.textContent = `Автосохранение: ${new Date().toLocaleTimeString()}`;
+            } catch (e) {
+                if (statusEl) statusEl.textContent = 'Ошибка автосохранения черновика.';
+            }
+        }, 2500); // Increased delay to 2.5 seconds
+    }
+
+    async function saveDraftHandler() {
+        const btn = document.getElementById('save-draft-btn');
+        btn.disabled = true;
+        if (autosaveTimer) clearTimeout(autosaveTimer); // Cancel any pending autosave
+
+        const courseId = document.getElementById('course-id').value;
+        if (!courseId) {
+            showToast('Сначала создайте курс, чтобы можно было сохранить черновик.', 'error');
+            btn.disabled = false;
+            return;
+        }
+
+        updateJsonFromWysiwyg(false); // Ensure latest content is in the textarea
+        const draftData = JSON.parse(document.getElementById('content').value || '{}');
+        const statusEl = document.getElementById('autosave-status');
+
+        try {
+            if (statusEl) statusEl.textContent = 'Сохранение...';
+            await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
+            showToast('Черновик успешно сохранен!', 'success');
+            if (statusEl) statusEl.textContent = `Черновик сохранен: ${new Date().toLocaleTimeString()}`;
+        } catch (e) {
+            showToast('Ошибка при сохранении черновика.', 'error');
+            if (statusEl) statusEl.textContent = 'Ошибка сохранения черновика.';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function processFileHandler() {
+        const btn = document.getElementById('process-file-btn');
+        btn.disabled = true;
+        try {
+            const file = document.getElementById('file-uploader').files[0];
+            const title = document.getElementById('course-title').value.trim();
+            const deadlineDays = document.getElementById('course-deadline-days').value.trim();
+            if (!file || !title) {
+                showStatus('Укажите название и выберите файл.', 'error');
+                return;
+            }
+            let courseId = document.getElementById('course-id').value.trim();
+            if (!courseId) {
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title: title, deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null });
+                courseId = newCourse.id;
+                document.getElementById('course-id').value = courseId;
+                showToast(`Создан новый курс. ID: ${courseId}`, 'success');
+                currentEditingCourseId = courseId;
+            }
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                try {
+                    const base64File = reader.result.split(',')[1];
+                    const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, { course_id: courseId, file_name: sanitizeForPath(file.name), file_data: base64File });
+                    if (data.jobId) {
+                        startJobPolling(data.jobId, courseId);
+                        showToast(`Задача обработки файла запущена (ID: ${data.jobId}).`, 'info');
+                    }
+                    document.getElementById('description').value = 'Файл обрабатывается...';
+                } catch(e) { /* Handled in apiCall */ }
+            };
+        } catch(e) { /* Handled */ }
+    }
+
+    async function processPresentationHandler() {
+        const btn = document.getElementById('process-presentation-btn');
+        btn.disabled = true;
+        try {
+            const presentationUrl = document.getElementById('presentation-url').value.trim();
+            const title = document.getElementById('course-title').value.trim();
+            const deadlineDays = document.getElementById('course-deadline-days').value.trim();
+            if (!presentationUrl || !title) {
+                showToast('Укажите название курса и ссылку на презентацию.', 'error');
+                return;
+            }
+            let courseId = document.getElementById('course-id').value.trim();
+            if (!courseId) {
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title: title, deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null });
+                courseId = newCourse.id;
+                document.getElementById('course-id').value = courseId;
+                showToast(`Создан новый курс. ID: ${courseId}`, 'success');
+                currentEditingCourseId = courseId;
+            }
+
+            const data = await apiCall(ACTIONS.PROCESS_PRESENTATION, { course_id: courseId, presentation_url: presentationUrl });
+            if (data.jobId) {
+                startJobPolling(data.jobId, courseId);
+                showToast(`Задача обработки презентации запущена (ID: ${data.jobId}).`, 'info');
+            }
+            document.getElementById('description').value = 'Презентация обрабатывается... Текст появится здесь после завершения фоновой задачи.';
+
+        } catch(e) {
+            // handled in apiCall
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function generateContentHandler() {
+        const btn = document.getElementById('generate-btn');
+        btn.disabled = true;
+        try {
+            const courseId = document.getElementById('course-id').value;
+            if (!courseId) {
+                showToast('Сначала создайте курс.', 'error');
+                return;
+            }
+            document.getElementById('content').value = 'Генерация...';
+            const data = await apiCall(ACTIONS.GENERATE_CONTENT, { course_id: courseId, custom_prompt: document.getElementById('custom-prompt').value });
+            if (data.jobId) {
+                startJobPolling(data.jobId, courseId);
+                showToast(`Задача генерации контента запущена (ID: ${data.jobId}).`, 'info');
+            }
+        } catch(e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function textToSpeechHandler() {
+        const btn = document.getElementById('text-to-speech-btn');
+        btn.disabled = true;
+        try {
+            const description = document.getElementById('description').value;
+            const courseId = document.getElementById('course-id').value;
+
+            if (!description) {
+                showStatus('Нет текста для озвучивания.', 'error');
+                return;
+            };
+            if (!courseId) {
+                showStatus('Сначала необходимо сохранить курс, чтобы получить ID.', 'error');
+                return;
+            }
+
+            const audioContainer = document.getElementById('audio-player-container');
+            audioContainer.innerHTML = '';
+            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: description, course_id: courseId });
+            const audio = new Audio(data.audioUrl);
+            audio.controls = true;
+            audioContainer.appendChild(audio);
+            audioContainer.classList.remove('hidden');
+        } catch (error) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function downloadPdfHandler() {
+        const btn = document.getElementById('download-pdf-btn');
+        btn.disabled = true;
+        btn.textContent = 'Генерация...';
+
+        try {
+            const title = document.getElementById('course-title').value || 'Course';
+            const contentString = document.getElementById('content').value;
+            if (!contentString) {
+                showToast('Нет контента для генерации PDF.', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Скачать PDF';
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const editor = document.getElementById('wysiwyg-editor');
+            const elements = editor.querySelectorAll('.wysiwyg-slide, .wysiwyg-question');
+
+            let y = 0; // Current y position on the page
+
+            for (const element of elements) {
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    onclone: (doc) => {
+                        const robotoFont = doc.createElement('link');
+                        robotoFont.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap';
+                        robotoFont.rel = 'stylesheet';
+                        doc.head.appendChild(robotoFont);
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const pdfHeight = doc.internal.pageSize.getHeight();
+                const imgProps = doc.getImageProperties(imgData);
+                const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                if (y + imgHeight > pdfHeight) {
+                    doc.addPage();
+                    y = 0;
+                }
+
+                doc.addImage(imgData, 'JPEG', 0, y, pdfWidth, imgHeight);
+                y += imgHeight;
+            }
+
+            doc.save(`${title}.pdf`);
+
+        } catch (error) {
+            showToast('Не удалось сгенерировать PDF.', 'error');
+            console.error('PDF Generation Error:', error);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Скачать PDF';
+        }
+    }
+
+    async function publishCourseHandler() {
+        const btn = document.getElementById('publish-btn');
+        btn.disabled = true;
+        try {
+            const courseId = document.getElementById('course-id').value;
+            if (!courseId) {
+                showToast('Сначала необходимо создать или загрузить курс.', 'error');
+                return;
+            }
+            if (autosaveTimer) clearTimeout(autosaveTimer);
+
+            updateJsonFromWysiwyg(false);
+
+            const title = document.getElementById('course-title').value;
+            const description = document.getElementById('description').value;
+            const contentString = document.getElementById('content').value;
+            const isVisible = document.getElementById('course-is-visible').checked;
+            const deadlineDays = document.getElementById('course-deadline-days').value;
+
+            if (!title || !contentString) {
+                showToast('Название курса и контент не могут быть пустыми.', 'error');
+                return;
+            }
+
+            let content;
+            try {
+                content = JSON.parse(contentString);
+            } catch (e) {
+                showToast('Ошибка в формате JSON контента. Публикация невозможна.', 'error');
+                return;
+            }
+
+            const payload = {
+                course_id: courseId,
+                title,
+                description,
+                content,
+                is_visible: isVisible,
+                deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null
+            };
+
+            await apiCall(ACTIONS.PUBLISH_COURSE, payload);
+            showToast('Курс успешно опубликован!', 'success');
+            await loadCourses();
+            clearCourseForm();
+        } catch (e) {
+            // Errors are handled in apiCall
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+async function addMaterialHandler() {
+    const btn = document.getElementById('add-material-btn');
+    const nameInput = document.getElementById('material-name');
+    const urlInput = document.getElementById('material-url');
+
+    const fileName = nameInput.value.trim();
+    const fileUrl = urlInput.value.trim();
+
+    if (!currentEditingCourseId || !fileName || !fileUrl) {
+        showStatus('Выберите курс, введите название и URL.', 'error');
+        return;
+    }
+
+    btn.disabled = true;
+    try {
+        await apiCall(ACTIONS.ADD_COURSE_MATERIAL, {
+            course_id: currentEditingCourseId,
+            file_name: fileName,
+            file_url: fileUrl
+        });
+        showToast('Материал добавлен!', 'success');
+        nameInput.value = '';
+        urlInput.value = '';
+        loadCourseForEditing(currentEditingCourseId); // Перезагружаем курс для обновления списка
+    } catch(e) {
+        /* Handled in apiCall */
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+    async function deleteMaterialHandler(e) {
+        if (e.target.classList.contains('delete-material-btn')) {
+            const btn = e.target;
+            const materialId = btn.dataset.id;
+            // Убрали storage_path
+            if (confirm(`Удалить этот материал?`)) {
+                btn.disabled = true;
+                try {
+                    // В payload теперь только material_id
+                    await apiCall(ACTIONS.DELETE_COURSE_MATERIAL, { material_id: materialId });
+                    loadCourseForEditing(currentEditingCourseId);
+                } catch(e) {
+                    /* Handled */
+                    btn.disabled = false;
+                }
+            }
+        }
+    }
+
+    document.getElementById('show-create-form-btn').addEventListener('click', () => {
+        const wrapper = document.getElementById('course-form-wrapper');
+        wrapper.innerHTML = renderCourseForm();
+        attachCourseFormListeners();
+        renderWysiwygEditor();
+    });
+
+    document.getElementById('courses-view').addEventListener('input', e => {
+        if (e.target.id === 'course-search-input') {
+            searchQuery = e.target.value;
+            currentPage = 1;
+            displayCourses();
+        }
+    });
+
+    document.getElementById('courses-view').addEventListener('click', e => {
+        if (e.target.id === 'prev-page-btn') {
+            if (currentPage > 1) {
+                currentPage--;
+                displayCourses();
+            }
+        }
+        if (e.target.id === 'next-page-btn') {
+             const filteredCount = allCoursesData.filter(course => {
+                const title = course.title || '';
+                const groupName = course.group_name || '';
+                const searchLower = searchQuery.toLowerCase();
+                return title.toLowerCase().includes(searchLower) ||
+                       groupName.toLowerCase().includes(searchLower);
+            }).length;
+            const totalPages = Math.ceil(filteredCount / coursesPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                displayCourses();
+            }
+        }
+    });
+
+    function displayCourses() {
+        const filteredCourses = allCoursesData.filter(course => {
+            const title = course.title || '';
+            const groupName = course.group_name || '';
+            const searchLower = searchQuery.toLowerCase();
+            return title.toLowerCase().includes(searchLower) ||
+                   groupName.toLowerCase().includes(searchLower);
+        }).sort((a, b) => a.title.localeCompare(b.title));
+
+        const totalPages = Math.ceil(filteredCourses.length / coursesPerPage);
+        currentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+
+        const startIndex = (currentPage - 1) * coursesPerPage;
+        const paginatedCourses = filteredCourses.slice(startIndex, startIndex + coursesPerPage);
+
+        coursesGrid.innerHTML = ''; // Очищаем контейнер
+
+        if (paginatedCourses.length === 0) {
+            const messageP = document.createElement('p');
+            messageP.textContent = 'Курсы не найдены.';
+            messageP.style.textAlign = 'center';
+            messageP.style.gridColumn = '1 / -1';
+            coursesGrid.appendChild(messageP);
+        } else {
+            paginatedCourses.forEach(course => {
+                // Используем фабричную функцию из ui.js
+                const courseCard = createAdminCourseCard(course, loadCourseForEditing, deleteCourse);
+                coursesGrid.appendChild(courseCard);
+            });
+        }
+
+        document.getElementById('page-info').textContent = `Страница ${currentPage} из ${totalPages || 1}`;
+        document.getElementById('prev-page-btn').disabled = currentPage === 1;
+        document.getElementById('next-page-btn').disabled = currentPage >= totalPages;
+    }
+
+    async function loadCourses() {
+        coursesGrid.innerHTML = '<p style="text-align:center; grid-column: 1 / -1;">Загрузка...</p>';
+        try {
+            const courses = await apiCall(ACTIONS.GET_COURSES_ADMIN);
+            allCoursesData = courses;
+            searchQuery = ''; // Reset search on load
+            if(document.getElementById('course-search-input')) {
+                document.getElementById('course-search-input').value = ''; // Clear search box
+            }
+            currentPage = 1; // Reset to first page
+            displayCourses(); // Render with filtering and pagination
+
+            const filterCourseSelector = document.getElementById('filter-course');
+            if (filterCourseSelector) {
+                filterCourseSelector.innerHTML = '<option value="">Все курсы</option>';
+                const sortedCourses = [...courses].sort((a, b) => a.title.localeCompare(b.title));
+                sortedCourses.forEach(course => {
+                    const option = document.createElement('option');
+                    option.value = course.id;
+                    option.textContent = `${course.title}${course.group_name ? ` (${course.group_name})` : ''}`;
+                    filterCourseSelector.appendChild(option);
+                });
+            }
+        } catch (e) { /* Handled in apiCall */ }
+    }
+
+    async function loadCourseForEditing(courseId) {
+        try {
+            let course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
+            currentEditingCourseId = courseId;
+
+            // Defensively parse content if it's a stringified JSON from the DB
+            if (typeof course.content === 'string' && course.content.trim().startsWith('{')) {
+                try { course.content = JSON.parse(course.content); } catch (e) { console.warn("Could not auto-parse course.content string:", e); }
+            }
+            if (typeof course.draft_content === 'string' && course.draft_content.trim().startsWith('{')) {
+                try { course.draft_content = JSON.parse(course.draft_content); } catch (e) { console.warn("Could not auto-parse course.draft_content string:", e); }
+            }
+
+            // If a published course has content but no draft, create a draft from the published content.
+            // This prevents the editor from opening empty and accidentally wiping content.
+            if (course.status === 'published' && course.content && !course.draft_content) {
+                showToast('Создан черновик на основе опубликованной версии. Ваши изменения не затронут курс до повторной публикации.', 'info');
+                // The draft should only contain the content object itself to be consistent.
+                const draftData = course.content;
+                await apiCall(ACTIONS.SAVE_COURSE_DRAFT, { course_id: courseId, draft_data: draftData });
+                // Re-fetch the course to get the newly created draft
+                course = await apiCall(ACTIONS.GET_COURSE_DETAILS, { course_id: courseId });
+            }
+
+            const wrapper = document.getElementById('course-form-wrapper');
+            wrapper.innerHTML = renderCourseForm(course);
+            attachCourseFormListeners();
+            // Вызываем редактор WYSIWYG сразу после отрисовки формы, чтобы он корректно инициализировался с данными.
+            renderWysiwygEditor();
+            window.scrollTo(0, wrapper.offsetTop);
+        } catch (e) {
+            console.error('Failed to load course for editing:', e);
+            showToast('Произошла ошибка при загрузке курса для редактирования. См. консоль для деталей.', 'error');
+        }
+    }
+
+    async function deleteCourse(courseId, courseTitle) {
+        if (!confirm(`Удалить курс "${courseTitle}"? Это действие необратимо.`)) return;
+        try {
+            await apiCall(ACTIONS.DELETE_COURSE, { course_id: courseId });
+            showStatus('Курс удален.', 'success');
+            clearCourseForm();
+            await loadCourses();
+        } catch (e) { /* Handled */ }
+    }
+
+    // --- GROUP MANAGEMENT ---
+    function clearGroupForm() {
+        groupFormContainer.classList.add('hidden');
+        groupFormHeader.textContent = 'Создать новую группу';
+        groupNameInput.value = '';
+        newEmployeesCheckbox.checked = false;
+        document.getElementById('group-is-visible').checked = false;
+        document.getElementById('group-enforce-order').checked = false;
+        document.getElementById('group-deadline-days').value = '';
+        document.getElementById('group-recurrence').value = '';
+        groupCoursesList.innerHTML = '';
+        allCoursesList.innerHTML = '';
+        cancelGroupEditBtn.classList.add('hidden');
+        currentEditingGroupId = null;
+    }
+
+    document.getElementById('show-create-group-form-btn').addEventListener('click', () => {
+        clearGroupForm();
+        groupFormContainer.classList.remove('hidden');
+        populateAllCoursesList([]);
+        groupNameInput.focus();
+    });
+
+    cancelGroupEditBtn.addEventListener('click', clearGroupForm);
+
+    function renderGroupsTable(groups) {
+        groupsTableBody.innerHTML = ''; // Очищаем таблицу
+        if (!groups || groups.length === 0) {
+            const row = groupsTableBody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 5;
+            cell.textContent = 'Группы не созданы.';
+            cell.style.textAlign = 'center';
+            return;
+        }
+
+        groups.sort((a, b) => a.group_name.localeCompare(b.group_name)).forEach(group => {
+            // Используем фабричную функцию из ui.js
+            const row = createGroupTableRow(group, loadGroupForEditing, deleteGroup);
+            groupsTableBody.appendChild(row);
+        });
+    }
+
+    async function loadGroups() {
+        groupsTableBody.innerHTML = ''; // Очищаем
+        const loadingRow = groupsTableBody.insertRow();
+        const loadingCell = loadingRow.insertCell();
+        loadingCell.colSpan = 5;
+        loadingCell.textContent = 'Загрузка...';
+        loadingCell.style.textAlign = 'center';
+
+        try {
+            const groups = await apiCall(ACTIONS.GET_COURSE_GROUPS);
+            renderGroupsTable(groups);
+        } catch (e) {
+            console.error("Failed to load groups:", e);
+            groupsTableBody.innerHTML = '';
+            const errorRow = groupsTableBody.insertRow();
+            const errorCell = errorRow.insertCell();
+            errorCell.colSpan = 5;
+            errorCell.textContent = 'Ошибка при загрузке групп.';
+            errorCell.style.color = 'red';
+            errorCell.style.textAlign = 'center';
+        }
+    }
+
+    async function loadDepartments() {
+        try {
+            if (allDepartments.length > 0) return;
+            allDepartments = await apiCall(ACTIONS.GET_DEPARTMENTS);
+        } catch (e) { /* Handled */ }
+    }
+
+    function populateDepartmentDropdown() {
+        const select = document.getElementById('assign-department-select');
+        if (!select) return;
+        while (select.options.length > 1) select.remove(1);
+        allDepartments.forEach(dep => {
+            const option = document.createElement('option');
+            option.value = dep;
+            option.textContent = dep;
+            select.appendChild(option);
+        });
+    }
+
+    async function loadGroupForEditing(groupId) {
+        try {
+            const group = await apiCall(ACTIONS.GET_GROUP_DETAILS, { group_id: groupId });
+            clearGroupForm();
+            groupFormContainer.classList.remove('hidden');
+            groupFormHeader.textContent = `Редактирование: ${group.group_name}`;
+            cancelGroupEditBtn.classList.remove('hidden');
+            currentEditingGroupId = groupId;
+            groupNameInput.value = group.group_name;
+            newEmployeesCheckbox.checked = group.is_for_new_employees;
+            document.getElementById('group-is-visible').checked = group.is_visible;
+            document.getElementById('group-enforce-order').checked = group.enforce_order;
+            document.getElementById('group-deadline-days').value = group.deadline_days || '';
+            document.getElementById('group-recurrence').value = group.recurrence_period || '';
+            const courseIdsInGroup = group.course_group_items.map(item => item.course_id);
+            const groupCourses = allCoursesData.filter(c => courseIdsInGroup.includes(c.id));
+            const sortedGroupCourses = group.course_group_items.map(item => allCoursesData.find(c => c.id === item.course_id)).filter(Boolean);
+            populateGroupCoursesList(sortedGroupCourses);
+            populateAllCoursesList(courseIdsInGroup);
+            window.scrollTo(0, groupFormContainer.offsetTop);
+        } catch (e) { /* Handled */ }
+    }
+
+    async function deleteGroup(groupId, groupName) {
+        if (confirm(`Удалить группу "${groupName}"?`)) {
+            try {
+                await apiCall(ACTIONS.DELETE_COURSE_GROUP, { group_id: groupId });
+                showStatus('Группа удалена.', 'success');
+                clearGroupForm();
+                await loadGroups();
+            } catch (e) { /* Handled */ }
+        }
+    }
+
+    document.getElementById('save-group-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+            const groupName = groupNameInput.value.trim();
+            if (!groupName) {
+                showStatus('Название не может быть пустым.', 'error');
+                return;
+            }
+            const payload = {
+                group_name: groupName,
+                is_for_new_employees: newEmployeesCheckbox.checked,
+                is_visible: document.getElementById('group-is-visible').checked,
+                enforce_order: document.getElementById('group-enforce-order').checked,
+                deadline_days: document.getElementById('group-deadline-days').value || null,
+                recurrence_period: document.getElementById('group-recurrence').value || null
+            };
+            if (currentEditingGroupId) {
+                await apiCall(ACTIONS.UPDATE_COURSE_GROUP, { ...payload, group_id: currentEditingGroupId });
+            } else {
+                const newGroup = await apiCall(ACTIONS.CREATE_COURSE_GROUP, payload);
+                currentEditingGroupId = newGroup.id;
+            }
+            showStatus('Группа сохранена.', 'success');
+            await loadGroups();
+        } catch (e) {
+            /* Handled */
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    async function loadAllCoursesForGrouping() {
+        if (allCoursesData.length === 0) {
+             try { await apiCall(ACTIONS.GET_COURSES_ADMIN); } catch(e) { /* Handled */ }
+        }
+    }
+
+    function createCourseListItem(course) {
+        const li = document.createElement('li');
+        li.dataset.id = course.id;
+        li.textContent = course.title;
+        li.draggable = true;
+        return li;
+    }
+
+    function populateAllCoursesList(usedCourseIds) {
+        allCoursesList.innerHTML = '';
+        allCoursesData.filter(c => !usedCourseIds.includes(c.id)).forEach(course => {
+            allCoursesList.appendChild(createCourseListItem(course));
+        });
+    }
+
+    function populateGroupCoursesList(courses) {
+        groupCoursesList.innerHTML = '';
+        courses.forEach(course => {
+            groupCoursesList.appendChild(createCourseListItem(course));
+        });
+    }
+
+    function initDragAndDrop() {
+        let draggedItem = null;
+        const lists = document.querySelectorAll('.course-list');
+
+        lists.forEach(list => {
+            list.addEventListener('dragstart', e => {
+                draggedItem = e.target;
+                setTimeout(() => e.target.classList.add('dragging'), 0);
+            });
+
+            list.addEventListener('dragend', e => {
+                e.target.classList.remove('dragging');
+            });
+
+            list.addEventListener('dragover', e => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(list, e.clientY);
+                if (afterElement == null) {
+                    list.appendChild(draggedItem);
+                } else {
+                    list.insertBefore(draggedItem, afterElement);
+                }
+            });
+        });
+    }
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    document.getElementById('save-courses-in-group-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+            if (!currentEditingGroupId) {
+                showStatus('Сначала выберите группу.', 'error');
+                return;
+            }
+            const courseIds = Array.from(groupCoursesList.getElementsByTagName('li')).map(li => li.dataset.id);
+            await apiCall(ACTIONS.UPDATE_COURSES_IN_GROUP, { group_id: currentEditingGroupId, course_ids: courseIds });
+            showStatus('Состав группы сохранен.', 'success');
+        } catch (e) {
+            /* Handled */
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('assign-group-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+            const department = document.getElementById('assign-department-select').value;
+            if (!currentEditingGroupId || !department) {
+                showStatus('Выберите группу и подразделение.', 'error');
+                return;
+            }
+            await apiCall(ACTIONS.ASSIGN_GROUP_TO_DEPARTMENT, { group_id: currentEditingGroupId, department: department });
+            showStatus(`Группа назначена подразделению "${department}".`, 'success');
+            document.getElementById('assign-department-select').value = '';
+        } catch (e) {
+            /* Handled */
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // --- STUDENT MANAGEMENT (within Groups tab) ---
+    let selectedStudentEmail = null;
+    let allStudents = []; // Cache for holding all student data
+    let currentFilteredStudents = []; // Cache for the currently filtered list
+    let studentCurrentPage = 1;
+    const studentsPerPage = 50;
+
+    function renderStudents(studentsToRender) {
+        const studentsTbody = document.getElementById('students-table-body');
+        studentsTbody.innerHTML = ''; // Clear existing rows
+
+        if (studentsToRender.length === 0) {
+            const row = studentsTbody.insertRow();
+            const cell = row.insertCell(0);
+            cell.colSpan = 3;
+            cell.style.textAlign = 'center';
+            cell.textContent = 'Ученики не найдены';
+            return;
+        }
+
+        studentsToRender.forEach(student => {
+            // Используем фабричную функцию из ui.js
+            const row = createStudentTableRow(student);
+            studentsTbody.appendChild(row);
+        });
+    }
+
+    function displayStudentPage() {
+        const totalPages = Math.ceil(currentFilteredStudents.length / studentsPerPage);
+        studentCurrentPage = Math.max(1, Math.min(studentCurrentPage, totalPages || 1));
+
+        const startIndex = (studentCurrentPage - 1) * studentsPerPage;
+        const paginatedStudents = currentFilteredStudents.slice(startIndex, startIndex + studentsPerPage);
+
+        renderStudents(paginatedStudents);
+
+        document.getElementById('student-page-info').textContent = `Страница ${studentCurrentPage} из ${totalPages || 1}`;
+        document.getElementById('student-prev-page-btn').disabled = studentCurrentPage === 1;
+        document.getElementById('student-next-page-btn').disabled = studentCurrentPage >= totalPages;
+
+        const paginationControls = document.getElementById('student-pagination-controls');
+        if (totalPages > 1) {
+            paginationControls.style.display = 'flex';
+            paginationControls.classList.remove('hidden');
+        } else {
+            paginationControls.classList.add('hidden');
+        }
+    }
+
+    function handleStudentSearch() {
+        const searchQuery = document.getElementById('student-search-input').value.toLowerCase();
+        currentFilteredStudents = allStudents.filter(student => {
+            const email = student.email ? student.email.toLowerCase() : '';
+            const name = student.full_name ? student.full_name.toLowerCase() : '';
+            return email.includes(searchQuery) || name.includes(searchQuery);
+        });
+        studentCurrentPage = 1; // Reset to page 1 on new search
+        displayStudentPage();
+    }
+
+    document.getElementById('student-search-input').addEventListener('input', handleStudentSearch);
+
+    document.getElementById('student-prev-page-btn').addEventListener('click', () => {
+        if (studentCurrentPage > 1) {
+            studentCurrentPage--;
+            displayStudentPage();
+        }
+    });
+
+    document.getElementById('student-next-page-btn').addEventListener('click', () => {
+        const totalPages = Math.ceil(currentFilteredStudents.length / studentsPerPage);
+        if (studentCurrentPage < totalPages) {
+            studentCurrentPage++;
+            displayStudentPage();
+        }
+    });
+
+    document.getElementById('load-students-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+            showStatus('Загрузка списка учеников...', 'info');
+            allStudents = await apiCall(ACTIONS.GET_ALL_USERS);
+            currentFilteredStudents = allStudents; // Initially, all students are the filtered list
+
+            document.getElementById('student-search-input').value = ''; // Clear search
+            studentCurrentPage = 1; // Reset to page 1
+            displayStudentPage(); // Render the first page
+
+            document.getElementById('students-table').classList.remove('hidden');
+            document.getElementById('student-search-input').classList.remove('hidden');
+            showStatus(`Загружено ${allStudents.length} учеников.`, 'success');
+        } catch(e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('students-table-body').addEventListener('click', (e) => {
+        const row = e.target.closest('tr');
+        if (!row) return;
+
+        // Toggle selection and update UI
+        document.querySelectorAll('#students-table-body tr').forEach(r => r.style.backgroundColor = '');
+        row.style.backgroundColor = '#e9f7fe';
+
+        selectedStudentEmail = row.dataset.email;
+        const actionsPanel = document.getElementById('student-actions-panel');
+        document.getElementById('selected-student-email-span').textContent = selectedStudentEmail;
+
+        const courseList = document.getElementById('student-course-assignment-list');
+        courseList.innerHTML = '';
+        allCoursesData.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.course_id;
+            option.textContent = `${course.title} (${course.course_id})`;
+            courseList.appendChild(option);
+        });
+
+        actionsPanel.classList.remove('hidden');
+    });
+
+    document.getElementById('assign-course-to-student-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+            const courseId = document.getElementById('student-course-assignment-list').value;
+            if (!selectedStudentEmail || !courseId) {
+                showStatus('Выберите ученика и курс для назначения.', 'error');
+                return;
+            }
+            await apiCall(ACTIONS.ASSIGN_COURSE_TO_USER, { user_email: selectedStudentEmail, course_id: courseId });
+            showStatus(`Курс "${courseId}" успешно назначен ${selectedStudentEmail}.`, 'success');
+        } catch(e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+
+    // --- LEADERBOARD & OTHER ---
+    async function loadLeaderboardSettings() {
+        try {
+            const settings = await apiCall(ACTIONS.GET_LEADERBOARD_SETTINGS);
+            const metrics = settings.metrics || { courses_completed: true, time_spent: false, avg_score: false };
+            document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(c => { c.checked = metrics[c.value] || false; });
+            showStatus('Настройки загружены.', 'success');
+        } catch (e) { /* Handled in apiCall */ }
+    }
+
+    document.getElementById('save-leaderboard-settings-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        try {
+            const metrics = {};
+            document.querySelectorAll('#leaderboard-settings-form input[type="checkbox"]').forEach(c => { metrics[c.value] = c.checked; });
+            await apiCall(ACTIONS.SAVE_LEADERBOARD_SETTINGS, { metrics });
+            showStatus('Настройки успешно сохранены.', 'success');
+        } catch (e) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // --- RESULTS ---
+    async function loadResults() {
+        const btn = document.getElementById('apply-filters-btn');
+        if(btn) btn.disabled = true;
+        const tableBody = document.getElementById('results-table').getElementsByTagName('tbody')[0];
+
+        const showStatusInTable = (message, isError = false) => {
+            tableBody.innerHTML = '';
+            const row = tableBody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 5;
+            cell.textContent = message;
+            cell.style.textAlign = 'center';
+            if (isError) cell.style.color = 'red';
+        };
+
+        showStatusInTable('Загрузка отчета...');
+
+        const userEmail = document.getElementById('filter-user').value;
+        const department = document.getElementById('filter-department').value;
+        const courseId = document.getElementById('filter-course').value;
+        const payload = { user_email: userEmail, department, course_id: courseId };
+        try {
+            if (!adminToken) throw new Error('Не авторизован');
+            const response = await fetch('/api/getDetailedReport', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Ошибка при загрузке отчета.');
+            }
+            const results = await response.json();
+            tableBody.innerHTML = '';
+            if (results.length === 0) {
+                showStatusInTable('Результаты не найдены.');
+                return;
+            }
+            results.forEach(result => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = result.user_profiles?.full_name || result.user_email;
+                row.insertCell(1).textContent = result.courses.title;
+                row.insertCell(2).textContent = result.percentage;
+                const timeSpentMinutes = result.time_spent_seconds ? Math.round(result.time_spent_seconds / 60) : 0;
+                row.insertCell(3).textContent = timeSpentMinutes;
+                row.insertCell(4).textContent = result.completed_at ? new Date(result.completed_at).toLocaleString() : 'В процессе';
+            });
+        } catch (error) {
+            showStatus('Ошибка при загрузке результатов.', 'error');
+            showStatusInTable(error.message, true);
+        } finally {
+            if(btn) btn.disabled = false;
+        }
+    }
+
+    document.getElementById('apply-filters-btn').addEventListener('click', loadResults);
+
+    // --- SIMULATOR RESULTS ---
+    async function loadSimulatorResults() {
+        const btn = document.getElementById('refresh-sim-results-btn');
+        if(btn) btn.disabled = true;
+        const tableBody = document.getElementById('simulator-results-table').getElementsByTagName('tbody')[0];
+
+        const showStatusInSimTable = (message, isError = false) => {
+            tableBody.innerHTML = '';
+            const row = tableBody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 5;
+            cell.textContent = message;
+            cell.style.textAlign = 'center';
+            if (isError) cell.style.color = 'red';
+        };
+
+        showStatusInSimTable('Загрузка результатов...');
+        showStatus('Загрузка результатов тренажера...', 'info');
+
+        try {
+            const results = await apiCall(ACTIONS.GET_SIMULATION_RESULTS);
+            tableBody.innerHTML = '';
+            if (results.length === 0) {
+                showStatusInSimTable('Результаты тренажера отсутствуют.');
+                return;
+            }
+            results.forEach(res => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = new Date(res.created_at).toLocaleString();
+                row.insertCell(1).textContent = res.full_name || res.user_email;
+                const scenarioCell = row.insertCell(2);
+                scenarioCell.textContent = res.scenario ? (res.scenario.substring(0, 100) + '...') : 'N/A';
+                scenarioCell.title = res.scenario;
+                row.insertCell(3).textContent = res.persona;
+                const scoreCell = row.insertCell(4);
+                scoreCell.style.textAlign = 'center';
+                scoreCell.style.fontWeight = 'bold';
+                scoreCell.textContent = res.evaluation?.average_score ? res.evaluation.average_score.toFixed(1) : 'N/A';
+            });
+            showStatus('Результаты тренажера загружены.', 'success');
+        } catch (e) {
+            showStatusInSimTable(e.message, true);
+        } finally {
+            if(btn) btn.disabled = false;
+        }
+    }
+
+    document.getElementById('refresh-sim-results-btn').addEventListener('click', loadSimulatorResults);
+
+
+    document.getElementById('export-csv-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        const userEmail = document.getElementById('filter-user').value;
+        const department = document.getElementById('filter-department').value;
+        const courseId = document.getElementById('filter-course').value;
+        const payload = { format: 'csv', user_email: userEmail, department, course_id: courseId };
+        showStatus('Выгрузка отчета...', 'info');
+        try {
+            // This endpoint requires auth, but for a simple GET request for file download,
+            // we can construct the URL and trigger a download without a complex fetch.
+            // However, to pass the auth header, we must use fetch.
+            const response = await fetch('/api/getDetailedReport', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'Не удалось получить данные.');
+            const csvData = await response.text();
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `report-${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            showStatus('Отчет успешно выгружен.', 'success');
+        } catch (error) {
+            showStatus(`Ошибка при выгрузке: ${error.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>

@@ -4,20 +4,10 @@ const userAuthMiddleware = require('../middleware/userAuth'); // We will create 
 const { handleAdminAction } = require('../controllers/adminController');
 const { getDetailedReport } = require('../controllers/reportController');
 const userController = require('../controllers/userController');
-const adminApiV2 = require('../controllers/adminApiV2Controller');
 
 const apiRouter = express.Router();
 
-// --- Admin Routes (V2 - RESTful) ---
-apiRouter.get('/users', adminAuthMiddleware, adminApiV2.getUsers);
-apiRouter.delete('/users/:userId', adminAuthMiddleware, adminApiV2.deleteUser);
-apiRouter.get('/courses', adminAuthMiddleware, adminApiV2.getCourses);
-apiRouter.post('/courses', adminAuthMiddleware, adminApiV2.createCourse);
-apiRouter.delete('/courses/:courseId', adminAuthMiddleware, adminApiV2.deleteCourse);
-apiRouter.get('/jobs', adminAuthMiddleware, adminApiV2.getJobs);
-
-
-// --- Legacy Admin Routes ---
+// --- Admin Routes ---
 // This single endpoint handles all admin actions, protected by the admin middleware.
 apiRouter.post('/admin', adminAuthMiddleware, handleAdminAction);
 // The detailed report also requires admin privileges.

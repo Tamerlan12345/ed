@@ -9,14 +9,9 @@
 CREATE TABLE public.users (
     id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name text NULL,
-    department text NULL
-    -- The 'is_admin' column is deprecated and has been removed from the base schema.
-    -- Admin access is now managed via JWT claims by setting 'user_metadata.role' to 'admin'.
+    department text NULL,
+    is_admin boolean DEFAULT false NOT NULL -- DEPRECATED: Will be removed in favor of JWT claims
 );
-
--- MIGRATION STEP: Remove the deprecated is_admin column from existing tables.
--- IMPORTANT: Before running this, ensure all admins have been migrated to use JWT claims.
-ALTER TABLE public.users DROP COLUMN IF EXISTS is_admin;
 
 CREATE TABLE public.courses (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -123,10 +118,6 @@ CREATE TABLE public.course_generations (
 );
 CREATE INDEX idx_course_generations_access_key ON public.course_generations(access_key);
 COMMENT ON TABLE public.course_generations IS 'Stores a record of each course content generation event, providing a unique key for technical access.';
-
--- Report and query optimization indexes
-CREATE INDEX IF NOT EXISTS idx_user_progress_course_id ON public.user_progress(course_id);
-CREATE INDEX IF NOT EXISTS idx_users_department ON public.users(department);
 
 
 -- ===========
