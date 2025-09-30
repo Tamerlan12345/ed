@@ -1,4 +1,5 @@
 import os
+import re
 from flask import Flask, request, jsonify
 from gtts import gTTS
 
@@ -22,8 +23,14 @@ def generate_audio():
         if not text_to_speak or not course_id:
             return jsonify({'error': 'Отсутствуют обязательные поля: text и course_id'}), 400
 
+        # Sanitize course_id to prevent Path Traversal
+        course_id_str = str(data.get('course_id'))
+        safe_course_id = re.sub(r'[^a-zA-Z0-9_-]', '', course_id_str)
+        if not safe_course_id:
+            return jsonify({'error': 'Invalid course_id format'}), 400
+
         # Создаем директорию для курса, если она не существует
-        course_audio_dir = os.path.join(AUDIO_BASE_DIR, str(course_id))
+        course_audio_dir = os.path.join(AUDIO_BASE_DIR, safe_course_id)
         os.makedirs(course_audio_dir, exist_ok=True)
 
         # Путь для сохранения файла
@@ -35,7 +42,7 @@ def generate_audio():
 
         # Формирование публичного URL
         # Node.js сервер будет раздавать статику из корня проекта
-        public_url = f'/audio_summaries/{course_id}/summary.mp3'
+        public_url = f'/audio_summaries/{safe_course_id}/summary.mp3'
 
         return jsonify({'url': public_url})
 
