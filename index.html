@@ -303,15 +303,26 @@
         .toast-info { background-color: #00AEEF; }
     </style>
     <style id="jules-layout-fixes">
-        .courses-column h3 {
+        .main-menu-columns {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        .courses-column > h3 {
             color: var(--primary-color);
             border-bottom: 2px solid var(--border-color);
             padding-bottom: 10px;
+            margin-bottom: 15px;
         }
-        .individual-courses-column .course-group-container {
-            background: transparent;
-            box-shadow: none;
-            padding: 0;
+        .individual-courses-column {
+             background-color: var(--surface-color);
+             border-radius: 12px;
+             padding: 20px;
+             box-shadow: var(--shadow);
+        }
+        .individual-courses-column > h3 {
+            margin-top: 0;
         }
     </style>
     <style id="jules-layout-fixes-2">
@@ -890,8 +901,10 @@
             return;
         }
         mainMenu.innerHTML = `
-            <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
-            <div class="courses-column individual-courses-column" style="margin-top: 20px;"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
+            <div class="main-menu-columns">
+                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
+                <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
+            </div>
         `;
         const groupedContainer = document.getElementById('grouped-courses-container');
         const individualContainer = document.getElementById('individual-courses-container');
@@ -1021,8 +1034,10 @@
             }
 
             mainMenu.innerHTML = `
-                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
-                <div class="courses-column individual-courses-column" style="margin-top: 20px;"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
+                <div class="main-menu-columns">
+                    <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
+                    <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
+                </div>
             `;
 
             const groupedContainer = document.getElementById('grouped-courses-container-catalog');
