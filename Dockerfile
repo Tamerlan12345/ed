@@ -25,6 +25,9 @@ ENV NODE_ENV=production
 # Copy package files from the builder stage
 COPY --from=builder /usr/src/app/package*.json ./
 
+# Install Redis server and update packages
+RUN apt-get update && apt-get install -y redis-server
+
 # Install ONLY production dependencies using npm ci for a clean, fast, and reliable install.
 # The --omit=dev flag is the modern equivalent of --only=production
 RUN npm ci --omit=dev
