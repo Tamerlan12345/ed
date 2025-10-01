@@ -25,9 +25,6 @@ ENV NODE_ENV=production
 # Copy package files from the builder stage
 COPY --from=builder /usr/src/app/package*.json ./
 
-# Install Redis server and update packages
-RUN apt-get update && apt-get install -y redis-server
-
 # Install ONLY production dependencies using npm ci for a clean, fast, and reliable install.
 # The --omit=dev flag is the modern equivalent of --only=production
 RUN npm ci --omit=dev
@@ -36,14 +33,8 @@ RUN npm ci --omit=dev
 # This is done after npm ci to leverage Docker layer caching.
 COPY --from=builder /usr/src/app .
 
-# Copy the start script
-COPY start.sh .
-
-# Ensure the start script is executable
-RUN chmod +x ./start.sh
-
 # Expose the port the app runs on
 EXPOSE 3002
 
-# The command to run the application using the start script
-CMD [ "./start.sh" ]
+# The command to run the application
+CMD [ "npm", "start" ]

@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { createSupabaseAdminClient } = require('../lib/supabaseClient');
-const { backgroundJobsQueue } = require('../lib/queue');
+const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
 const { ACTIONS } = require('../../shared/constants');
 
 // --- Service URLs ---
@@ -131,12 +131,11 @@ const adminActionHandlers = {
         await supabaseAdmin.from('courses').delete().eq('id', course_id);
         return { message: `Course ${course_id} deleted.` };
     },
-    [ACTIONS.UPLOAD_AND_PROCESS]: async ({ payload, res }) => {
+    [ACTIONS.UPLOAD_AND_PROCESS]: async ({ payload, token, res }) => {
         const jobId = crypto.randomUUID();
-        const jobType = 'file_upload';
         const supabaseAdmin = createSupabaseAdminClient();
-        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: jobType, status: 'queued', payload });
-        await backgroundJobsQueue.add(jobType, payload, { jobId });
+        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'file_upload', status: 'pending', payload });
+        handleUploadAndProcess(jobId, payload, token).catch(console.error);
         res.status(202).json({ jobId });
         return null;
     },
@@ -145,33 +144,44 @@ const adminActionHandlers = {
         if (!course_id || !presentation_url) {
             throw { status: 400, message: 'course_id and presentation_url are required.' };
         }
+
         const supabaseAdmin = createSupabaseAdminClient();
-        // The URL saving can be done synchronously before queueing
-        await supabaseAdmin.from('courses').update({ presentation_url }).eq('id', course_id);
 
+        // First, save the URL to the course table
+        const { error: updateError } = await supabaseAdmin
+            .from('courses')
+            .update({ presentation_url })
+            .eq('id', course_id);
+
+        if (updateError) {
+            throw { status: 500, message: `Failed to save presentation URL: ${updateError.message}` };
+        }
+
+        // Then, start the background job
         const jobId = crypto.randomUUID();
-        const jobType = 'presentation_processing';
-        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: jobType, status: 'queued', payload });
-        await backgroundJobsQueue.add(jobType, payload, { jobId });
-
+        await supabaseAdmin.from('background_jobs').insert({
+            id: jobId,
+            job_type: 'presentation_processing',
+            status: 'pending',
+            payload
+        });
+        handlePresentationProcessing(jobId, payload).catch(console.error);
         res.status(202).json({ jobId });
         return null; // Important: prevent double response
     },
-    [ACTIONS.GENERATE_CONTENT]: async ({ payload, res }) => {
+    [ACTIONS.GENERATE_CONTENT]: async ({ payload, token, res }) => {
         const jobId = crypto.randomUUID();
-        const jobType = payload.generation_mode === 'questions_only' ? 'content_generation_questions_only' : 'content_generation';
         const supabaseAdmin = createSupabaseAdminClient();
-        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: jobType, status: 'queued', payload });
-        await backgroundJobsQueue.add(jobType, payload, { jobId });
+        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'content_generation', status: 'pending', payload });
+        handleGenerateContent(jobId, payload, token).catch(console.error);
         res.status(202).json({ jobId });
         return null;
     },
-    [ACTIONS.GENERATE_SUMMARY]: async ({ payload, res }) => {
+    [ACTIONS.GENERATE_SUMMARY]: async ({ payload, token, res }) => {
         const jobId = crypto.randomUUID();
-        const jobType = 'summary_generation';
         const supabaseAdmin = createSupabaseAdminClient();
-        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: jobType, status: 'queued', payload });
-        await backgroundJobsQueue.add(jobType, payload, { jobId });
+        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'summary_generation', status: 'pending', payload });
+        handleGenerateSummary(jobId, payload, token).catch(console.error);
         res.status(202).json({ jobId });
         return null;
     },
