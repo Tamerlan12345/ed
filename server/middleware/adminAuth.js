@@ -15,8 +15,8 @@ const adminAuthMiddleware = async (req, res, next) => {
         return res.status(401).json({ error: 'Unauthorized: Invalid token.' });
     }
 
-    // 2. Check for admin privileges using modern JWT claims.
-    const isClaimsAdmin = req.user.user_metadata?.role === 'admin';
+    // 2. Check for admin privileges using modern JWT claims first.
+    const isClaimsAdmin = user.role === 'service_role' || user.user_metadata?.role === 'admin';
 
     if (isClaimsAdmin) {
         req.user = user;
@@ -24,7 +24,35 @@ const adminAuthMiddleware = async (req, res, next) => {
         return next();
     }
 
-    // 3. If the JWT check fails, deny access.
+    // 3. Fallback for older accounts: Check the deprecated 'is_admin' column.
+    // We use the admin client here to bypass RLS and read the users table.
+    console.log(`User ${user.id} is not a claims admin. Checking is_admin column as a fallback.`);
+    try {
+        const supabaseAdmin = createSupabaseAdminClient();
+        const { data: legacyAdminCheck, error: dbError } = await supabaseAdmin
+            .from('users')
+            .select('is_admin')
+            .eq('id', user.id)
+            .single();
+
+        if (dbError) {
+            // This could happen if the user record doesn't exist in public.users yet.
+            console.error('Error checking legacy admin flag:', dbError);
+            return res.status(500).json({ error: 'Failed to verify admin privileges due to a database error.' });
+        }
+
+        if (legacyAdminCheck && legacyAdminCheck.is_admin) {
+            console.log(`Granting admin access to ${user.id} based on legacy is_admin flag.`);
+            req.user = user;
+            req.token = token;
+            return next();
+        }
+    } catch (e) {
+        console.error('Unhandled exception during legacy admin check:', e);
+        return res.status(500).json({ error: 'An unexpected error occurred while verifying admin privileges.' });
+    }
+
+    // 4. If neither check passes, deny access.
     return res.status(403).json({ error: 'Forbidden: User does not have admin privileges.' });
 };
 
