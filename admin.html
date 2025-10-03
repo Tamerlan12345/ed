@@ -774,7 +774,24 @@
         const intervalId = setInterval(async () => {
             try {
                 if (!adminToken) return clearInterval(intervalId);
-                const job = await apiCall(ACTIONS.GET_JOB_STATUS, { jobId });
+
+                // ПРАВИЛЬНЫЙ ВЫЗОВ
+                const response = await fetch('/api/get-job-status', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ jobId })
+                });
+
+                if (!response.ok) {
+                    // Если сервер вернул ошибку (например, 404), создаем ошибку вручную
+                    const errorData = await response.json().catch(() => ({ error: `Ошибка ${response.status}` }));
+                    throw new Error(errorData.error || `Статус ответа: ${response.status}`);
+                }
+
+                const job = await response.json();
                 apiState.jobs[jobId].status = job.status;
 
                 if (statusIndicator) {
