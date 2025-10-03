@@ -436,9 +436,46 @@ const dialogueSimulator = async (req, res) => {
 
         } else if (action === 'evaluate') {
             if (!scenario) return res.status(400).json({ error: 'Scenario is required for evaluation.' });
-            const evaluationPrompt = `Оцени диалог по 10-бальной шкале по критериям: установление контакта, выявление потребностей, презентация решения, работа с возражениями, завершение сделки. Предоставь JSON с полями "evaluation_criteria" (массив объектов с "criterion", "score", "comment"), "average_score", "general_comment". Диалог: ${JSON.stringify(history)}`;
+            const evaluationPrompt = `
+You are a dialogue evaluation expert. Your task is to analyze the following conversation between a Manager and a Client and provide a structured evaluation in JSON format.
+
+**Instructions:**
+1.  **Analyze the Dialogue:** Carefully read the dialogue provided below.
+2.  **Evaluate Based on Criteria:** Rate the Manager's performance on a scale of 1 to 10 for each of the following criteria:
+    *   Установление контакта (Building Rapport)
+    *   Выявление потребностей (Identifying Needs)
+    *   Презентация решения (Presenting the Solution)
+    *   Работа с возражениями (Handling Objections)
+    *   Завершение сделки (Closing the Deal)
+3.  **Provide Comments:** For each criterion, provide a brief, constructive comment in Russian explaining the score.
+4.  **Calculate Average Score:** Calculate the average of the five scores.
+5.  **Write a General Comment:** Provide an overall summary and feedback in Russian.
+6.  **Format as JSON:** Your final output MUST be a single, valid JSON object. Do not include any text or explanations before or after the JSON object. The JSON object must have the following structure:
+{
+    "evaluation_criteria": [
+        { "criterion": "...", "score": 1-10, "comment": "..." }
+    ],
+    "average_score": <number>,
+    "general_comment": "..."
+}
+
+**Dialogue to Evaluate:**
+${JSON.stringify(history)}
+
+**JSON Output:**
+`;
             const result = await model.generateContent(evaluationPrompt);
-            const jsonString = result.response.text().replace(/(\`\`\`json\n|\`\`\`)/g, '').trim();
+            const rawResponse = result.response.text();
+
+            // Find the start and end of the JSON object
+            const jsonStart = rawResponse.indexOf('{');
+            const jsonEnd = rawResponse.lastIndexOf('}');
+
+            if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+                throw new Error('Could not find a valid JSON object in the AI response.');
+            }
+
+            const jsonString = rawResponse.substring(jsonStart, jsonEnd + 1);
             const evaluation = JSON.parse(jsonString);
             await supabaseAdmin.from('simulation_results').insert({ user_id: user.id, scenario, persona, evaluation });
             res.status(200).json({ answer: evaluation });
