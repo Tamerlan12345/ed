@@ -232,7 +232,7 @@ const assignCourse = async (req, res) => {
 const saveTestResult = async (req, res) => {
     try {
         const user = req.user;
-        const { course_id, score, percentage } = req.body;
+        const { course_id, score, percentage, answers } = req.body; // answers is the new array
         if (course_id === undefined || score === undefined || percentage === undefined) {
             return res.status(400).json({ error: 'Missing required fields: course_id, score, percentage.' });
         }
@@ -242,19 +242,40 @@ const saveTestResult = async (req, res) => {
             .from('user_progress').select('attempts').eq('user_id', user.id).eq('course_id', course_id).maybeSingle();
         if (selectError) throw selectError;
 
+        const currentAttempt = (existingRecord?.attempts || 0) + 1;
+
         const dataToUpsert = {
             user_id: user.id,
             course_id: course_id,
             score: score,
             percentage: percentage,
             completed_at: new Date().toISOString(),
-            attempts: (existingRecord?.attempts || 0) + 1
+            attempts: currentAttempt
         };
 
-        const { error: upsertError } = await supabaseAdmin.from('user_progress').upsert(dataToUpsert);
+        const { data: updatedProgress, error: upsertError } = await supabaseAdmin.from('user_progress').upsert(dataToUpsert).select().single();
         if (upsertError) throw upsertError;
 
-        res.status(200).json({ message: 'Результат успешно сохранен' });
+        // Now, save the detailed answers if they were provided
+        if (answers && Array.isArray(answers) && answers.length > 0) {
+            const answersToInsert = answers.map(a => ({
+                user_id: user.id,
+                course_id: course_id,
+                attempt_number: currentAttempt,
+                question_text: a.question,
+                options: a.options,
+                user_answer: a.userAnswer,
+                is_correct: a.isCorrect
+            }));
+
+            const { error: answersError } = await supabaseAdmin.from('user_test_answers').insert(answersToInsert);
+            if (answersError) {
+                // Log the error but don't fail the whole request, as the main result was saved.
+                console.error('Could not save detailed answers:', answersError);
+            }
+        }
+
+        res.status(200).json({ message: 'Результат успешно сохранен', updated_progress: updatedProgress });
     } catch (error) {
         console.error('Error saving test result:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -437,26 +458,31 @@ const dialogueSimulator = async (req, res) => {
         } else if (action === 'evaluate') {
             if (!scenario) return res.status(400).json({ error: 'Scenario is required for evaluation.' });
             const evaluationPrompt = `
-You are a dialogue evaluation expert. Your task is to analyze the following conversation between a Manager and a Client and provide a structured evaluation in JSON format.
+You are a strict and demanding dialogue evaluation expert for an insurance company. Your task is to analyze the following conversation between a Manager and a Client and provide a structured, critical evaluation in JSON format. Be tough but fair.
 
 **Instructions:**
-1.  **Analyze the Dialogue:** Carefully read the dialogue provided below.
-2.  **Evaluate Based on Criteria:** Rate the Manager's performance on a scale of 1 to 10 for each of the following criteria:
+1.  **Analyze the Dialogue:** Carefully read the dialogue provided.
+2.  **Evaluate Based on Criteria:** Rate the Manager's performance on a scale of 1 to 10 for each criterion.
     *   Установление контакта (Building Rapport)
     *   Выявление потребностей (Identifying Needs)
     *   Презентация решения (Presenting the Solution)
     *   Работа с возражениями (Handling Objections)
     *   Завершение сделки (Closing the Deal)
-3.  **Provide Comments:** For each criterion, provide a brief, constructive comment in Russian explaining the score.
+3.  **Provide Detailed Feedback:** For EACH criterion, you must provide:
+    *   \`comment\`: A concise, critical comment in Russian on the Manager's performance, highlighting specific mistakes.
+    *   \`recommendation\`: A concrete, actionable recommendation in Russian for improvement.
 4.  **Calculate Average Score:** Calculate the average of the five scores.
-5.  **Write a General Comment:** Provide an overall summary and feedback in Russian.
+5.  **Write General Feedback:** Provide:
+    *   \`general_comment\`: An overall summary of the performance in Russian.
+    *   \`improvement_suggestions\`: A bullet-point list (as a single string) of the most critical areas for the manager to focus on for improvement.
 6.  **Format as JSON:** Your final output MUST be a single, valid JSON object. Do not include any text or explanations before or after the JSON object. The JSON object must have the following structure:
 {
     "evaluation_criteria": [
-        { "criterion": "...", "score": 1-10, "comment": "..." }
+        { "criterion": "...", "score": 1-10, "comment": "...", "recommendation": "..." }
     ],
     "average_score": <number>,
-    "general_comment": "..."
+    "general_comment": "...",
+    "improvement_suggestions": "..."
 }
 
 **Dialogue to Evaluate:**
@@ -477,6 +503,10 @@ ${JSON.stringify(history)}
 
             const jsonString = rawResponse.substring(jsonStart, jsonEnd + 1);
             const evaluation = JSON.parse(jsonString);
+
+            // Add the dialogue history to the evaluation object before saving
+            evaluation.history = history;
+
             await supabaseAdmin.from('simulation_results').insert({ user_id: user.id, scenario, persona, evaluation });
             res.status(200).json({ answer: evaluation });
         } else {

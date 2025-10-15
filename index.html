@@ -1399,7 +1399,7 @@
         if (currentCourse && !isThinking) sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxEl.innerHTML);
         return messageDiv;
     }
-    let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0;
+    let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0, currentTestAnswers = [];
     const MAX_ATTEMPTS = 3;
     const MAX_TAB_SWITCHES = 2;
     const handleVisibilityChange = () => {
@@ -1473,7 +1473,24 @@
             el.removeEventListener('click', selectAnswer);
             el.style.cursor = 'default';
         });
-        if (selectedIndex === correctIndex) {
+        const questionData = currentQuestions[currentQuestionIndex];
+        const correctIndex = questionData.correct_option_index;
+        const isCorrect = selectedIndex === correctIndex;
+
+        // Store the detailed answer
+        currentTestAnswers.push({
+            question: questionData.question,
+            options: questionData.options,
+            userAnswer: questionData.options[selectedIndex],
+            isCorrect: isCorrect
+        });
+
+        document.querySelectorAll('.answer').forEach(el => {
+            el.removeEventListener('click', selectAnswer);
+            el.style.cursor = 'default';
+        });
+
+        if (isCorrect) {
             score++;
             e.target.style.borderColor = 'var(--success-color)';
             e.target.style.backgroundColor = '#eaf7ec';
@@ -1515,9 +1532,9 @@
                 body: JSON.stringify({
                     course_id: currentCourse.id,
                     score: score,
-                    total_questions: currentQuestions.length,
                     percentage: percentage,
-                    time_spent_seconds: secondsSinceLastUpdate // Send the tracked time
+                    answers: currentTestAnswers, // Send the detailed answers
+                    time_spent_seconds: secondsSinceLastUpdate
                 })
             });
 
@@ -1727,31 +1744,48 @@
             const resultsTable = document.createElement('table');
             resultsTable.style.width = '100%';
             resultsTable.style.borderCollapse = 'collapse';
-            resultsTable.innerHTML = `
+            const tableHead = document.createElement('thead');
+            tableHead.innerHTML = `
                 <tr style="background-color: var(--bg-color);">
                     <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Критерий</th>
                     <th style="border: 1px solid var(--border-color); padding: 8px; text-align: center;">Оценка</th>
                     <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Комментарий</th>
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Рекомендация</th>
                 </tr>
             `;
+            resultsTable.appendChild(tableHead);
+            const tableBody = document.createElement('tbody');
             if(evaluationData.evaluation_criteria) {
                 evaluationData.evaluation_criteria.forEach(item => {
-                    resultsTable.innerHTML += `
-                        <tr>
-                            <td style="border: 1px solid var(--border-color); padding: 8px;">${item.criterion}</td>
-                            <td style="border: 1px solid var(--border-color); padding: 8px; text-align: center; font-weight: bold;">${item.score}/10</td>
-                            <td style="border: 1px solid var(--border-color); padding: 8px;">${item.comment}</td>
-                        </tr>
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="border: 1px solid var(--border-color); padding: 8px;">${item.criterion}</td>
+                        <td style="border: 1px solid var(--border-color); padding: 8px; text-align: center; font-weight: bold;">${item.score}/10</td>
+                        <td style="border: 1px solid var(--border-color); padding: 8px;">${item.comment}</td>
+                        <td style="border: 1px solid var(--border-color); padding: 8px;">${item.recommendation || ''}</td>
                     `;
+                    tableBody.appendChild(row);
                 });
             }
+            resultsTable.appendChild(tableBody);
             evaluationResults.appendChild(resultsTable);
+
             const summary = document.createElement('div');
-            summary.style.marginTop = '15px';
+            summary.style.marginTop = '20px';
+            summary.style.padding = '15px';
+            summary.style.backgroundColor = 'var(--bg-color)';
+            summary.style.borderRadius = '8px';
+
             if(evaluationData.average_score && evaluationData.general_comment) {
                 summary.innerHTML = `
-                    <h4 style="margin-bottom: 5px;">Общая оценка: <span style="color: var(--primary-color);">${evaluationData.average_score.toFixed(1)}</span></h4>
-                    <p><strong>Общий комментарий:</strong> ${evaluationData.general_comment}</p>
+                    <h4 style="margin-bottom: 10px; margin-top: 0;">Общая оценка: <span style="color: var(--primary-color);">${evaluationData.average_score.toFixed(1)}</span></h4>
+                    <p style="margin: 0 0 10px 0;"><strong>Общий комментарий:</strong> ${evaluationData.general_comment}</p>
+                `;
+            }
+             if(evaluationData.improvement_suggestions) {
+                summary.innerHTML += `
+                    <p style="margin: 0;"><strong>Общие рекомендации по улучшению:</strong></p>
+                    <div style="padding-left: 20px;">${evaluationData.improvement_suggestions.replace(/\*/g, '<br>• ')}</div>
                 `;
             }
             evaluationResults.appendChild(summary);
