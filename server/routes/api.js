@@ -2,7 +2,7 @@ const express = require('express');
 const adminAuthMiddleware = require('../middleware/adminAuth');
 const userAuthMiddleware = require('../middleware/userAuth'); // We will create this
 const { handleAdminAction } = require('../controllers/adminController');
-const { getTestHistory, getDetailedReport } = require('../controllers/reportController');
+const { getTestHistory } = require('../controllers/reportController');
 const userController = require('../controllers/userController');
 
 const apiRouter = express.Router();
@@ -12,7 +12,6 @@ const apiRouter = express.Router();
 apiRouter.post('/admin', adminAuthMiddleware, handleAdminAction);
 // The detailed report also requires admin privileges.
 apiRouter.post('/getTestHistory', adminAuthMiddleware, getTestHistory);
-apiRouter.post('/getDetailedReport', adminAuthMiddleware, getDetailedReport);
 
 // --- Public Routes (No Auth Required) ---
 
