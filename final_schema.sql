@@ -294,7 +294,7 @@ CREATE POLICY "Authenticated users can read course group items" ON public.course
 CREATE POLICY "Authenticated users can read group assignments" ON public.group_assignments FOR SELECT USING (auth.role() = 'authenticated');
 
 -- Table for storing detailed user answers for each test attempt
-CREATE TABLE public.user_test_answers (
+CREATE TABLE IF NOT EXISTS public.user_test_answers (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
