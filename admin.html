@@ -1949,7 +1949,7 @@ async function addMaterialHandler() {
         const userEmail = document.getElementById('filter-user').value;
         const department = document.getElementById('filter-department').value;
         const courseId = document.getElementById('filter-course').value;
-        const payload = { user_email: userEmail, department, courseId: courseId };
+        const payload = { user_email: userEmail, department, course_id: courseId };
         try {
             if (!adminToken) throw new Error('Не авторизован');
             const response = await fetch('/api/getDetailedReport', {
