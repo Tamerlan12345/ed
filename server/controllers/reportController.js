@@ -25,33 +25,6 @@ const getTestHistory = async (req, res) => {
     }
 };
 
-const getDetailedReport = async (req, res) => {
-    // 1. Извлекаем параметры из тела POST-запроса
-    const { courseId, userId } = req.body;
-
-    if (!courseId) {
-        return res.status(400).json({ message: 'courseId is required' });
-    }
-
-    try {
-        // 2. Здесь будет ваша логика запросов к БД для сбора данных
-        //    Например, получить все ответы конкретного пользователя по курсу.
-        const reportData = {
-            message: "Report data for course " + courseId,
-            user: userId || "all users",
-            // ...реальные данные отчета
-        };
-
-        // 3. Отправляем успешный ответ
-        res.status(200).json(reportData);
-
-    } catch (error) {
-        console.error('Error generating detailed report:', error);
-        res.status(500).json({ message: 'Failed to generate report' });
-    }
-};
-
 module.exports = {
     getTestHistory,
-    getDetailedReport,
 };
