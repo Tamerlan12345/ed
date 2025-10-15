@@ -292,21 +292,3 @@ CREATE POLICY "Enable public read access for course generations" ON public.cours
 CREATE POLICY "Authenticated users can read visible course groups" ON public.course_groups FOR SELECT USING (auth.role() = 'authenticated' AND is_visible = true);
 CREATE POLICY "Authenticated users can read course group items" ON public.course_group_items FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Authenticated users can read group assignments" ON public.group_assignments FOR SELECT USING (auth.role() = 'authenticated');
-
--- Table for storing detailed user answers for each test attempt
-CREATE TABLE public.user_test_answers (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-    attempt_number integer NOT NULL,
-    question_text text NOT NULL,
-    options jsonb NULL, -- For multiple-choice questions, storing the options shown
-    user_answer text NOT NULL, -- Could be the index for choice or text for open question
-    is_correct boolean NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-ALTER TABLE public.user_test_answers ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Enable access for users on their own answers" ON public.user_test_answers FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Admins have full access to user answers" ON public.user_test_answers FOR ALL USING (public.is_claims_admin());
