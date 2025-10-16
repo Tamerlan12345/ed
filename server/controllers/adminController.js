@@ -4,9 +4,6 @@ const { createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
 const { ACTIONS } = require('../../shared/constants');
 
-// --- Service URLs ---
-const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
-
 // --- Admin Action Handlers ---
 // Using computed property names to reference constants from shared/constants.js
 const adminActionHandlers = {
@@ -322,14 +319,46 @@ const adminActionHandlers = {
         return { message: `Course assigned to ${user_email}.` };
     },
     [ACTIONS.TEXT_TO_SPEECH]: async ({ payload }) => {
-        const { text, course_id } = payload;
-        if (!text || !course_id) throw { status: 400, message: 'Text and course_id are required for TTS.' };
+        const { text } = payload;
+        if (!text || text.trim() === '') {
+            throw { status: 400, message: 'Text for speech synthesis is required.' };
+        }
+
         try {
-            const ttsResponse = await axios.post(TTS_SERVICE_URL, { text, course_id });
-            return { audioUrl: ttsResponse.data.url };
-        } catch (ttsError) {
-            console.error('Error calling Python TTS service:', ttsError);
-            throw new Error('Failed to generate audio summary.');
+            const bytezResponse = await axios.post(
+                process.env.BYTEZ_API_URL,
+                { model: "suno/bark", input: text },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.BYTEZ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
+                }
+            );
+
+            console.log('Bytez API call successful for admin TTS.');
+            const { output, error: bytezError } = bytezResponse.data;
+
+            if (bytezError) {
+                console.error('Bytez API returned an error:', bytezError);
+                throw { status: 502, message: 'Failed to generate audio due to an external service error.' };
+            }
+            if (!output) {
+                console.error('Bytez API response missing output field:', bytezResponse.data);
+                throw { status: 502, message: 'Received an invalid response from the audio generation service.' };
+            }
+
+            return { url: output };
+
+        } catch (error) {
+            if (error.code === 'ECONNABORTED' || error.response?.status === 503) {
+                console.error('Bytez API is unavailable or timed out:', error.message);
+                throw { status: 503, message: 'The audio generation service is currently unavailable.' };
+            }
+            // Re-throw other errors to be caught by the generic handler
+            console.error('Error calling Bytez TTS service for admin:', error.message);
+            throw { status: error.status || 500, message: error.message || 'An internal error occurred while generating audio.' };
         }
     },
     [ACTIONS.GET_SIMULATION_RESULTS]: async ({ supabaseAdmin }) => {

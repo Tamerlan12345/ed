@@ -63,6 +63,3 @@ config.env
 .netlify/state.json
 state.json
 
-# Python virtual environment
-venv_audio/
-__pycache__/

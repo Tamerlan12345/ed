@@ -6,9 +6,6 @@ const axios = require('axios');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-// --- Service URLs ---
-const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
-
 // --- Simulation Scenarios ---
 const simulationScenarios = [
     "Клиент хочет застраховать новый автомобиль (Hyundai Tucson) по КАСКО от всех рисков. Он впервые покупает КАСКО и хочет знать все детали: что покрывается, какие есть франшизы, от чего зависит цена.",
@@ -531,16 +528,59 @@ const markNotificationsAsRead = async (req, res) => {
 
 // POST /api/text-to-speech-user
 const textToSpeechUser = async (req, res) => {
+    const { text } = req.body;
+
+    // FR-9: Validate input
+    if (!text || text.trim() === '') {
+        return res.status(400).json({ error: 'Text for speech synthesis is required.' });
+    }
+
     try {
-        const { text, course_id } = req.body;
-        if (!text || !course_id) {
-            return res.status(400).json({ error: 'Text and course_id are required.' });
+        // FR-2, FR-3, FR-4, FR-5: Call Bytez API
+        const bytezResponse = await axios.post(
+            process.env.BYTEZ_API_URL,
+            {
+                model: "suno/bark",
+                input: text
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${process.env.BYTEZ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000 // 30 second timeout
+            }
+        );
+
+        // NFR-4: Log API interaction
+        console.log(`Bytez API call successful for user TTS.`);
+
+        // FR-6, FR-7: Process successful response
+        const { output, error: bytezError } = bytezResponse.data;
+
+        if (bytezError) {
+            // FR-8: Handle error from Bytez
+            console.error('Bytez API returned an error:', bytezError);
+            return res.status(502).json({ error: 'Failed to generate audio due to an external service error.' });
         }
-        const ttsResponse = await axios.post(TTS_SERVICE_URL, { text, course_id });
-        res.status(200).json({ audioUrl: ttsResponse.data.url });
+
+        if (!output) {
+             console.error('Bytez API response missing output field:', bytezResponse.data);
+             return res.status(502).json({ error: 'Received an invalid response from the audio generation service.' });
+        }
+
+        res.status(200).json({ url: output });
+
     } catch (error) {
-        console.error('Error calling TTS service for user:', error);
-        res.status(500).json({ error: 'Failed to generate audio summary.' });
+        // NFR-3, NFR-4: Handle network/timeout errors
+        if (error.code === 'ECONNABORTED' || error.response?.status === 503) {
+            console.error('Bytez API is unavailable or timed out:', error.message);
+            return res.status(503).json({ error: 'The audio generation service is currently unavailable.' });
+        }
+
+        // Handle other potential errors (e.g., config issues)
+        console.error('Error calling Bytez TTS service for user:', error.message);
+        res.status(500).json({ error: 'An internal error occurred while generating the audio summary.' });
     }
 };
 
