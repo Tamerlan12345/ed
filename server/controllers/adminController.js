@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
-const { generateAndSaveAudio } = require('../services/sunoService');
+const { generateAndSaveAudio } = require('../services/sunoService.js');
 const { ACTIONS } = require('../../shared/constants');
 
 // --- Admin Action Handlers ---
