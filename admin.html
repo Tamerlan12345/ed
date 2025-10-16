@@ -969,22 +969,10 @@
                 <button id="process-presentation-btn">Создать/Обновить курс по презентации</button>
                 <hr style="margin: 20px 0;">
                 <h3>Описание (Источник для AI)</h3>
-                <div class="mb-3">
-                    <label for="voiceSelector" class="form-label">Голос диктора:</label>
-                    <select id="voiceSelector" class="form-select">
-                        <option value="v2/ru_speaker_3">Женский 1</option>
-                        <option value="v2/ru_speaker_4">Женский 2</option>
-                        <option value="v2/ru_speaker_0">Мужской 1</option>
-                        <option value="v2/ru_speaker_6">Мужской 2 (Эмоциональный)</option>
-                    </select>
-                </div>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <button type="button" class="btn btn-secondary" onclick="generateAudio('description')">Озвучить описание</button>
-                    <button type="button" class="btn btn-primary" onclick="generateAudio('course')">Озвучить курс</button>
+                    <button id="text-to-speech-btn" style="flex: 1;">Озвучить описание</button>
                 </div>
-                <div id="audioPlayerContainer" class="mt-3" style="display: none;">
-                    <audio controls id="audioPlayer" style="width: 100%;"></audio>
-                </div>
+                <div id="audio-player-container" class="hidden" style="margin-top: 10px;"></div>
                 <textarea id="description" placeholder="Здесь появится текст...">${escapeHTML(description)}</textarea>
                 <h3>Шаг 2: Сгенерируйте контент</h3>
                 <textarea id="custom-prompt" placeholder="Оставьте пустым для стандартного промпта..."></textarea>
@@ -1026,6 +1014,7 @@
         document.getElementById('process-file-btn').addEventListener('click', processFileHandler);
         document.getElementById('process-presentation-btn').addEventListener('click', processPresentationHandler);
         document.getElementById('generate-btn').addEventListener('click', generateContentHandler);
+        document.getElementById('text-to-speech-btn').addEventListener('click', textToSpeechHandler);
         document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
         document.getElementById('add-material-btn').addEventListener('click', addMaterialHandler); // ИЗМЕНЕНО
         document.getElementById('materials-list').addEventListener('click', deleteMaterialHandler);
@@ -1199,41 +1188,35 @@
         }
     }
 
-async function generateAudio(type) {
-    const courseId = document.getElementById('course-id').value;
-    const description = document.getElementById('description').value;
-    const selectedVoice = document.getElementById('voiceSelector').value;
+    async function textToSpeechHandler() {
+        const btn = document.getElementById('text-to-speech-btn');
+        btn.disabled = true;
+        try {
+            const description = document.getElementById('description').value;
+            const courseId = document.getElementById('course-id').value;
 
-    if (!description.trim()) {
-        alert('Поле описания пустое.');
-        return;
+            if (!description) {
+                showStatus('Нет текста для озвучивания.', 'error');
+                return;
+            };
+            if (!courseId) {
+                showStatus('Сначала необходимо сохранить курс, чтобы получить ID.', 'error');
+                return;
+            }
+
+            const audioContainer = document.getElementById('audio-player-container');
+            audioContainer.innerHTML = '';
+            const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, { text: description, course_id: courseId });
+            const audio = new Audio(data.audioUrl);
+            audio.controls = true;
+            audioContainer.appendChild(audio);
+            audioContainer.classList.remove('hidden');
+        } catch (error) {
+            /* Handled in apiCall */
+        } finally {
+            btn.disabled = false;
+        }
     }
-
-    if (!courseId) {
-        alert('Сначала необходимо сохранить курс, чтобы получить ID.');
-        return;
-    }
-
-    try {
-        const data = await apiCall(ACTIONS.TEXT_TO_SPEECH, {
-            text: description,
-            course_id: courseId,
-            voice: selectedVoice
-        });
-
-        const audioPlayer = document.getElementById('audioPlayer');
-        const audioContainer = document.getElementById('audioPlayerContainer');
-
-        audioPlayer.src = data.audioUrl + `?t=${new Date().getTime()}`;
-        audioContainer.style.display = 'block';
-        audioPlayer.load();
-        audioPlayer.play();
-
-    } catch (error) {
-        console.error('Ошибка при генерации аудио:', error);
-        alert('Не удалось сгенерировать аудио.');
-    }
-}
 
     async function downloadPdfHandler() {
         const btn = document.getElementById('download-pdf-btn');

@@ -1,8 +1,11 @@
 const crypto = require('crypto');
+const axios = require('axios');
 const { createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
-const { generateAndSaveAudio } = require('../services/sunoService.js');
 const { ACTIONS } = require('../../shared/constants');
+
+// --- Service URLs ---
+const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || 'https://special-pancake-69pp66w7x4qvf5gw7-5001.app.github.dev/generate-audio';
 
 // --- Admin Action Handlers ---
 // Using computed property names to reference constants from shared/constants.js
@@ -319,16 +322,14 @@ const adminActionHandlers = {
         return { message: `Course assigned to ${user_email}.` };
     },
     [ACTIONS.TEXT_TO_SPEECH]: async ({ payload }) => {
-        const { text, course_id, voice } = payload;
-        if (!text || !course_id) {
-            throw { status: 400, message: 'Text and course_id are required' };
-        }
+        const { text, course_id } = payload;
+        if (!text || !course_id) throw { status: 400, message: 'Text and course_id are required for TTS.' };
         try {
-            const audioUrl = await generateAndSaveAudio(text, course_id, voice);
-            return { audioUrl };
-        } catch (error) {
-            console.error('Error in generateAudio controller:', error);
-            throw new Error('Failed to generate audio');
+            const ttsResponse = await axios.post(TTS_SERVICE_URL, { text, course_id });
+            return { audioUrl: ttsResponse.data.url };
+        } catch (ttsError) {
+            console.error('Error calling Python TTS service:', ttsError);
+            throw new Error('Failed to generate audio summary.');
         }
     },
     [ACTIONS.GET_SIMULATION_RESULTS]: async ({ supabaseAdmin }) => {
