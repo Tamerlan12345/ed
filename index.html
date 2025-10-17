@@ -648,10 +648,11 @@
 
     async function sendTimeUpdate(courseId, seconds) {
         try {
-            await fetchAuthenticated('/api/updateTimeSpent', {
+            // FIX: Corrected the endpoint URL and the request body key.
+            await fetchAuthenticated('/api/update-time-spent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ course_id: courseId, time_spent_seconds: seconds })
+                body: JSON.stringify({ course_id: courseId, seconds_spent: seconds })
             });
         } catch (error) {
             console.error('Failed to update time spent:', error);
@@ -1599,7 +1600,8 @@
     });
 
     async function handleListenToCourse(button) {
-        if (!currentCourse || !currentCourse.summary || !currentCourse.summary.slides) {
+        // FIX: Correctly check for the summary array.
+        if (!currentCourse || !Array.isArray(currentCourse.summary) || currentCourse.summary.length === 0) {
             showToast('Материалы курса для озвучивания не найдены.', 'error');
             return;
         }
@@ -1610,8 +1612,8 @@
         button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Генерация...';
 
         try {
-            // 1. Collect all text from slides
-            const textToSpeak = currentCourse.summary.slides.map(slide => {
+            // 1. FIX: Collect all text from slides by iterating over the summary array directly.
+            const textToSpeak = currentCourse.summary.map(slide => {
                 const title = slide.slide_title || '';
                 // Create a temporary div to parse HTML and get text content
                 const tempDiv = document.createElement('div');
