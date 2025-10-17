@@ -1,6 +1,8 @@
 // --- CONFIGURATION AND SETUP ---
-const express = require('express');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', 'config.env') });
+
+const express = require('express');
 const cors = require('cors');
 const apiRouter = require('./routes/api'); // Import the refactored router
 

@@ -31,7 +31,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "test": "NODE_ENV=test mocha 'test/**/*.test.js'",
+    "test": "NODE_ENV=test mocha -r dotenv/config 'test/**/*.test.js'",
     "test:cov": "c8 npm test"
   }
 }

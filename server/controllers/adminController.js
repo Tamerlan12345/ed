@@ -324,12 +324,6 @@ const adminActionHandlers = {
             throw { status: 400, message: 'Text for speech synthesis is required.' };
         }
 
-        // New: Configuration check
-        if (!process.env.BYTEZ_API_URL || !process.env.BYTEZ_API_KEY || process.env.BYTEZ_API_KEY === 'your_bytez_api_key_here') {
-            console.error('Bytez API is not configured. Please check .env file.');
-            throw { status: 500, message: 'The Text-to-Speech service is not configured on the server.' };
-        }
-
         try {
             const bytezResponse = await axios.post(
                 process.env.BYTEZ_API_URL,
