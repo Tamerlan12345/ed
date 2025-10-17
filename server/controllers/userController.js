@@ -578,7 +578,13 @@ const textToSpeechUser = async (req, res) => {
             return res.status(503).json({ error: 'The audio generation service is currently unavailable.' });
         }
 
-        // Handle other potential errors (e.g., config issues)
+        // FR-8: Handle specific API errors (like invalid key) by checking the response status
+        if (error.response) {
+            console.error(`Bytez API returned an error: Status ${error.response.status}`, error.response.data);
+            return res.status(502).json({ error: 'Failed to generate audio due to an external service error.' });
+        }
+
+        // Handle other potential errors (e.g., config issues, no response)
         console.error('Error calling Bytez TTS service for user:', error.message);
         res.status(500).json({ error: 'An internal error occurred while generating the audio summary.' });
     }

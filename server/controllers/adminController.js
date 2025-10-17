@@ -356,9 +356,14 @@ const adminActionHandlers = {
                 console.error('Bytez API is unavailable or timed out:', error.message);
                 throw { status: 503, message: 'The audio generation service is currently unavailable.' };
             }
+            // FR-8: Handle specific API errors (like invalid key)
+            if (error.response) {
+                console.error(`Bytez API returned an error: Status ${error.response.status}`, error.response.data);
+                throw { status: 502, message: 'Failed to generate audio due to an external service error.' };
+            }
             // Re-throw other errors to be caught by the generic handler
             console.error('Error calling Bytez TTS service for admin:', error.message);
-            throw { status: error.status || 500, message: error.message || 'An internal error occurred while generating audio.' };
+            throw { status: 500, message: 'An internal error occurred while generating audio.' };
         }
     },
     [ACTIONS.GET_SIMULATION_RESULTS]: async ({ supabaseAdmin }) => {
