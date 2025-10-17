@@ -1131,13 +1131,29 @@
                 stopTimeTracking();
                 startTest(currentCourse.id);
             };
+
+            const listenBtn = document.createElement('button');
+            listenBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i> Прослушать курс';
+            listenBtn.className = 'action-btn';
+            listenBtn.id = 'listen-to-course-btn';
+            listenBtn.style.marginTop = '10px';
+            // The handler function `handleListenToCourse` will be implemented in the next step.
+            listenBtn.onclick = () => handleListenToCourse(listenBtn);
+
             const simBtn = document.createElement('button');
             simBtn.innerHTML = '<i class="fa-solid fa-comments"></i> Диалоговый тренажер';
             simBtn.className = 'action-btn';
             simBtn.style.marginTop = '10px';
             simBtn.onclick = showSimulatorView;
+
             instrumentsPanel.appendChild(testBtn);
+            instrumentsPanel.appendChild(listenBtn); // Add the new button
             instrumentsPanel.appendChild(simBtn);
+
+            const audioPlayerContainer = document.createElement('div');
+            audioPlayerContainer.id = 'presentation-audio-player-container';
+            audioPlayerContainer.style.marginTop = '10px';
+            instrumentsPanel.appendChild(audioPlayerContainer);
             leftSidebar.appendChild(instrumentsPanel);
             const chatbotPanel = document.createElement('div');
             chatbotPanel.className = 'sidebar-panel chatbot-panel';
@@ -1581,6 +1597,61 @@
             }
         });
     });
+
+    async function handleListenToCourse(button) {
+        if (!currentCourse || !currentCourse.summary || !currentCourse.summary.slides) {
+            showToast('Материалы курса для озвучивания не найдены.', 'error');
+            return;
+        }
+
+        const playerContainer = document.getElementById('presentation-audio-player-container');
+        playerContainer.innerHTML = ''; // Clear previous player
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Генерация...';
+
+        try {
+            // 1. Collect all text from slides
+            const textToSpeak = currentCourse.summary.slides.map(slide => {
+                const title = slide.slide_title || '';
+                // Create a temporary div to parse HTML and get text content
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = slide.html_content || '';
+                const content = tempDiv.textContent || tempDiv.innerText || '';
+                return `${title}. ${content}`;
+            }).join('\n\n');
+
+            if (!textToSpeak.trim()) {
+                throw new Error('В курсе нет текста для озвучивания.');
+            }
+
+            // 2. Send request to the backend
+            const response = await fetchAuthenticated('/api/text-to-speech-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: textToSpeak })
+            });
+
+            if (!response.url) {
+                throw new Error('Сервер не вернул URL аудиофайла.');
+            }
+
+            // 3. Create and display the audio player
+            const audio = new Audio(response.url);
+            audio.controls = true;
+            audio.style.width = '100%';
+            playerContainer.appendChild(audio);
+            showToast('Аудио успешно сгенерировано.', 'success');
+
+        } catch (error) {
+            console.error('Error generating TTS for course:', error);
+            showToast(`Ошибка озвучивания: ${error.message}`, 'error');
+            playerContainer.innerHTML = `<p style="color: var(--error-color); font-size: 0.9em;">Не удалось загрузить аудио.</p>`;
+        } finally {
+            button.disabled = false;
+            button.innerHTML = '<i class="fa-solid fa-volume-high"></i> Прослушать курс';
+        }
+    }
+
     let currentScenario = '';
     function showSimulatorView() {
         stopTimeTracking(); // Stop time tracking when simulator starts
