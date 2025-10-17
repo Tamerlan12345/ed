@@ -535,6 +535,12 @@ const textToSpeechUser = async (req, res) => {
         return res.status(400).json({ error: 'Text for speech synthesis is required.' });
     }
 
+    // New: Configuration check
+    if (!process.env.BYTEZ_API_URL || !process.env.BYTEZ_API_KEY || process.env.BYTEZ_API_KEY === 'your_bytez_api_key_here') {
+        console.error('Bytez API is not configured. Please check .env file.');
+        return res.status(500).json({ error: 'The Text-to-Speech service is not configured on the server.' });
+    }
+
     try {
         // FR-2, FR-3, FR-4, FR-5: Call Bytez API
         const bytezResponse = await axios.post(
