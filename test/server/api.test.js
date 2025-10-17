@@ -61,6 +61,11 @@ describe('API Endpoints', () => {
 
         // Use proxyquire to inject the mocked middleware and the mocked supabase client module
         const server = proxyquire('../../server/index', {
+            './config': { // Correct path to the new config module
+                supabaseUrl: 'http://fake.supabase.co',
+                supabaseAnonKey: 'fake-anon-key',
+                supabaseServiceKey: 'fake-service-key'
+            },
             './routes/api': proxyquire('../../server/routes/api', {
                 '../middleware/adminAuth': adminAuthMiddlewareStub,
                 '../middleware/userAuth': userAuthMiddlewareStub,
