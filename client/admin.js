@@ -247,6 +247,40 @@ const App = {
                 DOMElements.courseFormWrapper.innerHTML = '';
             } catch(e) {}
         });
+
+        form.querySelector('#process-questions-file-btn')?.addEventListener('click', async () => {
+            const courseId = form.querySelector('#course-id').value;
+            if (!courseId) {
+                UIManager.showToast('Пожалуйста, сначала создайте курс (хотя бы черновик), чтобы получить ID.', 'error');
+                return;
+            }
+            const fileInput = form.querySelector('#questions-file-uploader');
+            const file = fileInput.files[0];
+            if (!file) {
+                UIManager.showToast('Пожалуйста, выберите файл для загрузки.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const fileData = event.target.result.split(',')[1]; // Get base64 part
+                    const payload = {
+                        course_id: courseId,
+                        file_name: file.name,
+                        file_data: fileData,
+                    };
+                    await ApiConnector.call('UPLOAD_AND_PARSE_QUESTIONS', payload);
+                    UIManager.showToast('Файл отправлен на обработку. Вопросы появятся в редакторе через несколько минут.', 'info');
+                } catch (e) {
+                    // Error is already handled by ApiConnector, but you could add specific logic here if needed
+                }
+            };
+            reader.onerror = () => {
+                UIManager.showToast('Не удалось прочитать файл.', 'error');
+            };
+            reader.readAsDataURL(file);
+        });
     }
 };
 
