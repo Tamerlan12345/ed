@@ -40,6 +40,7 @@ const ACTIONS = {
 
     // Misc Actions
     TEXT_TO_SPEECH: 'text_to_speech',
+    UPLOAD_AND_PARSE_QUESTIONS: 'upload_and_parse_questions',
 };
 
 // Check if we are in a Node.js environment
