@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { createSupabaseAdminClient } = require('../lib/supabaseClient');
-const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary, handleParseQuestions } = require('../services/backgroundJobs');
+const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
 const { ACTIONS } = require('../../shared/constants');
 const { adminActionSchema } = require('../schemas/adminSchema');
 
@@ -88,14 +88,6 @@ const adminActionHandlers = {
         const supabaseAdmin = createSupabaseAdminClient();
         await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'file_upload', status: 'pending', payload });
         handleUploadAndProcess(jobId, payload, token).catch(console.error);
-        res.status(202).json({ jobId });
-        return null;
-    },
-    [ACTIONS.UPLOAD_AND_PARSE_QUESTIONS]: async ({ payload, res }) => {
-        const jobId = crypto.randomUUID();
-        const supabaseAdmin = createSupabaseAdminClient();
-        await supabaseAdmin.from('background_jobs').insert({ id: jobId, job_type: 'question_parsing', status: 'pending', payload });
-        handleParseQuestions(jobId, payload).catch(console.error);
         res.status(202).json({ jobId });
         return null;
     },
