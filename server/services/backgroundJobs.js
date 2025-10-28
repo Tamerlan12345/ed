@@ -2,7 +2,6 @@ const { createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
-const { rtfToText: rtf } = require('rtf-parser');
 const pdf = require('pdf-parse');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -342,93 +341,9 @@ async function handleGenerateSummary(jobId, payload) {
     }
 }
 
-async function handleParseQuestions(jobId, payload) {
-    const supabaseAdmin = createSupabaseAdminClient();
-    const updateJobStatus = async (status, data = null, errorMessage = null) => {
-        const { error } = await supabaseAdmin
-            .from('background_jobs')
-            .update({ status, payload: data, last_error: errorMessage, updated_at: new Date().toISOString() })
-            .eq('id', jobId);
-        if (error) console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
-    };
-
-    try {
-        const { course_id, file_name, file_data } = payload;
-        console.log(`[Job ${jobId}] Starting question parsing for course ID: ${course_id}, File: ${file_name}`);
-
-        const buffer = Buffer.from(file_data, 'base64');
-        let textContent = '';
-
-        if (file_name.endsWith('.docx')) {
-            const { value } = await mammoth.extractRawText({ buffer });
-            textContent = value;
-        } else if (file_name.endsWith('.rtf')) {
-            textContent = await new Promise((resolve, reject) => {
-                rtf(buffer, (err, doc) => {
-                    if (err) return reject(err);
-                    resolve(doc.content.map(p => p.content.map(s => s.value).join('')).join('\n'));
-                });
-            });
-        } else {
-            throw new Error('Unsupported file type. Please upload a .docx or .rtf file.');
-        }
-
-        if (!textContent.trim()) throw new Error('Could not extract text from the document.');
-
-        const outputFormat = {
-            questions: [{
-                question: "string",
-                options: ["string"],
-                correct_option_indexes: [0]
-            }]
-        };
-        const finalPrompt = `ЗАДАНИЕ: На основе ИСХОДНОГО ТЕКСТА, извлеки тестовые вопросы.
-
-ИСХОДНЫЙ ТЕКСТ:
-${textContent}
-
-ТРЕБОВАНИЯ К ФОРМАТУ ВЫВОДА:
-- Обязательно верни результат в формате JSON, соответствующем этой структуре: ${JSON.stringify(outputFormat)}
-- В тексте правильные ответы помечены знаком "+". Вариантов ответа может быть несколько.
-- Поле "correct_option_indexes" должно быть МАССИВОМ, содержащим индексы всех правильных ответов.
-- Сохраняй исходный текст вопросов и ответов без изменений.
-- Не добавляй в вывод никаких других полей или секций, только "questions".
-`;
-
-        console.log(`[Job ${jobId}] Sending text to Gemini for structuring...`);
-        const result = await model.generateContent(finalPrompt);
-        const response = await result.response;
-        // Improved JSON extraction
-        const responseText = response.text();
-        const firstBrace = responseText.indexOf('{');
-        const lastBrace = responseText.lastIndexOf('}');
-        if (firstBrace === -1 || lastBrace === -1) {
-            throw new Error('AI did not return a valid JSON object.');
-        }
-        const jsonString = responseText.substring(firstBrace, lastBrace + 1);
-        const parsedContent = JSON.parse(jsonString);
-
-        console.log(`[Job ${jobId}] Questions structured. Saving to database...`);
-        const { error: dbError } = await supabaseAdmin
-            .from('courses')
-            .update({ draft_content: parsedContent, content: parsedContent })
-            .eq('id', course_id);
-
-        if (dbError) throw new Error(`Failed to save parsed questions: ${dbError.message}`);
-
-        console.log(`[Job ${jobId}] Question parsing completed successfully.`);
-        await updateJobStatus('completed', { message: 'Questions parsed and saved.' });
-
-    } catch (error) {
-        console.error(`[Job ${jobId}] Unhandled error during question parsing:`, error);
-        await updateJobStatus('failed', null, error.message);
-    }
-}
-
 module.exports = {
     handlePresentationProcessing,
     handleUploadAndProcess,
     handleGenerateContent,
     handleGenerateSummary,
-    handleParseQuestions,
 };
