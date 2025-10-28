@@ -13,18 +13,6 @@ const PORT = process.env.PORT || 3002;
 // --- GLOBAL MIDDLEWARES ---
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // For parsing application/json
-
-// --- SECURITY MIDDLEWARE (CSP) ---
-app.use((req, res, next) => {
-    res.setHeader(
-        'Content-Security-Policy',
-        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-eval'; " +
-        "style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
-        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;"
-    );
-    next();
-});
-
 app.use(express.static(path.join(__dirname, '..'))); // Serve static files like index.html
 
 // --- API ROUTING ---
