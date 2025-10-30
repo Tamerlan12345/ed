@@ -247,19 +247,39 @@ const PresentationManager = {
     async show(courseId) {
         UIManager.showLoader();
         try {
-            const course = await ApiConnector.fetchAuthenticated('/api/getCourseContent', {
+            // Find the basic course data from the global state
+            const allCourses = store.getState().courses;
+            const courseFromState = allCourses.flatMap(g => g.courses).find(c => c.id === courseId);
+
+            if (!courseFromState) {
+                throw new Error('Course not found in the current state.');
+            }
+
+            // Fetch the detailed content from the API
+            const courseContent = await ApiConnector.fetchAuthenticated('/api/getCourseContent', {
                 method: 'POST',
                 body: JSON.stringify({ course_id: courseId })
             });
+
+            // Merge the two data sources
+            const fullCourseData = {
+                ...courseFromState, // Contains id, title, description, etc.
+                summary: courseContent.summary,
+                questions: courseContent.questions,
+                materials: courseContent.materials,
+            };
+
             store.setState({
-                currentCourse: course,
-                currentQuestions: course.questions,
+                currentCourse: fullCourseData,
+                currentQuestions: fullCourseData.questions,
                 currentQuestionIndex: 0,
                 score: 0,
             });
+
             // ... logic to render the presentation ...
             UIManager.setWindow(DOMElements.productContent);
-            UIManager.setHeader(course.title, true);
+            UIManager.setHeader(fullCourseData.title, true);
+
         } catch (error) {
             UIManager.showMessage('Не удалось загрузить курс.', error.message);
         } finally {
