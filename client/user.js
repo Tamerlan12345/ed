@@ -93,6 +93,47 @@ const UIManager = {
         DOMElements.windowTitle.textContent = title;
         DOMElements.backToMenuBtn.classList.toggle('hidden', !showBackButton);
         store.setState({ backButtonAction });
+    },
+
+    renderCourseContent(course) {
+        DOMElements.productContent.innerHTML = ''; // Clear existing content
+
+        // Render slides
+        if (course.summary && course.summary.length > 0) {
+            const slidesContainer = document.createElement('div');
+            slidesContainer.className = 'presentation-slider-container';
+            course.summary.forEach((slide, index) => {
+                const slideElement = document.createElement('div');
+                slideElement.className = 'presentation-slide' + (index === 0 ? ' active' : '');
+                slideElement.innerHTML = `
+                    <h2>${slide.slide_title || ''}</h2>
+                    <div class="presentation-slide-content">${slide.html_content || ''}</div>
+                `;
+                slidesContainer.appendChild(slideElement);
+            });
+            DOMElements.productContent.appendChild(slidesContainer);
+        }
+
+        // Render materials
+        if (course.materials && course.materials.length > 0) {
+            const materialsContainer = document.createElement('div');
+            materialsContainer.className = 'course-materials-container';
+            materialsContainer.innerHTML = '<h3>Сопутствующие материалы</h3>';
+            const materialsList = document.createElement('ul');
+            materialsList.className = 'course-materials-list';
+            course.materials.forEach(material => {
+                const materialElement = document.createElement('li');
+                materialElement.innerHTML = `<a href="${material.url}" target="_blank" class="material-link">${material.name}</a>`;
+                materialsList.appendChild(materialElement);
+            });
+            materialsContainer.appendChild(materialsContainer);
+            DOMElements.productContent.appendChild(materialsContainer);
+        }
+
+        // If there's no content, show a message
+        if (DOMElements.productContent.innerHTML === '') {
+            DOMElements.productContent.innerHTML = '<p class="message">Для этого курса пока нет материалов.</p>';
+        }
     }
 };
 
@@ -276,7 +317,8 @@ const PresentationManager = {
                 score: 0,
             });
 
-            // ... logic to render the presentation ...
+            // Render the course content
+            UIManager.renderCourseContent(fullCourseData);
             UIManager.setWindow(DOMElements.productContent);
             UIManager.setHeader(fullCourseData.title, true);
 
