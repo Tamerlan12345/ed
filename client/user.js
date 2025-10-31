@@ -247,9 +247,9 @@ const PresentationManager = {
     async show(courseId) {
         UIManager.showLoader();
         try {
-            const course = await ApiConnector.fetchAuthenticated('/api/getCourseContent', {
+            const course = await ApiConnector.fetchAuthenticated('/api/getCourseDetails', {
                 method: 'POST',
-                body: JSON.stringify({ course_id: courseId })
+                body: JSON.stringify({ courseId })
             });
             store.setState({
                 currentCourse: course,
