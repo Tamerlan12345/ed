@@ -13,10 +13,7 @@ const PORT = process.env.PORT || 3002;
 // --- GLOBAL MIDDLEWARES ---
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // For parsing application/json
-// Serve static files more explicitly
-app.use('/client', express.static(path.join(__dirname, '..', 'client')));
-app.use('/shared', express.static(path.join(__dirname, '..', 'shared')));
-app.use(express.static(path.join(__dirname, '..'))); // For root files like favicon.ico
+app.use(express.static(path.join(__dirname, '..'))); // Serve static files like index.html
 
 // --- API ROUTING ---
 // All API-related routes are now handled in the /routes/api.js module.
