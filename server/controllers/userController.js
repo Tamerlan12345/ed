@@ -26,6 +26,10 @@ const getCourseContent = async (req, res) => {
     const supabase = req.supabase; // Assuming middleware adds this
     try {
         const { course_id } = req.body;
+        if (!course_id) {
+            return res.status(400).json({ error: 'course_id is required.' });
+        }
+
         const { data: course, error } = await supabase
             .from('courses')
             .select('content, course_materials (*)')
@@ -61,6 +65,8 @@ const getCourseContent = async (req, res) => {
 // POST /api/get-job-status
 const getJobStatus = async (req, res) => {
     const { jobId } = req.body;
+    if (!jobId) return res.status(400).json({ error: 'Missing jobId' });
+
     try {
         const supabaseAdmin = createSupabaseAdminClient();
         const { data: job, error } = await supabaseAdmin
@@ -179,6 +185,8 @@ const assignCourse = async (req, res) => {
         const supabase = req.supabase;
         const user = req.user;
         const { course_id } = req.body;
+        if (!course_id) return res.status(400).json({ error: 'course_id is required' });
+
         const { data: course, error: courseError } = await supabase
             .from('courses')
             .select('id, deadline_days')
@@ -222,6 +230,10 @@ const saveTestResult = async (req, res) => {
     try {
         const user = req.user;
         const { course_id, score, percentage } = req.body;
+        if (course_id === undefined || score === undefined || percentage === undefined) {
+            return res.status(400).json({ error: 'Missing required fields: course_id, score, percentage.' });
+        }
+
         const supabaseAdmin = createSupabaseAdminClient();
         const { data: existingRecord, error: selectError } = await supabaseAdmin
             .from('user_progress').select('attempts').eq('user_id', user.id).eq('course_id', course_id).maybeSingle();
@@ -339,6 +351,8 @@ const askAssistant = async (req, res) => {
     const supabase = req.supabase;
     try {
         const { course_id, question } = req.body;
+        if (!course_id || !question) return res.status(400).json({ error: 'course_id and question are required.' });
+
         const { data: courseData, error: courseError } = await supabase.from('courses').select('description, content').eq('id', course_id).single();
         if (courseError || !courseData) return res.status(404).json({ error: 'Course not found.' });
 
@@ -411,12 +425,14 @@ const dialogueSimulator = async (req, res) => {
             res.status(200).json({ first_message: result.response.text(), scenario: randomScenario });
 
         } else if (action === 'chat') {
+            if (!scenario) return res.status(400).json({ error: 'Scenario is required for chat.' });
             const formattedHistory = history.map(h => `${h.role === 'user' ? 'Менеджер' : 'Клиент'}: ${h.text}`).join('\n');
             const prompt = `Ты — симулятор диалога в роли клиента. Твоя личность: ${persona}. Твой сценарий: "${scenario}". Продолжи диалог, основываясь на истории. Отвечай коротко, по делу и только за себя (клиента).\n\nИСТОРИЯ ДИАЛОГА:\n${formattedHistory}\n\nТвой следующий ответ от имени клиента:`;
             const result = await model.generateContent(prompt);
             res.status(200).json({ answer: result.response.text() });
 
         } else if (action === 'evaluate') {
+            if (!scenario) return res.status(400).json({ error: 'Scenario is required for evaluation.' });
             const evaluationPrompt = `
 You are a dialogue evaluation expert. Your task is to analyze the following conversation between a Manager and a Client and provide a structured evaluation in JSON format.
 
@@ -494,6 +510,8 @@ const markNotificationsAsRead = async (req, res) => {
     const user = req.user;
     try {
         const { notification_ids } = req.body;
+        if (!Array.isArray(notification_ids)) return res.status(400).json({ error: 'notification_ids must be an array.' });
+
         const { error } = await supabase
             .from('notifications')
             .update({ is_read: true })
@@ -511,6 +529,11 @@ const markNotificationsAsRead = async (req, res) => {
 // POST /api/text-to-speech-user
 const textToSpeechUser = async (req, res) => {
     const { text } = req.body;
+
+    // FR-9: Validate input
+    if (!text || text.trim() === '') {
+        return res.status(400).json({ error: 'Text for speech synthesis is required.' });
+    }
 
     try {
         // FR-2, FR-3, FR-4, FR-5: Call Bytez API

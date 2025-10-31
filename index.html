@@ -354,6 +354,11 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=4"></script>
+    <script>
+        const SUPABASE_URL = 'https://wnsdlibhrlmgyszbyxat.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Induc2RsaWJocmxtZ3lzemJ5eGF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyODE0MjgsImV4cCI6MjA2OTg1NzQyOH0.Sgz-50dHj8M599sIjTRYs0kMP7b6kX2BJ-Gc-trMUQ4';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
     <style id="layout-override">
         /* --- Jules's Card & Layout Styles --- */
         .search-container {
@@ -612,28 +617,1148 @@
             </div>
         </div>
     </div>
-<script type="module" src="/client/user.js"></script>
+<script>
+    function showToast(message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => { toast.classList.add('show'); }, 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.addEventListener('transitionend', () => toast.remove());
+        }, 5000);
+    }
+    const userData = { email: '', token: null };
+    let courses = [];
+    let currentCourse = null;
+    let userProgress = {};
+    let simulationHistory = [];
+    let backButtonAction = null;
+    let timeTrackingInterval = null;
+    let secondsSinceLastUpdate = 0;
 
-<template id="course-menu-item-template">
-    <div class="menu-item">
-        <div>
-            <h3><span class="menu-item-icon"></span><span class="course-title"></span></h3>
-        </div>
-        <div>
-            <div class="progress-bar"></div>
-            <div class="deadline"></div>
-        </div>
-    </div>
-</template>
+    function stopTimeTracking() {
+        if (timeTrackingInterval) {
+            clearInterval(timeTrackingInterval);
+            timeTrackingInterval = null;
+        }
+    }
 
-<template id="catalog-menu-item-template">
-     <div class="menu-item">
-        <div>
-            <h3><span class="menu-item-icon"></span><span class="course-title"></span></h3>
-        </div>
-        <div class="course-actions" style="margin-top: 10px;"></div>
-    </div>
-</template>
+    async function sendTimeUpdate(courseId, seconds) {
+        try {
+            await fetchAuthenticated('/api/updateTimeSpent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: courseId, time_spent_seconds: seconds })
+            });
+        } catch (error) {
+            console.error('Failed to update time spent:', error);
+        }
+    }
 
+    const authView = document.getElementById('auth-view');
+    const appView = document.getElementById('app-view');
+    const authForm = document.getElementById('auth-form');
+    const authError = document.getElementById('auth-error');
+    const contentArea = document.getElementById('content-area');
+    const mainMenu = document.getElementById('main-menu');
+    const productContent = document.getElementById('product-content');
+    const testView = document.getElementById('test-view');
+    const testResultsView = document.getElementById('test-results');
+    const windowTitle = document.getElementById('window-title');
+    const backToMenuBtn = document.getElementById('back-to-menu-btn');
+    const backToMenuFromResultsBtn = document.getElementById('back-to-menu-from-results');
+    const audioPlayerContainerUser = document.getElementById('audio-player-container-user');
+    const notificationsBell = document.getElementById('notifications-bell');
+    const notificationsBadge = document.getElementById('notifications-badge');
+    const notificationsPanel = document.getElementById('notifications-panel');
+    const notificationsList = document.getElementById('notifications-list');
+    const simulatorView = document.getElementById('simulator-view');
+    const launchSimulatorBtn = document.getElementById('launch-simulator-btn');
+    const extraToolsDiv = document.getElementById('extra-tools');
+    const simulatorSetup = document.getElementById('simulator-setup');
+    const simulatorChatArea = document.getElementById('simulator-chat-area');
+    const simulatorEvaluationArea = document.getElementById('simulator-evaluation-area');
+    const startSimulationBtn = document.getElementById('start-simulation-btn');
+    const simulatorChatBox = document.getElementById('simulator-chat-box');
+    const simulatorChatForm = document.getElementById('simulator-chat-form');
+    const simulatorChatInput = document.getElementById('simulator-chat-input');
+    const endSimulationBtn = document.getElementById('end-simulation-btn');
+    const evaluationResults = document.getElementById('evaluation-results');
+    const restartSimulationBtn = document.getElementById('restart-simulation-btn');
+    const contentLoader = document.getElementById('content-loader');
+
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+    }
+    function truncateText(text, maxLength = 120) {
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    }
+    function showLoader() {
+        contentArea.classList.add('hidden');
+        contentLoader.classList.remove('hidden');
+    }
+    function hideLoader() {
+        contentArea.classList.remove('hidden');
+        contentLoader.classList.add('hidden');
+    }
+    function showMessage(message, details = '') {
+        contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`;
+        hideLoader();
+    }
+    async function handleLogin(email, password) {
+        const authButton = document.getElementById('auth-button');
+        authButton.disabled = true;
+        authButton.textContent = 'Вход...';
+        authError.classList.add('hidden');
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            if (data && data.session) await onLoginSuccess(data.session);
+            else throw new Error("Ответ от сервера не содержит сессию.");
+        } catch (error) {
+            console.error("Не удалось войти:", error);
+            let errorMessage = 'Не удалось войти. Проверьте подключение к сети.';
+            if (error.message.includes('Invalid login credentials')) errorMessage = 'Неверный логин или пароль.';
+            showToast(errorMessage, 'error');
+        } finally {
+            authButton.disabled = false;
+            authButton.textContent = 'Войти';
+        }
+    }
+    async function onLoginSuccess(session) {
+        userData.email = session.user.email;
+        userData.token = session.access_token;
+        authView.classList.add('hidden');
+        appView.classList.remove('hidden');
+        showLoader();
+        await showMainMenu();
+        hideLoader();
+    }
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        userData.token = null;
+        userData.email = '';
+        sessionStorage.clear();
+        appView.classList.add('hidden');
+        authView.classList.remove('hidden');
+        document.getElementById('user-email').value = '';
+        document.getElementById('user-password').value = '';
+    }
+    async function checkSession() {
+        showLoader();
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) await onLoginSuccess(session);
+        else {
+            authView.classList.remove('hidden');
+            hideLoader();
+        }
+        authForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleLogin(document.getElementById('user-email').value.trim(), document.getElementById('user-password').value.trim());
+        });
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+    }
+    async function fetchAuthenticated(url, options = {}) {
+        if (!userData.token) throw new Error("Пользователь не авторизован. Токен отсутствует.");
+        const finalOptions = { ...options, headers: { 'Authorization': `Bearer ${userData.token}`, ...options.headers } };
+        const response = await fetch(url, finalOptions);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText} (${response.status})` }));
+            throw new Error(errorData.error);
+        }
+        return response.json();
+    }
+    notificationsBell.addEventListener('click', async () => {
+        const isHidden = notificationsPanel.classList.toggle('hidden');
+        if (!isHidden) {
+            const notifications = await fetchAuthenticated('/api/getNotifications');
+            const unreadNotificationIds = notifications.filter(n => !n.is_read).map(n => n.id);
+            if (unreadNotificationIds.length > 0) {
+                try {
+                    await fetchAuthenticated('/api/markNotificationsAsRead', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notification_ids: unreadNotificationIds })
+                    });
+                    notificationsBadge.classList.add('hidden');
+                    notificationsList.querySelectorAll('div').forEach(div => div.style.fontWeight = 'normal');
+                } catch (error) { console.error('Failed to mark notifications as read:', error); }
+            }
+        }
+    });
+    async function loadLeaderboard(containerId = 'leaderboard-content') {
+        const leaderboardContent = document.getElementById(containerId);
+        if (!leaderboardContent) return;
+        leaderboardContent.innerHTML = '<div class="loader" style="height: 20px; width: 20px; margin: 0;"></div>';
+        try {
+            const leaderboardData = await fetchAuthenticated('/api/get-leaderboard', { method: 'POST' });
+            if (!leaderboardData || leaderboardData.length === 0) {
+                leaderboardContent.innerHTML = '<p>На этой неделе пока нет лидеров. Станьте первым!</p>';
+                return;
+            }
+            let html = '<ol>';
+            leaderboardData.forEach(user => {
+                html += `<li><strong>${user.full_name || 'Аноним'}</strong>: Завершено курсов: ${user.courses_completed || 0}, Время обучения: ${user.total_time_spent_minutes || 0} мин.</li>`;
+            });
+            html += '</ol>';
+            leaderboardContent.innerHTML = html;
+        } catch (error) {
+            console.error('Failed to load leaderboard:', error);
+            leaderboardContent.innerHTML = '<p style="color: var(--error-color);">Не удалось загрузить лидерборд.</p>';
+        }
+    }
+    async function showMainMenu() {
+        appView.classList.remove('presentation-mode-active');
+        stopTimeTracking();
+        windowTitle.textContent = 'Главное Меню';
+        backButtonAction = null;
+
+        const windowEl = appView.querySelector('.window');
+        const tabsEl = document.getElementById('main-menu-tabs');
+        const contentAreaEl = document.getElementById('content-area');
+        if (windowEl && tabsEl && contentAreaEl && tabsEl.parentElement !== windowEl) {
+            windowEl.insertBefore(tabsEl, contentAreaEl);
+        }
+
+        productContent.classList.add('hidden');
+        testView.classList.add('hidden');
+        testResultsView.classList.add('hidden');
+        simulatorView.classList.add('hidden');
+        backToMenuBtn.classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.remove('hidden');
+        document.getElementById('main-content-wrapper').classList.remove('hidden');
+        mainMenu.classList.remove('hidden');
+        document.getElementById('main-menu-tabs').classList.remove('hidden');
+        extraToolsDiv.classList.remove('hidden');
+        loadLeaderboard();
+        mainMenu.innerHTML = Array.from({length: 3}, () => '<div class="skeleton-card"></div>').join('');
+        try {
+            const courseGroups = await fetchAuthenticated(`/api/getCourses`, { method: 'POST' });
+            if (!Array.isArray(courseGroups)) throw new Error("Ответ сервера не является массивом групп курсов.");
+            courses = courseGroups;
+            const searchInput = document.getElementById('course-search-input');
+
+            const handleFilterAndSearch = () => {
+                const activeTab = document.querySelector('.tab-btn.active');
+                if (!activeTab) return;
+                const filter = activeTab.dataset.filter;
+                const searchTerm = searchInput.value;
+
+                if (filter === 'catalog') {
+                    renderCatalog(searchTerm);
+                } else {
+                    renderCourseGroups(filter, searchTerm);
+                }
+            };
+
+            searchInput.addEventListener('input', handleFilterAndSearch);
+
+            document.getElementById('main-menu-tabs').onclick = (e) => {
+                if (e.target.matches('.tab-btn')) {
+                    document.querySelector('.tab-btn.active').classList.remove('active');
+                    e.target.classList.add('active');
+                    handleFilterAndSearch();
+                }
+            };
+            renderCourseGroups('assigned', searchInput.value);
+        } catch (error) {
+            console.error('Failed to load courses:', error);
+            showMessage('Не удалось загрузить список курсов.', error.message);
+        }
+    }
+    function renderCourseGroups(filter = 'assigned', searchTerm = '') {
+        mainMenu.innerHTML = '';
+        mainMenu.style.display = 'block';
+
+        const sourceGroups = courses;
+
+        const term = searchTerm.toLowerCase();
+        const searchedGroups = !term ? sourceGroups : sourceGroups.map(group => ({
+            ...group,
+            courses: group.courses.filter(course =>
+                (course.title && course.title.toLowerCase().includes(term)) ||
+                (course.description && course.description.toLowerCase().includes(term))
+            )
+        })).filter(group => group.courses.length > 0);
+
+        const filteredGroups = searchedGroups.map(group => ({
+            ...group,
+            courses: group.courses.filter(course => {
+                const isCompleted = course.progress?.completed_at;
+                return filter === 'completed' ? isCompleted : !isCompleted;
+            })
+        })).filter(group => group.courses.length > 0);
+        if (filteredGroups.length === 0) {
+            let message = 'Нет данных для отображения.';
+            if (filter === 'assigned') message = 'У вас нет активных назначенных курсов. Так держать!';
+            if (filter === 'completed') message = 'Вы еще не завершили ни одного курса.';
+            mainMenu.innerHTML = `<p class="message">${message}</p>`;
+            return;
+        }
+        mainMenu.innerHTML = `
+            <div class="main-menu-columns">
+                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container"></div></div>
+                <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container"></div></div>
+            </div>
+        `;
+        const groupedContainer = document.getElementById('grouped-courses-container');
+        const individualContainer = document.getElementById('individual-courses-container');
+        const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
+        const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
+        if (actualGroups.length > 0) {
+            actualGroups.forEach(group => {
+                const groupContainer = document.createElement('div');
+                groupContainer.className = 'course-group-container';
+                const groupHeader = document.createElement('h3');
+                groupHeader.textContent = group.group_name;
+                groupContainer.appendChild(groupHeader);
+                const coursesGrid = document.createElement('div');
+                coursesGrid.className = 'main-menu';
+                group.courses.forEach(course => {
+                    coursesGrid.appendChild(createCourseMenuItem(course));
+                });
+                groupContainer.appendChild(coursesGrid);
+                groupedContainer.appendChild(groupContainer);
+            });
+        } else {
+            groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет назначенных курсов в группах.</p>';
+        }
+        if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
+            const coursesGrid = document.createElement('div');
+            coursesGrid.className = 'main-menu';
+            individualCoursesGroup.courses.forEach(course => {
+                coursesGrid.appendChild(createCourseMenuItem(course));
+            });
+            individualContainer.appendChild(coursesGrid);
+        } else {
+            individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
+        }
+    }
+    function createCourseMenuItem(course) {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'menu-item';
+        if (course.is_locked) {
+            menuItem.style.opacity = '0.6';
+            menuItem.style.cursor = 'not-allowed';
+            menuItem.title = 'Этот курс будет доступен после прохождения предыдущего';
+        } else {
+            menuItem.style.cursor = 'pointer';
+            menuItem.addEventListener('click', () => showPresentationView(course.id));
+        }
+        if (course.progress?.completed_at) menuItem.classList.add('completed');
+        let deadlineHtml = '';
+        if (course.progress?.deadline_date && !course.progress?.completed_at) {
+            const deadline = new Date(course.progress.deadline_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Сравниваем только даты, без времени
+            const isOverdue = deadline < today;
+            const iconHtml = isOverdue ? '<i class="fa-solid fa-fire"></i>' : '<i class="fa-solid fa-clock"></i>';
+            deadlineHtml = `<p style="font-size: 0.85em; color: ${isOverdue ? 'var(--error-color)' : 'var(--text-light-color)'}; margin-top: 10px; font-weight: bold;">
+                <span class="menu-item-icon" style="font-size: 1em;">${iconHtml}</span>
+                Срок сдачи: ${deadline.toLocaleDateString('ru-RU')} ${isOverdue ? '(Просрочено)' : ''}
+            </p>`;
+        }
+        let progressBarHtml = '';
+        if(course.progress?.percentage > 0 && !course.progress?.completed_at) {
+            progressBarHtml = `<div style="width: 100%; background: #eee; border-radius: 5px; margin-top: 10px;"><div style="width: ${course.progress.percentage}%; background: var(--success-color); height: 5px; border-radius: 5px;"></div></div>`;
+        }
+        const courseIcon = course.is_locked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-book-open"></i>';
+
+        menuItem.innerHTML = `
+            <div>
+                <h3><span class="menu-item-icon">${courseIcon}</span>${course.title}</h3>
+            </div>
+            <div>${progressBarHtml}${deadlineHtml}</div>`;
+        menuItem.style.display = 'flex';
+        menuItem.style.flexDirection = 'column';
+        menuItem.style.justifyContent = 'space-between';
+        return menuItem;
+    }
+    function createCatalogMenuItem(course) {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'menu-item';
+        let buttonHtml = '';
+        switch (course.user_status) {
+            case 'not_assigned':
+                buttonHtml = `<button class="btn assign-course-btn" data-course-id="${course.id}">Начать изучение</button>`;
+                break;
+            case 'assigned':
+                buttonHtml = `<button class="btn" disabled style="background-color: var(--text-light-color); cursor: not-allowed;">Курс уже назначен</button>`;
+                break;
+            case 'completed':
+                menuItem.classList.add('completed');
+                buttonHtml = `<p style="font-weight: bold; color: var(--success-color); margin-top: 10px; text-align: right;">✓ Курс пройден</p>`;
+                break;
+        }
+        const iconHtml = course.user_status === 'completed' ? '<i class="fa-solid fa-trophy"></i>' : '<i class="fa-solid fa-book"></i>';
+        menuItem.innerHTML = `
+            <div>
+                <h3><span class="menu-item-icon">${iconHtml}</span>${course.title}</h3>
+            </div>
+            <div style="margin-top: 10px;">${buttonHtml}</div>`;
+        return menuItem;
+    }
+    async function renderCatalog(searchTerm = '') {
+        mainMenu.innerHTML = '';
+        mainMenu.style.display = 'block';
+        mainMenu.innerHTML = '<div class="loader"></div>';
+        try {
+            let catalogGroups = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
+
+            const term = searchTerm.toLowerCase();
+            if (term) {
+                catalogGroups = catalogGroups.map(group => ({
+                    ...group,
+                    courses: group.courses.filter(course =>
+                        (course.title && course.title.toLowerCase().includes(term)) ||
+                        (course.description && course.description.toLowerCase().includes(term))
+                    )
+                })).filter(group => group.courses.length > 0);
+            }
+            mainMenu.innerHTML = '';
+            if (!catalogGroups || catalogGroups.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
+                return;
+            }
+
+            const filteredGroups = catalogGroups.filter(group => group.courses && group.courses.length > 0);
+
+            if (filteredGroups.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
+                return;
+            }
+
+            mainMenu.innerHTML = `
+                <div class="main-menu-columns">
+                    <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
+                    <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
+                </div>
+            `;
+
+            const groupedContainer = document.getElementById('grouped-courses-container-catalog');
+            const individualContainer = document.getElementById('individual-courses-container-catalog');
+
+            const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
+            const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
+
+            if (actualGroups.length > 0) {
+                actualGroups.forEach(group => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'course-group-container';
+                    const groupHeader = document.createElement('h3');
+                    groupHeader.textContent = group.group_name;
+                    groupContainer.appendChild(groupHeader);
+
+                    const coursesGrid = document.createElement('div');
+                    coursesGrid.className = 'main-menu';
+                    group.courses.forEach(course => {
+                        coursesGrid.appendChild(createCatalogMenuItem(course));
+                    });
+                    groupContainer.appendChild(coursesGrid);
+                    groupedContainer.appendChild(groupContainer);
+                });
+            } else {
+                groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
+            }
+
+            if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
+                const coursesGrid = document.createElement('div');
+                coursesGrid.className = 'main-menu';
+                individualCoursesGroup.courses.forEach(course => {
+                    coursesGrid.appendChild(createCatalogMenuItem(course));
+                });
+                individualContainer.appendChild(coursesGrid);
+            } else {
+                individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
+            }
+
+        } catch (error) {
+            console.error('Failed to load course catalog:', error);
+            mainMenu.innerHTML = `<p class="message" style="color: var(--error-color);">Не удалось загрузить каталог курсов.</p>`;
+        }
+    }
+    async function showPresentationView(courseId, forceRegenerate = false) {
+        stopTimeTracking(); // Stop any previous timer
+        currentCourse = courses.flatMap(group => group.courses).find(c => c.id === courseId);
+        if (!currentCourse) {
+            contentArea.innerHTML = `
+                <div class="message">Не удалось найти выбранный курс.</div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn" onclick="showMainMenu()">Вернуться в меню</button>
+                </div>
+            `;
+            hideLoader();
+            return;
+        }
+        windowTitle.textContent = currentCourse.title;
+        productContent.innerHTML = '<div class="loader"></div>';
+        productContent.classList.remove('hidden');
+        mainMenu.classList.add('hidden');
+        document.getElementById('main-menu-tabs').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
+        document.getElementById('extra-tools').classList.add('hidden');
+        backToMenuBtn.classList.remove('hidden');
+        backButtonAction = showMainMenu;
+        try {
+            if (!currentCourse.summary || forceRegenerate) {
+                const data = await fetchAuthenticated('/api/getCourseContent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_id: currentCourse.id, force_regenerate: forceRegenerate })
+                });
+                currentCourse.summary = data.summary;
+                currentCourse.questions = data.questions;
+                currentCourse.materials = data.materials;
+            }
+            appView.classList.add('presentation-mode-active');
+            productContent.innerHTML = '';
+            const container = document.createElement('div');
+            container.className = 'presentation-view-container';
+            const leftSidebar = document.createElement('div');
+            leftSidebar.className = 'presentation-view-left-sidebar';
+            const instrumentsPanel = document.createElement('div');
+            instrumentsPanel.className = 'sidebar-panel instruments-panel';
+            instrumentsPanel.innerHTML = '<h3>Инструменты</h3>';
+            const testBtn = document.createElement('button');
+            testBtn.innerHTML = '<i class="fa-solid fa-bullseye"></i> Начать тестирование';
+            testBtn.className = 'action-btn primary';
+            testBtn.onclick = () => {
+                stopTimeTracking();
+                startTest(currentCourse.id);
+            };
+            const simBtn = document.createElement('button');
+            simBtn.innerHTML = '<i class="fa-solid fa-comments"></i> Диалоговый тренажер';
+            simBtn.className = 'action-btn';
+            simBtn.style.marginTop = '10px';
+            simBtn.onclick = showSimulatorView;
+            instrumentsPanel.appendChild(testBtn);
+            instrumentsPanel.appendChild(simBtn);
+            leftSidebar.appendChild(instrumentsPanel);
+            const chatbotPanel = document.createElement('div');
+            chatbotPanel.className = 'sidebar-panel chatbot-panel';
+            chatbotPanel.innerHTML = `
+                <h3>ЧАТ-БОТ АССИСТЕНТ</h3>
+                <div id="chat-box-sidebar" class="chat-box"></div>
+                <form id="chat-form-sidebar" data-chatbox="chat-box-sidebar">
+                    <input type="text" id="chat-input-sidebar" placeholder="Ваш вопрос..." autocomplete="off">
+                    <button type="submit" id="sidebar-submit-btn">➢</button>
+                </form>
+            `;
+            leftSidebar.appendChild(chatbotPanel);
+            const backBtnSidebar = document.createElement('button');
+            backBtnSidebar.id = 'back-to-course-btn-sidebar';
+            backBtnSidebar.textContent = '‹ Назад в меню';
+            backBtnSidebar.onclick = showMainMenu;
+            leftSidebar.appendChild(backBtnSidebar);
+            const rightContent = document.createElement('div');
+            rightContent.className = 'presentation-view-right-content';
+
+            const progressContainerHtml = `
+                <div class="presentation-progress-container" style="padding-bottom: 10px; border-bottom: 1px solid var(--border-color); margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <span style="font-size: 0.9em; color: var(--text-light-color);">Прогресс</span>
+                        <span id="slide-counter" style="font-size: 0.9em; font-weight: bold;"></span>
+                    </div>
+                    <div class="progress-bar-background" style="background-color: var(--border-color); border-radius: 5px; height: 8px;">
+                        <div id="slide-progress-bar" style="width: 0%; height: 100%; background-color: var(--success-color); border-radius: 5px; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            `;
+            rightContent.innerHTML += progressContainerHtml;
+
+            const sliderContainer = document.createElement('div');
+            sliderContainer.className = 'presentation-slider-container';
+            const navButtonsContainer = document.createElement('div');
+            navButtonsContainer.className = 'slider-nav-buttons';
+            const renderPresentationForView = (summaryData) => {
+                if (!summaryData || !Array.isArray(summaryData) || summaryData.length === 0) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.innerHTML = 'Материалы курса не найдены.';
+                    return { slider: messageDiv, prevBtn: null, nextBtn: null };
+                }
+                const slider = document.createElement('div');
+                summaryData.forEach((slideData, slideIndex) => {
+                    const slideDiv = document.createElement('div');
+                    slideDiv.className = 'presentation-slide';
+                    let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="Slide Image">` : '';
+                    let questionHtml = '';
+
+                    if (slideData.slide_question) {
+                        const question = slideData.slide_question;
+                        questionHtml = `
+                            <div class="micro-question-view" style="margin-top: 20px; padding: 15px; border: 2px solid var(--secondary-color); border-radius: 8px;">
+                                <h4>Проверьте себя:</h4>
+                                <p style="font-weight: bold;">${question.question_text}</p>
+                                <div class="micro-answers">
+                                    ${question.options.map((option, index) => `
+                                        <div class="answer micro-answer" data-correct="${index === question.correct_index}" style="padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; cursor: pointer; border-radius: 5px;">
+                                            ${option}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    slideDiv.innerHTML = `${imageHtml}<div class="presentation-slide-content"><h2>${slideData.slide_title || ''}</h2>${slideData.html_content || ''}</div>${questionHtml}`;
+                    slider.appendChild(slideDiv);
+                });
+
+                // Add event listener for all micro-questions
+                slider.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('micro-answer')) {
+                        const parent = e.target.parentElement;
+                        if (parent.dataset.answered) return; // Already answered
+                        parent.dataset.answered = 'true';
+
+                        const slide = e.target.closest('.presentation-slide');
+                        slide.dataset.answered = 'true'; // Mark slide as answered
+
+                        const isCorrect = e.target.dataset.correct === 'true';
+                        e.target.style.backgroundColor = isCorrect ? 'hsl(145, 63%, 90%)' : 'hsl(354, 70%, 90%)';
+                        e.target.style.borderColor = isCorrect ? 'var(--success-color)' : 'var(--error-color)';
+                        e.target.style.fontWeight = 'bold';
+
+                        // Disable other options
+                        parent.querySelectorAll('.micro-answer').forEach(ans => {
+                            if (ans !== e.target) ans.style.opacity = '0.6';
+                            ans.style.cursor = 'default';
+                        });
+
+                        updateSliderUI(); // Re-evaluate button states
+                    }
+                });
+                const slides = slider.querySelectorAll('.presentation-slide');
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = 'Назад';
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = 'Вперед';
+                let currentIndex = 0;
+                const updateSliderUI = () => {
+                    slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
+                    prevBtn.disabled = currentIndex === 0;
+
+                    const currentSlideData = summaryData[currentIndex];
+                    const hasMicroQuestion = currentSlideData && currentSlideData.slide_question;
+
+                    // Disable next button if there's an unanswered micro-question
+                    nextBtn.disabled = (currentIndex === slides.length - 1) || (hasMicroQuestion && !slides[currentIndex].dataset.answered);
+
+                    // Update progress bar
+                    const progressBar = document.getElementById('slide-progress-bar');
+                    const slideCounter = document.getElementById('slide-counter');
+                    if(progressBar && slideCounter) {
+                        const progress = slides.length > 1 ? ((currentIndex) / (slides.length - 1)) * 100 : (slides.length === 1 ? 100 : 0);
+                        progressBar.style.width = progress + '%';
+                        slideCounter.textContent = `Слайд ${currentIndex + 1} из ${slides.length}`;
+                    }
+                };
+                prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateSliderUI(); } });
+                nextBtn.addEventListener('click', () => { if (currentIndex < slides.length - 1) { currentIndex++; updateSliderUI(); } });
+                updateSliderUI();
+                return { slider, prevBtn, nextBtn };
+            };
+            // NEW: Check if the course is from a Google Slides presentation
+            if (currentCourse.presentation_url) {
+                sliderContainer.innerHTML = '<div class="loader"></div>'; // Show loader
+                navButtonsContainer.style.display = 'none'; // Hide our custom nav
+
+                const iframe = document.createElement('iframe');
+                // Rebuild the URL for embedding. Removed 'rm=minimal' to ensure controls are visible.
+                const embedUrl = currentCourse.presentation_url.split('/pub')[0] + '/embed?start=false&loop=false&delayms=3000';
+
+                iframe.src = embedUrl;
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                iframe.style.display = 'none'; // Hide iframe until loaded
+                iframe.allow = "fullscreen";
+
+                iframe.onload = () => {
+                    // Remove loader and show the iframe
+                    const loader = sliderContainer.querySelector('.loader');
+                    if (loader) loader.remove();
+                    iframe.style.display = 'block';
+                };
+
+                sliderContainer.appendChild(iframe);
+            } else {
+                // Original logic for generated slides
+                navButtonsContainer.style.display = 'flex'; // Ensure nav is visible
+                const { slider, prevBtn, nextBtn } = renderPresentationForView(currentCourse.summary);
+                sliderContainer.innerHTML = ''; // Clear before appending
+                sliderContainer.appendChild(slider);
+
+                navButtonsContainer.innerHTML = ''; // Clear before appending
+                if (prevBtn && nextBtn) {
+                    navButtonsContainer.appendChild(prevBtn);
+                    navButtonsContainer.appendChild(nextBtn);
+                }
+            }
+
+            rightContent.appendChild(sliderContainer);
+            rightContent.appendChild(navButtonsContainer);
+            container.appendChild(leftSidebar);
+            container.appendChild(rightContent);
+            productContent.appendChild(container);
+
+            if (rightContent && currentCourse.materials && currentCourse.materials.length > 0) {
+                const materialsContainer = document.createElement('div');
+                materialsContainer.className = 'course-materials-container';
+
+                let materialsHtml = '<h3>Файлы для скачивания</h3><ul class="course-materials-list">';
+                currentCourse.materials.forEach(material => {
+                    materialsHtml += `
+                        <li>
+                            <a href="${escapeHTML(material.file_url)}" target="_blank" rel="noopener noreferrer" class="material-link">
+                                <span>📄</span>
+                                <span>${escapeHTML(material.file_name)}</span>
+                            </a>
+                        </li>
+                    `;
+                });
+                materialsHtml += '</ul>';
+                materialsContainer.innerHTML = materialsHtml;
+
+                // Insert the materials container before the navigation buttons
+                const sliderNav = rightContent.querySelector('.slider-nav-buttons');
+                if (sliderNav) {
+                    rightContent.insertBefore(materialsContainer, sliderNav);
+                } else {
+                    rightContent.appendChild(materialsContainer);
+                }
+            }
+
+            document.getElementById('chat-form-sidebar').addEventListener('submit', handleChatSubmit);
+            const chatBoxSidebar = document.getElementById('chat-box-sidebar');
+            const savedChat = sessionStorage.getItem(`chatHistory_${currentCourse.id}`);
+            if(savedChat) chatBoxSidebar.innerHTML = savedChat;
+            else {
+                 const welcomeMessage = `Здравствуйте! Я ваш ассистент по курсу "${currentCourse.title}". Чем могу помочь?`;
+                 appendMessage(welcomeMessage, 'assistant', 'chat-box-sidebar');
+            }
+            if (timeTrackingInterval) clearInterval(timeTrackingInterval);
+            secondsSinceLastUpdate = 0;
+            timeTrackingInterval = setInterval(() => {
+                secondsSinceLastUpdate += 30;
+                sendTimeUpdate(currentCourse.id, 30);
+            }, 30000);
+        } catch (error) {
+            console.error('Не удалось загрузить или отобразить контент курса:', error);
+            showToast('Ошибка при загрузке контента курса.', 'error');
+            showMessage('Ошибка при генерации контента курса.', error.message);
+        }
+    }
+    async function handleChatSubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const input = form.querySelector('input[type="text"]');
+        const chatBoxId = form.dataset.chatbox;
+        const userQuestion = input.value.trim();
+        if (!userQuestion || !currentCourse) return;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        appendMessage(userQuestion, 'user', chatBoxId);
+        const thinkingMessage = appendMessage('...', 'assistant', chatBoxId, true);
+        input.value = '';
+        input.disabled = true;
+        if(submitBtn) submitBtn.disabled = true;
+        try {
+            const data = await fetchAuthenticated('/api/askAssistant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: currentCourse.id, question: userQuestion })
+            });
+            thinkingMessage.querySelector('span').textContent = data.answer;
+        } catch (error) {
+            console.error('Ошибка ассистента:', error);
+            thinkingMessage.querySelector('span').textContent = `Извините, произошла ошибка.`;
+        } finally {
+            thinkingMessage.id = '';
+            if (currentCourse) sessionStorage.setItem(`chatHistory_${currentCourse.id}`, document.getElementById(chatBoxId).innerHTML);
+            input.disabled = false;
+            if(submitBtn) submitBtn.disabled = false;
+            input.focus();
+        }
+    }
+    function appendMessage(text, sender, chatBoxId, isThinking = false) {
+        const chatBoxEl = document.getElementById(chatBoxId);
+        if (!chatBoxEl) return null;
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${sender}-message`;
+        const textSpan = document.createElement('span');
+        textSpan.textContent = text;
+        if (isThinking) messageDiv.id = `thinking-indicator-${chatBoxId}`;
+        messageDiv.appendChild(textSpan);
+        chatBoxEl.appendChild(messageDiv);
+        chatBoxEl.scrollTop = chatBoxEl.scrollHeight;
+        if (currentCourse && !isThinking) sessionStorage.setItem(`chatHistory_${currentCourse.id}`, chatBoxEl.innerHTML);
+        return messageDiv;
+    }
+    let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0;
+    const MAX_ATTEMPTS = 3;
+    const MAX_TAB_SWITCHES = 2;
+    const handleVisibilityChange = () => {
+        if (document.hidden) {
+            tabSwitchCount++;
+            if (tabSwitchCount === 1) {
+                showToast('Внимание! Вы переключились на другую вкладку. При повторном переключении тест будет завершен с результатом 0.', 'info');
+            } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
+                showToast('Вы превысили лимит переключений. Тест завершен с нулевым результатом.', 'error');
+                score = 0;
+                showTestResultsView();
+            }
+        }
+    };
+    function startTest(courseId) {
+        stopTimeTracking(); // Stop time tracking when test starts
+        const courseGroup = courses.find(group => group.courses.some(c => c.id === courseId));
+        if (courseGroup) currentCourse = courseGroup.courses.find(c => c.id === courseId);
+        const progress = userProgress[courseId];
+        const attempts = progress ? progress.attempts : 0;
+        if (attempts >= MAX_ATTEMPTS) {
+            showToast(`Вы использовали все ${MAX_ATTEMPTS} попытки для сдачи этого теста.`, 'error');
+            return;
+        }
+        if (!currentCourse || !currentCourse.questions || currentCourse.questions.length === 0) {
+            contentArea.innerHTML = `
+                <div class="message">Вопросы для этого курса не найдены или отсутствуют.</div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn" onclick="showMainMenu()">Вернуться в меню</button>
+                </div>
+            `;
+            hideLoader();
+            return;
+        }
+        currentQuestions = currentCourse.questions;
+        currentQuestionIndex = 0;
+        score = 0;
+        tabSwitchCount = 0;
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.getElementById('main-content-wrapper').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
+        productContent.classList.add('hidden');
+        testView.classList.remove('hidden');
+        displayQuestion();
+    }
+    function displayQuestion() {
+        const nextBtn = document.getElementById('next-question-btn');
+        if (currentQuestionIndex < currentQuestions.length) {
+            const q = currentQuestions[currentQuestionIndex];
+            document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`;
+            document.getElementById('question').textContent = q.question;
+            const answersDiv = document.getElementById('answers');
+            answersDiv.innerHTML = '';
+            q.options.forEach((option, index) => {
+                const answerEl = document.createElement('div');
+                answerEl.className = 'answer';
+                answerEl.textContent = option;
+                answerEl.dataset.index = index;
+                answerEl.addEventListener('click', selectAnswer);
+                answersDiv.appendChild(answerEl);
+            });
+            nextBtn.classList.add('hidden');
+        } else {
+            showTestResultsView();
+        }
+    }
+    function selectAnswer(e) {
+        const selectedIndex = parseInt(e.target.dataset.index, 10);
+        const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index;
+        document.querySelectorAll('.answer').forEach(el => {
+            el.removeEventListener('click', selectAnswer);
+            el.style.cursor = 'default';
+        });
+        if (selectedIndex === correctIndex) {
+            score++;
+            e.target.style.borderColor = 'var(--success-color)';
+            e.target.style.backgroundColor = '#eaf7ec';
+        } else {
+            e.target.style.borderColor = 'var(--error-color)';
+            e.target.style.backgroundColor = '#fdeeee';
+            const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`);
+            if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)';
+        }
+        const nextBtn = document.getElementById('next-question-btn');
+        nextBtn.classList.remove('hidden');
+        nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); };
+    }
+    async function showTestResultsView() {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        testView.classList.add('hidden');
+        testResultsView.classList.remove('hidden');
+        const percentage = Math.round((score / currentQuestions.length) * 100);
+        document.getElementById('results-product-name').textContent = currentCourse.title;
+        document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`;
+
+        let feedback = '';
+        if (percentage >= 80) {
+            feedback = 'Отличный результат! Материал усвоен.';
+            document.querySelector('#test-results .fa-trophy').style.color = 'var(--success-color)';
+        } else if (percentage >= 60) {
+            feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.';
+            document.querySelector('#test-results .fa-trophy').style.color = 'var(--primary-color)';
+        } else {
+            feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.';
+            document.querySelector('#test-results .fa-trophy').style.color = 'var(--text-light-color)';
+        }
+        document.getElementById('results-feedback').textContent = feedback;
+
+        try {
+            const resultData = await fetchAuthenticated('/api/saveTestResult', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    course_id: currentCourse.id,
+                    score: score,
+                    total_questions: currentQuestions.length,
+                    percentage: percentage,
+                    time_spent_seconds: secondsSinceLastUpdate // Send the tracked time
+                })
+            });
+
+            const attempts = resultData.updated_progress?.attempts || 1;
+            const timeSpent = resultData.updated_progress?.time_spent_seconds || secondsSinceLastUpdate;
+
+            document.getElementById('results-attempts').textContent = `${attempts} / ${MAX_ATTEMPTS}`;
+            document.getElementById('results-time-spent').textContent = `${Math.round(timeSpent / 60)} мин`;
+
+            const retryBtn = document.getElementById('retry-test-btn');
+            if (attempts < MAX_ATTEMPTS) {
+                retryBtn.classList.remove('hidden');
+                retryBtn.onclick = () => startTest(currentCourse.id);
+            } else {
+                retryBtn.classList.add('hidden');
+            }
+
+        } catch(error) {
+            console.error('Не удалось сохранить результат:', error);
+            document.getElementById('results-feedback').textContent += " (Ошибка сохранения результата)";
+        }
+        secondsSinceLastUpdate = 0; // Reset time tracker
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        mainMenu.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('assign-course-btn')) {
+                const courseId = e.target.dataset.courseId;
+                if (!courseId) return;
+                const button = e.target;
+                button.disabled = true;
+                button.textContent = 'Запись...';
+                try {
+                    await fetchAuthenticated('/api/assign-course', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ course_id: courseId })
+                    });
+                    showToast('Вы успешно записаны на курс!', 'success');
+                    document.querySelector('.tab-btn[data-filter="assigned"]').click();
+                } catch (error) {
+                    console.error('Failed to assign course:', error);
+                    showToast(`Не удалось записаться на курс: ${error.message}`, 'error');
+                    button.disabled = false;
+                    button.textContent = 'Начать изучение';
+                }
+            }
+        });
+        appView.classList.add('hidden');
+        authView.classList.add('hidden');
+        checkSession();
+        backToMenuBtn.addEventListener('click', () => {
+            if (typeof backButtonAction === 'function') backButtonAction();
+        });
+        backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
+
+        document.getElementById('back-to-presentation-from-test').addEventListener('click', () => {
+            if (currentCourse) {
+                showPresentationView(currentCourse.id);
+            } else {
+                showMainMenu();
+            }
+        });
+    });
+    let currentScenario = '';
+    function showSimulatorView() {
+        stopTimeTracking(); // Stop time tracking when simulator starts
+        windowTitle.textContent = 'Диалоговый тренажер';
+        document.getElementById('main-content-wrapper').classList.add('hidden');
+        document.getElementById('leaderboard-container').classList.add('hidden');
+        productContent.classList.add('hidden');
+        simulatorView.classList.remove('hidden');
+        backToMenuBtn.classList.remove('hidden');
+        backButtonAction = showMainMenu;
+        simulatorSetup.classList.remove('hidden');
+        simulatorChatArea.classList.add('hidden');
+        simulatorEvaluationArea.classList.add('hidden');
+        simulatorChatBox.innerHTML = '';
+        simulationHistory = [];
+        currentScenario = '';
+    }
+    launchSimulatorBtn.addEventListener('click', showSimulatorView);
+    restartSimulationBtn.addEventListener('click', showSimulatorView);
+    function appendSimulatorMessage(text, role, isThinking = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${role}-message`;
+        const textSpan = document.createElement('span');
+        textSpan.textContent = text;
+        if (isThinking) {
+            messageDiv.classList.add('thinking');
+            messageDiv.id = 'simulator-thinking-indicator';
+        }
+        messageDiv.appendChild(textSpan);
+        simulatorChatBox.appendChild(messageDiv);
+        simulatorChatBox.scrollTop = simulatorChatBox.scrollHeight;
+    }
+    function updateLastSimulatorMessage(text) {
+        const thinkingIndicator = document.getElementById('simulator-thinking-indicator');
+        if (thinkingIndicator) {
+            thinkingIndicator.querySelector('span').textContent = text;
+            thinkingIndicator.classList.remove('thinking');
+            thinkingIndicator.id = '';
+        }
+    }
+    startSimulationBtn.addEventListener('click', async () => {
+        simulatorSetup.classList.add('hidden');
+        simulatorChatArea.classList.remove('hidden');
+        appendSimulatorMessage('...', 'assistant', true);
+        try {
+            const disposition = document.getElementById('disposition-slider').value;
+            const data = await fetchAuthenticated('/api/dialogueSimulator', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'start', disposition })
+            });
+            if (!data.scenario || !data.first_message) throw new Error("Сервер не вернул сценарий или первое сообщение.");
+            currentScenario = data.scenario;
+            updateLastSimulatorMessage(data.first_message);
+            simulationHistory.push({ role: 'assistant', text: data.first_message });
+        } catch (error) {
+            updateLastSimulatorMessage(`Ошибка при запуске симуляции: ${error.message}`);
+        }
+    });
+    simulatorChatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userInput = simulatorChatInput.value.trim();
+        if (!userInput) return;
+        const submitBtn = document.getElementById('simulator-submit-btn');
+        appendSimulatorMessage(userInput, 'user');
+        simulationHistory.push({ role: 'user', text: userInput });
+        simulatorChatInput.value = '';
+        simulatorChatInput.disabled = true;
+        if(submitBtn) submitBtn.disabled = true;
+        appendSimulatorMessage('...', 'assistant', true);
+        try {
+            if (!currentScenario) throw new Error("Сценарий не был начат. Пожалуйста, перезапустите тренажер.");
+            const disposition = document.getElementById('disposition-slider').value;
+            const data = await fetchAuthenticated('/api/dialogueSimulator', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    history: simulationHistory,
+                    disposition: disposition,
+                    scenario: currentScenario,
+                    action: 'chat'
+                })
+            });
+            const aiResponse = data.answer ? data.answer.trim() : '';
+            if (aiResponse) {
+                updateLastSimulatorMessage(aiResponse);
+                simulationHistory.push({ role: 'assistant', text: aiResponse });
+            } else {
+                updateLastSimulatorMessage("Извините, я не смог получить ответ. Попробуйте перефразировать.");
+            }
+        } catch (error) {
+            updateLastSimulatorMessage(`Ошибка: ${error.message}`);
+        } finally {
+            simulatorChatInput.disabled = false;
+            if(submitBtn) submitBtn.disabled = false;
+            simulatorChatInput.focus();
+        }
+    });
+    endSimulationBtn.addEventListener('click', async () => {
+        if (simulationHistory.length === 0) {
+            showToast('Сначала начните диалог.', 'info');
+            return;
+        }
+        if (!currentScenario) {
+            showToast("Ошибка: сценарий не определен. Пожалуйста, перезапустите тренажер.", 'error');
+            return;
+        }
+        simulatorChatArea.classList.add('hidden');
+        simulatorEvaluationArea.classList.remove('hidden');
+        evaluationResults.innerHTML = '<div class="loader"></div>';
+        try {
+             const disposition = document.getElementById('disposition-slider').value;
+             const data = await fetchAuthenticated('/api/dialogueSimulator', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    history: simulationHistory,
+                    action: 'evaluate',
+                    disposition: disposition,
+                    scenario: currentScenario
+                })
+            });
+            evaluationResults.innerHTML = '';
+            const evaluationData = data.answer;
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = 'Скачать диалог и оценку';
+            downloadBtn.style.marginTop = '10px';
+            downloadBtn.style.marginBottom = '15px';
+            downloadBtn.onclick = () => {
+                const dialogueText = simulationHistory.map(h => `${h.role.toUpperCase()}: ${h.text}`).join('\n');
+                const evaluationText = JSON.stringify(evaluationData, null, 2);
+                const fullText = `СЦЕНАРИЙ: ${currentScenario}\n\nДИАЛОГ\n--------------------\n${dialogueText}\n\nОЦЕНКА ИИ\n--------------------\n${evaluationText}`;
+                const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `dialogue-evaluation-${new Date().toISOString().slice(0,10)}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+            evaluationResults.appendChild(downloadBtn);
+            const resultsTable = document.createElement('table');
+            resultsTable.style.width = '100%';
+            resultsTable.style.borderCollapse = 'collapse';
+            resultsTable.innerHTML = `
+                <tr style="background-color: var(--bg-color);">
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Критерий</th>
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: center;">Оценка</th>
+                    <th style="border: 1px solid var(--border-color); padding: 8px; text-align: left;">Комментарий</th>
+                </tr>
+            `;
+            if(evaluationData.evaluation_criteria) {
+                evaluationData.evaluation_criteria.forEach(item => {
+                    resultsTable.innerHTML += `
+                        <tr>
+                            <td style="border: 1px solid var(--border-color); padding: 8px;">${item.criterion}</td>
+                            <td style="border: 1px solid var(--border-color); padding: 8px; text-align: center; font-weight: bold;">${item.score}/10</td>
+                            <td style="border: 1px solid var(--border-color); padding: 8px;">${item.comment}</td>
+                        </tr>
+                    `;
+                });
+            }
+            evaluationResults.appendChild(resultsTable);
+            const summary = document.createElement('div');
+            summary.style.marginTop = '15px';
+            if(evaluationData.average_score && evaluationData.general_comment) {
+                summary.innerHTML = `
+                    <h4 style="margin-bottom: 5px;">Общая оценка: <span style="color: var(--primary-color);">${evaluationData.average_score.toFixed(1)}</span></h4>
+                    <p><strong>Общий комментарий:</strong> ${evaluationData.general_comment}</p>
+                `;
+            }
+            evaluationResults.appendChild(summary);
+        } catch (error) {
+            evaluationResults.textContent = `Ошибка при получении оценки: ${error.message}`;
+        }
+    });
+</script>
 </body>
 </html>

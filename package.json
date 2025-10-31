@@ -16,8 +16,7 @@
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",
-    "pexels": "^1.4.0",
-    "zod": "^4.1.12"
+    "pexels": "^1.4.0"
   },
   "devDependencies": {
     "assert": "^2.0.0",
