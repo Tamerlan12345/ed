@@ -3,7 +3,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
-const { parse } = require('rtf-parser');
+const rtfParser = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
@@ -204,7 +204,7 @@ async function handleUploadAndProcess(jobId, payload) {
         } else if (file_name.endsWith('.rtf')) {
             console.log(`[Job ${jobId}] Processing .rtf file with rtf-parser...`);
             textContent = await new Promise((resolve, reject) => {
-                parse(buffer, (err, doc) => {
+                rtfParser.parse(buffer, (err, doc) => {
                     if (err) return reject(err);
                     const text = doc.content.map(p => p.content.map(s => s.value).join('')).join('\n');
                     resolve(text);
