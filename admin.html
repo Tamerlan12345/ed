@@ -959,8 +959,14 @@
                 <input type="hidden" id="course-id" value="${escapeHTML(courseId)}">
                 <input type="text" id="course-title" placeholder="Название курса" value="${escapeHTML(title)}">
                 <h3>Шаг 1А: Генерация из файла (текущий функционал)</h3>
-                <input type="file" id="file-uploader" accept=".pdf,.docx">
-                <button id="process-file-btn">Загрузить и извлечь текст</button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="file" id="file-uploader" accept=".pdf,.docx" style="flex-grow: 1; margin-bottom: 0;">
+                    <select id="upload-mode-select" style="margin-bottom: 0;">
+                        <option value="course">Материал для курса</option>
+                        <option value="quiz">Готовый тест</option>
+                    </select>
+                </div>
+                <button id="process-file-btn" style="margin-top: 10px;">Загрузить и извлечь текст</button>
                 <hr style="margin: 20px 0;">
                 <h3>ИЛИ Шаг 1Б: Генерация по ссылке на Google Slides</h3>
                 <p style="font-size: 0.9em; color: #666; margin-top: -5px;">Для корректной работы опубликуйте презентацию в интернете (Файл -> Поделиться -> Опубликовать в интернете) и вставьте ссылку сюда.</p>
@@ -1121,7 +1127,13 @@
             reader.onload = async () => {
                 try {
                     const base64File = reader.result.split(',')[1];
-                    const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, { course_id: courseId, file_name: sanitizeForPath(file.name), file_data: base64File });
+                    const uploadMode = document.getElementById('upload-mode-select').value;
+                    const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
+                        course_id: courseId,
+                        file_name: sanitizeForPath(file.name),
+                        file_data: base64File,
+                        upload_mode: uploadMode
+                    });
                     if (data.jobId) {
                         startJobPolling(data.jobId, courseId);
                         showToast(`Задача обработки файла запущена (ID: ${data.jobId}).`, 'info');

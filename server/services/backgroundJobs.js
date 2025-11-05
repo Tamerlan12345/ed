@@ -3,6 +3,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
+const { parse } = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
@@ -10,7 +11,85 @@ const cheerio = require('cheerio');
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env.PEXELS_API_KEY) : null;
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+async function parseQuizFromText(textContent) {
+    console.log('Starting quiz parsing with AI...');
+    const outputFormat = {
+        questions: [{
+            question: "Текст вопроса",
+            options: ["Вариант 1", "Вариант 2", "Вариант 3"],
+            correct_option_index: 0
+        }]
+    };
+
+    const prompt = `
+        ЗАДАНИЕ: Проанализируй ИСХОДНЫЙ ТЕКСТ и преобразуй его в JSON-структуру для теста.
+
+        ИСХОДНЫЙ ТЕКСТ:
+        ---
+        ${textContent}
+        ---
+
+        ПРАВИЛА ПАРСИНГА:
+        1.  Каждый новый вопрос начинается с новой строки.
+        2.  Варианты ответов идут сразу после вопроса, каждый на новой строке.
+        3.  Правильный вариант ответа **ОДНОЗНАЧНО** помечается символом "+" или "*" в самом начале строки. Другие символы (например, "-") или нумерацию следует игнорировать как маркеры.
+        4.  Текст вопроса и вариантов ответа нужно очистить от маркеров (+, *, -, 1., a)) и лишних пробелов.
+
+        ТРЕБОВАНИЯ К ВЫВОДУ:
+        -   Ты должен вернуть **ТОЛЬКО JSON** и ничего больше. Без слов "json", "вот json" и без использования markdown-форматирования (никаких \`\`\`).
+        -   Структура JSON должна строго соответствовать этому формату: ${JSON.stringify(outputFormat)}
+        -   Поле "correct_option_index" должно содержать индекс правильного ответа в массиве "options" (начиная с 0).
+
+        Пример:
+        Исходный текст:
+        1. Столица Франции?
+        - Рим
+        + Париж
+        - Берлин
+
+        Результат JSON:
+        {
+            "questions": [
+                {
+                    "question": "Столица Франции?",
+                    "options": ["Рим", "Париж", "Берлин"],
+                    "correct_option_index": 1
+                }
+            ]
+        }
+    `;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        // Find the start and end of the JSON object
+        const textResponse = response.text();
+        const firstBrace = textResponse.indexOf('{');
+        const lastBrace = textResponse.lastIndexOf('}');
+
+        if (firstBrace === -1 || lastBrace === -1) {
+            throw new Error('AI response does not contain a valid JSON object.');
+        }
+
+        const jsonString = textResponse.substring(firstBrace, lastBrace + 1);
+        const parsedJson = JSON.parse(jsonString);
+
+        // Basic validation
+        if (!parsedJson.questions || !Array.isArray(parsedJson.questions)) {
+            throw new Error('Parsed JSON is missing the "questions" array.');
+        }
+
+        console.log(`AI parsing successful. Found ${parsedJson.questions.length} questions.`);
+        return parsedJson;
+
+    } catch (error) {
+        console.error('AI parsing or JSON validation failed:', error);
+        throw new Error(`AI failed to parse the quiz. Details: ${error.message}`);
+    }
+}
+
 
 async function handlePresentationProcessing(jobId, payload) {
     const supabaseAdmin = createSupabaseAdminClient();
@@ -122,23 +201,60 @@ async function handleUploadAndProcess(jobId, payload) {
             const data = await pdf(buffer);
             textContent = data.text;
             console.log(`[Job ${jobId}] .pdf processing complete. Text length: ${textContent.length}`);
+        } else if (file_name.endsWith('.rtf')) {
+            console.log(`[Job ${jobId}] Processing .rtf file with rtf-parser...`);
+            textContent = await new Promise((resolve, reject) => {
+                parse(buffer, (err, doc) => {
+                    if (err) return reject(err);
+                    const text = doc.content.map(p => p.content.map(s => s.value).join('')).join('\n');
+                    resolve(text);
+                });
+            });
+            console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
         } else {
-            throw new Error('Unsupported file type. Please upload a .docx or .pdf file.');
+            throw new Error('Unsupported file type. Please upload a .docx, .pdf, or .rtf file.');
         }
 
-        if (!textContent) throw new Error('Could not extract text from the document.');
+        if (!textContent) {
+            throw new Error('Could not extract text from the document.');
+        }
 
-        console.log(`[Job ${jobId}] Text extracted. Saving to database for course ID: ${course_id}...`);
+        // --- NEW LOGIC: Route based on upload_mode ---
+        if (payload.upload_mode === 'quiz') {
+            console.log(`[Job ${jobId}] Quiz upload mode detected. Parsing text with AI...`);
+            const quizJson = await parseQuizFromText(textContent);
 
-        const { error: dbError } = await supabaseAdmin
-            .from('courses')
-            .update({ description: textContent })
-            .eq('id', course_id);
+            console.log(`[Job ${jobId}] AI parsing complete. Saving JSON to content fields and publishing course...`);
+            const { error: dbError } = await supabaseAdmin
+                .from('courses')
+                .update({
+                    content: quizJson,
+                    draft_content: quizJson,
+                    status: 'published',
+                    description: `Квиз из файла: ${file_name}` // Add a description for clarity
+                })
+                .eq('id', course_id);
 
-        if (dbError) throw new Error(`Failed to save course content: ${dbError.message}`);
+            if (dbError) {
+                throw new Error(`Failed to save quiz JSON to course: ${dbError.message}`);
+            }
+            console.log(`[Job ${jobId}] Quiz course ${course_id} created and published successfully.`);
+            await updateJobStatus('completed', { message: `Quiz created successfully from ${file_name}` });
 
-        console.log(`[Job ${jobId}] Processing completed successfully for course ID: ${course_id}.`);
-        await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
+        } else {
+            // --- OLD LOGIC: Save as course material ---
+            console.log(`[Job ${jobId}] Course material mode. Saving extracted text to course description...`);
+            const { error: dbError } = await supabaseAdmin
+                .from('courses')
+                .update({ description: textContent })
+                .eq('id', course_id);
+
+            if (dbError) {
+                throw new Error(`Failed to save course content: ${dbError.message}`);
+            }
+            console.log(`[Job ${jobId}] Course material processing completed for course ID: ${course_id}.`);
+            await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
+        }
 
     } catch (error) {
         console.error(`[Job ${jobId}] Unhandled error during processing:`, error);
