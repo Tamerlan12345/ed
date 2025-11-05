@@ -6,6 +6,7 @@ const pdf = require('pdf-parse');
 const rtfParser = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { Readable } = require('stream');
 
 
 // --- AI/External Service Clients ---
@@ -204,7 +205,8 @@ async function handleUploadAndProcess(jobId, payload) {
         } else if (file_name.endsWith('.rtf')) {
             console.log(`[Job ${jobId}] Processing .rtf file with rtf-parser...`);
             textContent = await new Promise((resolve, reject) => {
-                rtfParser.parse(buffer, (err, doc) => {
+                const stream = Readable.from(buffer);
+                rtfParser.stream(stream, (err, doc) => {
                     if (err) return reject(err);
                     const text = doc.content.map(p => p.content.map(s => s.value).join('')).join('\n');
                     resolve(text);
