@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
     <meta charset="UTF-8">
     <title>Админ-панель</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -453,12 +452,12 @@
             <div class="micro-question" data-slide-index="${slideIndex}">
                 <button class="delete-micro-question-btn" data-slide-index="${slideIndex}" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px;">×</button>
                 <h5 style="margin:0 0 5px 0;">Вопрос после слайда:</h5>
-                <textarea id="micro-q-text-${slideIndex}" class="wysiwyg-textarea">${question.question_text || ''}</textarea>
+                <div class="wysiwyg-question-text" contenteditable="true">${question.question_text || ''}</div>
                 <ul class="wysiwyg-options" style="margin-top: 5px;">
                     ${(question.options || ['', '']).map((opt, oIndex) => `
                         <li class="wysiwyg-option-item">
                             <input type="radio" name="correct_micro_q_${slideIndex}" ${oIndex === question.correct_index ? 'checked' : ''}>
-                            <textarea id="micro-q-opt-${slideIndex}-${oIndex}" class="wysiwyg-textarea">${escapeHTML(opt)}</textarea>
+                            <span class="wysiwyg-option-label" contenteditable="true">${escapeHTML(opt)}</span>
                         </li>
                     `).join('')}
                 </ul>
@@ -471,34 +470,29 @@
         const contentTextarea = document.getElementById('content');
         if (!editor || !contentTextarea) return;
 
-        // Trigger save for all TinyMCE instances before reading their content
-        tinymce.triggerSave();
-
         const data = { summary: { slides: [] }, questions: [] };
 
         editor.querySelectorAll('.wysiwyg-slide').forEach((slideEl, slideIndex) => {
-            const slideContentId = `slide-content-${slideIndex}`;
             const slideData = {
                 slide_title: slideEl.querySelector('.wysiwyg-slide-title').textContent,
-                html_content: slideEl.querySelector(`#${slideContentId}`).value,
+                html_content: slideEl.querySelector('.wysiwyg-slide-content').innerHTML,
                 slide_question: null
             };
 
             const microQuestionEl = slideEl.querySelector('.micro-question');
             if (microQuestionEl) {
-                const microQuestionTextId = `micro-q-text-${slideIndex}`;
                 const questionData = {
-                    question_text: microQuestionEl.querySelector(`#${microQuestionTextId}`).value,
+                    question_text: microQuestionEl.querySelector('.wysiwyg-question-text').textContent,
                     options: [],
                     correct_index: -1
                 };
                 microQuestionEl.querySelectorAll('.wysiwyg-option-item').forEach((optEl, oIndex) => {
-                    const microOptionId = `micro-q-opt-${slideIndex}-${oIndex}`;
-                    questionData.options.push(optEl.querySelector(`#${microOptionId}`).value);
+                    questionData.options.push(optEl.querySelector('.wysiwyg-option-label').textContent);
                     if (optEl.querySelector('input[type="radio"]').checked) {
                         questionData.correct_index = oIndex;
                     }
                 });
+                // Only save if question text and at least one option is filled
                 if (questionData.question_text && questionData.options.some(o => o)) {
                     slideData.slide_question = questionData;
                 }
@@ -506,16 +500,14 @@
             data.summary.slides.push(slideData);
         });
 
-        editor.querySelectorAll('.wysiwyg-question').forEach((qEl, qIndex) => {
-            const questionTextId = `q-text-${qIndex}`;
+        editor.querySelectorAll('.wysiwyg-question').forEach(qEl => {
             const questionData = {
-                question: qEl.querySelector(`#${questionTextId}`).value,
+                question: qEl.querySelector('.wysiwyg-question-text').textContent,
                 options: [],
                 correct_option_index: -1
             };
             qEl.querySelectorAll('.wysiwyg-option-item').forEach((optEl, oIndex) => {
-                const optionId = `q-opt-${qIndex}-${oIndex}`;
-                questionData.options.push(optEl.querySelector(`#${optionId}`).value);
+                questionData.options.push(optEl.querySelector('.wysiwyg-option-label').textContent);
                 if (optEl.querySelector('input[type="radio"]').checked) {
                     questionData.correct_option_index = oIndex;
                 }
@@ -556,41 +548,32 @@
                  return;
             }
 
-            const slidesHtml = (data.summary?.slides || []).map((slide, index) => {
-                const slideContentId = `slide-content-${index}`;
-                return `
-                    <div class="wysiwyg-slide" data-index="${index}">
-                        <div class="wysiwyg-slide-title" contenteditable="true">${escapeHTML(slide.slide_title) || 'Новый слайд'}</div>
-                        <textarea id="${slideContentId}" class="wysiwyg-textarea">${slide.html_content || '<p>Начните вводить текст...</p>'}</textarea>
-                        ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
-                        <div class="micro-question-area" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
-                            ${renderMicroQuestionEditor(slide.slide_question, index)}
-                        </div>
+            const slidesHtml = (data.summary?.slides || []).map((slide, index) => `
+                <div class="wysiwyg-slide" data-index="${index}">
+                    <div class="wysiwyg-slide-title" contenteditable="true">${escapeHTML(slide.slide_title) || 'Новый слайд'}</div>
+                    <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || '<p>Начните вводить текст...</p>'}</div>
+                    ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
+                    <div class="micro-question-area" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
+                        ${renderMicroQuestionEditor(slide.slide_question, index)}
                     </div>
-                `;
-            }).join('');
+                </div>
+            `).join('');
             editor.innerHTML += slidesHtml;
 
-            const questionsHtml = (data.questions || []).map((q, qIndex) => {
-                const questionTextId = `q-text-${qIndex}`;
-                return `
-                    <div class="wysiwyg-question" data-index="${qIndex}">
-                        <button class="delete-question-btn" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
-                        <textarea id="${questionTextId}" class="wysiwyg-textarea">${q.question || 'Текст вопроса'}</textarea>
-                        <ul class="wysiwyg-options">
-                            ${(q.options || []).map((opt, oIndex) => {
-                                const optionId = `q-opt-${qIndex}-${oIndex}`;
-                                return `
-                                    <li class="wysiwyg-option-item">
-                                        <input type="radio" name="correct_q_${qIndex}" ${oIndex === q.correct_option_index ? 'checked' : ''}>
-                                        <textarea id="${optionId}" class="wysiwyg-textarea">${escapeHTML(opt)}</textarea>
-                                    </li>
-                                `;
-                            }).join('')}
-                        </ul>
-                    </div>
-                `;
-            }).join('');
+            const questionsHtml = (data.questions || []).map((q, qIndex) => `
+                <div class="wysiwyg-question" data-index="${qIndex}">
+                    <button class="delete-question-btn" style="float: right; background-color: #dc3545; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
+                    <div class="wysiwyg-question-text" contenteditable="true">${q.question || 'Текст вопроса'}</div>
+                    <ul class="wysiwyg-options">
+                        ${(q.options || []).map((opt, oIndex) => `
+                            <li class="wysiwyg-option-item">
+                                <input type="radio" name="correct_q_${qIndex}" ${oIndex === q.correct_option_index ? 'checked' : ''}>
+                                <span class="wysiwyg-option-label" contenteditable="true">${escapeHTML(opt)}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `).join('');
 
             const questionsContainer = document.createElement('div');
             questionsContainer.className = 'wysiwyg-questions-container';
@@ -600,6 +583,8 @@
                 <button id="add-question-btn" style="margin-top: 15px; background-color: #28a745;">+ Добавить вопрос</button>
             `;
             editor.appendChild(questionsContainer);
+
+            ['input', 'change'].forEach(evt => editor.addEventListener(evt, () => updateJsonFromWysiwyg()));
 
             // --- Add/Delete Question Logic ---
             editor.addEventListener('click', (e) => {
@@ -670,19 +655,6 @@
             editor.innerHTML = `<p class="error">Ошибка: Не удалось разобрать JSON контент. Проверьте его валидность. <br><small>${escapeHTML(e.message)}</small></p>`;
             document.getElementById('content').style.display = 'block';
         }
-
-        setTimeout(() => {
-            tinymce.init({
-                selector: 'textarea.wysiwyg-textarea',
-                plugins: 'lists link image code wordcount help',
-                toolbar: 'undo redo | blocks | bold italic | alignleft aligncenter alignright | bullist numlist | link image | code | help',
-                menubar: false,
-                setup: function (editor) {
-                    editor.on('input', () => updateJsonFromWysiwyg());
-                    editor.on('change', () => updateJsonFromWysiwyg());
-                }
-            });
-        }, 100);
     }
 
     function showToast(message, type = 'info') {
