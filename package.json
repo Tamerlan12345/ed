@@ -4,6 +4,7 @@
   "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@playwright/test": "^1.56.1",
     "@supabase/supabase-js": "^2.57.2",
     "axios": "^1.11.0",
     "c8": "^10.1.3",
