@@ -14,11 +14,7 @@ apiRouter.post('/admin', adminAuthMiddleware, handleAdminAction);
 apiRouter.post('/getDetailedReport', adminAuthMiddleware, getDetailedReport);
 
 // --- Public Routes (No Auth Required) ---
-apiRouter.get('/config', (req, res) => {
-    res.json({
-        tinymceApiKey: process.env.TINYMCE_API_KEY
-    });
-});
+
 
 // --- User-facing Authenticated Routes ---
 // All routes below this middleware will require a valid user token.

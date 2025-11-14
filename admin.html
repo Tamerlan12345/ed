@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
     <meta charset="UTF-8">
     <title>Админ-панель</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -936,30 +937,7 @@
     }
 
     // --- INITIALIZATION ---
-    async function loadTinyMCE() {
-        try {
-            const response = await fetch('/api/config');
-            const config = await response.json();
-            const apiKey = config.tinymceApiKey || 'no-api-key';
-            const script = document.createElement('script');
-            script.src = `https://cdn.tiny.cloud/1/${apiKey}/tinymce/7/tinymce.min.js`;
-            script.referrerPolicy = 'origin';
-            script.onload = () => {
-                console.log('TinyMCE loaded successfully.');
-            };
-            document.head.appendChild(script);
-        } catch (error) {
-            console.error('Failed to load TinyMCE config:', error);
-            // Load with no-api-key as a fallback
-            const script = document.createElement('script');
-            script.src = `https://cdn.tiny.cloud/1/no-api-key/tinymce/7/tinymce.min.js`;
-            script.referrerPolicy = 'origin';
-            document.head.appendChild(script);
-        }
-    }
-
     document.addEventListener('DOMContentLoaded', async () => {
-        await loadTinyMCE(); // Load TinyMCE early
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) await onLoginSuccess(session);
         else {
@@ -1034,7 +1012,6 @@
                 <textarea id="custom-prompt" placeholder="Оставьте пустым для стандартного промпта..."></textarea>
                 <button id="generate-btn">Сгенерировать черновик</button>
                 <h3>Шаг 3: Проверьте и отредактируйте контент</h3>
-                <button id="toggle-editor-btn" style="margin-bottom: 10px; background-color: #6c757d;">Переключить на простой редактор</button>
                 <div id="wysiwyg-editor"></div>
                 <textarea id="content" style="display: none;">${content}</textarea>
                 <h3>Шаг 4: Сохранение и публикация</h3>
@@ -1067,26 +1044,6 @@
     }
 
     function attachCourseFormListeners() {
-        document.getElementById('toggle-editor-btn').addEventListener('click', () => {
-            const wysiwygEditor = document.getElementById('wysiwyg-editor');
-            const contentTextarea = document.getElementById('content');
-            const btn = document.getElementById('toggle-editor-btn');
-
-            if (wysiwygEditor.style.display !== 'none') {
-                // Switch to plain text editor
-                updateJsonFromWysiwyg(); // Save latest changes from TinyMCE
-                tinymce.remove('textarea.wysiwyg-textarea');
-                wysiwygEditor.style.display = 'none';
-                contentTextarea.style.display = 'block';
-                btn.textContent = 'Переключить на WYSIWYG редактор';
-            } else {
-                // Switch back to WYSIWYG
-                wysiwygEditor.style.display = 'block';
-                contentTextarea.style.display = 'none';
-                btn.textContent = 'Переключить на простой редактор';
-                renderWysiwygEditor(); // Re-initialize TinyMCE
-            }
-        });
         document.getElementById('cancel-edit-btn').addEventListener('click', clearCourseForm);
         document.getElementById('process-file-btn').addEventListener('click', processFileHandler);
         document.getElementById('process-presentation-btn').addEventListener('click', processPresentationHandler);
