@@ -157,4 +157,81 @@ describe('API Endpoints', () => {
             expect(response.body.error).to.equal('Unknown action: unknown_action');
         });
     });
+
+    describe('POST /api/getCourseContent', () => {
+        it('should return a maximum of 15 shuffled questions if more than 15 are available', async () => {
+            // Create 20 mock questions
+            const mockQuestions = Array.from({ length: 20 }, (_, i) => ({
+                question: `Question ${i + 1}`,
+                options: ['A', 'B', 'C'],
+                correct_option_index: 0,
+            }));
+            const fakeCourse = {
+                id: 'course-with-many-questions',
+                content: {
+                    summary: { slides: [] },
+                    questions: mockQuestions,
+                },
+                course_materials: [],
+            };
+            supabaseStub.single.resolves({ data: fakeCourse, error: null });
+
+            const response = await request(app)
+                .post('/api/getCourseContent')
+                .set('Authorization', 'Bearer mock-user-token') // Pass user auth
+                .send({ course_id: 'course-with-many-questions' });
+
+            expect(response.status).to.equal(200);
+            expect(response.body.questions).to.be.an('array');
+            expect(response.body.questions).to.have.lengthOf(15);
+        });
+
+        it('should return all shuffled questions if 15 or fewer are available', async () => {
+            // Create 10 mock questions
+            const mockQuestions = Array.from({ length: 10 }, (_, i) => ({
+                question: `Question ${i + 1}`,
+                options: ['A', 'B'],
+                correct_option_index: 1,
+            }));
+            const fakeCourse = {
+                id: 'course-with-few-questions',
+                content: JSON.stringify({ // Test with stringified content
+                    summary: { slides: [] },
+                    questions: mockQuestions,
+                }),
+                course_materials: [],
+            };
+            supabaseStub.single.resolves({ data: fakeCourse, error: null });
+
+            const response = await request(app)
+                .post('/api/getCourseContent')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({ course_id: 'course-with-few-questions' });
+
+            expect(response.status).to.equal(200);
+            expect(response.body.questions).to.be.an('array');
+            expect(response.body.questions).to.have.lengthOf(10);
+        });
+
+        it('should return an empty array if no questions are available', async () => {
+            const fakeCourse = {
+                id: 'course-with-no-questions',
+                content: {
+                    summary: { slides: [] },
+                    questions: [],
+                },
+                course_materials: [],
+            };
+            supabaseStub.single.resolves({ data: fakeCourse, error: null });
+
+            const response = await request(app)
+                .post('/api/getCourseContent')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({ course_id: 'course-with-no-questions' });
+
+            expect(response.status).to.equal(200);
+            expect(response.body.questions).to.be.an('array');
+            expect(response.body.questions).to.have.lengthOf(0);
+        });
+    });
 });

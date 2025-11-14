@@ -20,6 +20,13 @@ const simulationScenarios = [
     "Клиент уже получил предложение по страхованию дома от другой компании ('Халык'). Он звонит, чтобы узнать, можете ли вы предложить условия лучше или дешевле."
 ];
 
+const shuffleArray = (array) => {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+};
 
 // POST /api/getCourseContent
 const getCourseContent = async (req, res) => {
@@ -50,9 +57,13 @@ const getCourseContent = async (req, res) => {
             }
         }
 
+        const originalQuestions = parsedContent.questions || [];
+        const shuffledQuestions = shuffleArray([...originalQuestions]);
+        const finalQuestions = shuffledQuestions.slice(0, 15);
+
         res.status(200).json({
             summary: (parsedContent.summary && parsedContent.summary.slides) ? parsedContent.summary.slides : [],
-            questions: parsedContent.questions || [],
+            questions: finalQuestions,
             materials: course.course_materials || []
         });
 
