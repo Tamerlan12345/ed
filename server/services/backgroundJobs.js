@@ -3,7 +3,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
-const { PPTXInHTMLOut } = require('pptx-in-html-out');
+const { extractPptx } = require('pptx-content-extractor');
 const rtfParser = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -215,41 +215,52 @@ async function handleUploadAndProcess(jobId, payload) {
             });
             console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
         } else if (file_name.endsWith('.pptx')) {
-            console.log(`[Job ${jobId}] Processing .pptx file with pptx-in-html-out...`);
-            const converter = new PPTXInHTMLOut(buffer);
-            const html = await converter.toHTML();
-            const $ = cheerio.load(html);
-            const slides = [];
-            $('section').each((index, element) => {
-                const slideHtml = $(element).html();
-                slides.push({
+            console.log(`[Job ${jobId}] Processing .pptx file with pptx-content-extractor...`);
+            const tempFilePath = `/tmp/${jobId}-${file_name}`;
+            const fs = require('fs').promises;
+            try {
+                await fs.writeFile(tempFilePath, buffer);
+                const { slides } = await extractPptx(tempFilePath);
+
+                if (!slides || slides.length === 0) {
+                    throw new Error('Could not extract any slides from the PPTX file. The file might be empty, corrupted, or in an unsupported format.');
+                }
+
+                const parsedSlides = slides.map((slide, index) => ({
                     slide_title: `Slide ${index + 1}`,
-                    html_content: slideHtml,
-                });
-            });
+                    html_content: slide.text.join('<br>'),
+                }));
 
-            const parsedContent = {
-                summary: { slides },
-                questions: [],
-            };
+                const parsedContent = {
+                    summary: { slides: parsedSlides },
+                    questions: [],
+                };
 
-            console.log(`[Job ${jobId}] .pptx processing complete. Saving content to course...`);
-            const { error: dbError } = await supabaseAdmin
-                .from('courses')
-                .update({
-                    content: parsedContent,
-                    draft_content: parsedContent,
-                    description: `Контент из файла: ${file_name}`
-                })
-                .eq('id', course_id);
+                const { error: dbError } = await supabaseAdmin
+                    .from('courses')
+                    .update({
+                        content: parsedContent,
+                        draft_content: parsedContent,
+                        description: `Контент из файла: ${file_name}`
+                    })
+                    .eq('id', course_id);
 
-            if (dbError) {
-                throw new Error(`Failed to save PPTX content to course: ${dbError.message}`);
+                if (dbError) {
+                    throw new Error(`Failed to save PPTX content to course: ${dbError.message}`);
+                }
+
+                console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
+                await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
+                return;
+            } finally {
+                try {
+                    await fs.unlink(tempFilePath);
+                } catch (unlinkError) {
+                    if (unlinkError.code !== 'ENOENT') {
+                        console.error(`[Job ${jobId}] Failed to delete temporary file ${tempFilePath}:`, unlinkError);
+                    }
+                }
             }
-            console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
-            await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
-            return;
-
         } else {
             throw new Error('Unsupported file type. Please upload a .docx, .pdf, or .rtf file.');
         }
@@ -508,6 +519,9 @@ async function handlePptxPresentationProcessing(jobId, payload) {
         if (error) console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
     };
 
+    const tempFilePath = `/tmp/${jobId}-presentation.pptx`;
+    const fs = require('fs').promises;
+
     try {
         console.log(`[Job ${jobId}] Starting PPTX presentation processing for course ${course_id} from URL: ${presentation_url}`);
 
@@ -515,43 +529,52 @@ async function handlePptxPresentationProcessing(jobId, payload) {
         const response = await axios.get(presentation_url, { responseType: 'arraybuffer' });
         const pptxBuffer = response.data;
 
-        // 2. Parse the PPTX file to HTML.
-        const converter = new PPTXInHTMLOut(pptxBuffer);
-        const html = await converter.toHTML();
+        // Write the buffer to the temporary file
+        await fs.writeFile(tempFilePath, pptxBuffer);
 
-        // 3. Transform the HTML into the desired slide format.
-        const $ = cheerio.load(html);
-        const slides = [];
-        $('section').each((index, element) => {
-            const slideHtml = $(element).html();
-            // For simplicity, we'll use a generic title and the full HTML content.
-            slides.push({
-                slide_title: `Slide ${index + 1}`,
-                html_content: slideHtml
-            });
-        });
+        // 2. Parse the PPTX file to slides.
+        const { slides } = await extractPptx(tempFilePath);
+
+        if (!slides || slides.length === 0) {
+            throw new Error('Could not extract any slides from the PPTX file. The file might be empty, corrupted, or in an unsupported format.');
+        }
+
+        const parsedSlides = slides.map((slide, index) => ({
+            slide_title: `Slide ${index + 1}`,
+            html_content: slide.text.join('<br>'),
+        }));
 
         const parsedContent = {
-            summary: {
-                slides: slides
-            },
-            questions: [] // No questions from PPTX for now
+            summary: { slides: parsedSlides },
+            questions: [],
         };
 
-        // 4. Save the transformed content to the database.
+        // 3. Save the extracted content to the course.
         const { error: updateError } = await supabaseAdmin
             .from('courses')
-            .update({ content: parsedContent, draft_content: parsedContent })
+            .update({
+                content: parsedContent,
+                draft_content: parsedContent,
+                description: `Контент из файла: ${presentation_url}`
+            })
             .eq('id', course_id);
 
-        if (updateError) throw new Error(`Failed to save processed PPTX content to course: ${updateError.message}`);
+        if (updateError) throw new Error(`Failed to save extracted text to course: ${updateError.message}`);
 
-        console.log(`[Job ${jobId}] PPTX presentation processed and saved for course ${course_id}.`);
+        console.log(`[Job ${jobId}] PPTX presentation processed and slides saved for course ${course_id}.`);
         await updateJobStatus('completed', { message: `PPTX presentation processed for course ${course_id}.` });
 
     } catch (error) {
         console.error(`[Job ${jobId}] Error during PPTX presentation processing:`, error);
         await updateJobStatus('failed', null, error.message);
+    } finally {
+        try {
+            await fs.unlink(tempFilePath);
+        } catch (unlinkError) {
+            if (unlinkError.code !== 'ENOENT') {
+                console.error(`[Job ${jobId}] Failed to delete temporary file ${tempFilePath}:`, unlinkError);
+            }
+        }
     }
 }
 
