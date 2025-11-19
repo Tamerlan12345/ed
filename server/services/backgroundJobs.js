@@ -3,6 +3,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
+const { PPTXInHTMLOut } = require('pptx-in-html-out');
 const rtfParser = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -213,11 +214,47 @@ async function handleUploadAndProcess(jobId, payload) {
                 });
             });
             console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
+        } else if (file_name.endsWith('.pptx')) {
+            console.log(`[Job ${jobId}] Processing .pptx file with pptx-in-html-out...`);
+            const converter = new PPTXInHTMLOut(buffer);
+            const html = await converter.toHTML();
+            const $ = cheerio.load(html);
+            const slides = [];
+            $('section').each((index, element) => {
+                const slideHtml = $(element).html();
+                slides.push({
+                    slide_title: `Slide ${index + 1}`,
+                    html_content: slideHtml,
+                });
+            });
+
+            const parsedContent = {
+                summary: { slides },
+                questions: [],
+            };
+
+            console.log(`[Job ${jobId}] .pptx processing complete. Saving content to course...`);
+            const { error: dbError } = await supabaseAdmin
+                .from('courses')
+                .update({
+                    content: parsedContent,
+                    draft_content: parsedContent,
+                    description: `Контент из файла: ${file_name}`
+                })
+                .eq('id', course_id);
+
+            if (dbError) {
+                throw new Error(`Failed to save PPTX content to course: ${dbError.message}`);
+            }
+            console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
+            await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
+            return;
+
         } else {
             throw new Error('Unsupported file type. Please upload a .docx, .pdf, or .rtf file.');
         }
 
-        if (!textContent) {
+        if (!textContent && !file_name.endsWith('.pptx')) {
             throw new Error('Could not extract text from the document.');
         }
 
