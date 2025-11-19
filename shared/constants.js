@@ -12,6 +12,7 @@ const ACTIONS = {
     // Content Generation
     UPLOAD_AND_PROCESS: 'upload_and_process',
     PROCESS_PRESENTATION: 'process_presentation',
+    PROCESS_PPTX_PRESENTATION: 'process_pptx_presentation',
     GENERATE_CONTENT: 'generate_content',
     GENERATE_SUMMARY: 'generate_summary',
 

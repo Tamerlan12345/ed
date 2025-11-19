@@ -496,8 +496,68 @@ async function handleGenerateSummary(jobId, payload) {
     }
 }
 
+async function handlePptxPresentationProcessing(jobId, payload) {
+    const supabaseAdmin = createSupabaseAdminClient();
+    const { course_id, presentation_url } = payload;
+
+    const updateJobStatus = async (status, data = null, errorMessage = null) => {
+        const { error } = await supabaseAdmin
+            .from('background_jobs')
+            .update({ status, payload: data, last_error: errorMessage, updated_at: new Date().toISOString() })
+            .eq('id', jobId);
+        if (error) console.error(`[Job ${jobId}] Failed to update job status to ${status}:`, error);
+    };
+
+    try {
+        console.log(`[Job ${jobId}] Starting PPTX presentation processing for course ${course_id} from URL: ${presentation_url}`);
+
+        // 1. Download the PPTX file.
+        const response = await axios.get(presentation_url, { responseType: 'arraybuffer' });
+        const pptxBuffer = response.data;
+
+        // 2. Parse the PPTX file to HTML.
+        const converter = new PPTXInHTMLOut(pptxBuffer);
+        const html = await converter.toHTML();
+
+        // 3. Transform the HTML into the desired slide format.
+        const $ = cheerio.load(html);
+        const slides = [];
+        $('section').each((index, element) => {
+            const slideHtml = $(element).html();
+            // For simplicity, we'll use a generic title and the full HTML content.
+            slides.push({
+                slide_title: `Slide ${index + 1}`,
+                html_content: slideHtml
+            });
+        });
+
+        const parsedContent = {
+            summary: {
+                slides: slides
+            },
+            questions: [] // No questions from PPTX for now
+        };
+
+        // 4. Save the transformed content to the database.
+        const { error: updateError } = await supabaseAdmin
+            .from('courses')
+            .update({ content: parsedContent, draft_content: parsedContent })
+            .eq('id', course_id);
+
+        if (updateError) throw new Error(`Failed to save processed PPTX content to course: ${updateError.message}`);
+
+        console.log(`[Job ${jobId}] PPTX presentation processed and saved for course ${course_id}.`);
+        await updateJobStatus('completed', { message: `PPTX presentation processed for course ${course_id}.` });
+
+    } catch (error) {
+        console.error(`[Job ${jobId}] Error during PPTX presentation processing:`, error);
+        await updateJobStatus('failed', null, error.message);
+    }
+}
+
 module.exports = {
     handlePresentationProcessing,
+    handlePptxPresentationProcessing,
     handleUploadAndProcess,
     handleGenerateContent,
     handleGenerateSummary,

@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { createSupabaseAdminClient } = require('../lib/supabaseClient');
-const { handlePresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
+const { handlePresentationProcessing, handlePptxPresentationProcessing, handleUploadAndProcess, handleGenerateContent, handleGenerateSummary } = require('../services/backgroundJobs');
 const { ACTIONS } = require('../../shared/constants');
 
 // --- Admin Action Handlers ---
@@ -163,6 +163,36 @@ const adminActionHandlers = {
             payload
         });
         handlePresentationProcessing(jobId, payload).catch(console.error);
+        res.status(202).json({ jobId });
+        return null; // Important: prevent double response
+    },
+    [ACTIONS.PROCESS_PPTX_PRESENTATION]: async ({ payload, res }) => {
+        const { course_id, presentation_url } = payload;
+        if (!course_id || !presentation_url) {
+            throw { status: 400, message: 'course_id and presentation_url are required.' };
+        }
+
+        const supabaseAdmin = createSupabaseAdminClient();
+
+        // First, save the URL to the course table
+        const { error: updateError } = await supabaseAdmin
+            .from('courses')
+            .update({ presentation_url })
+            .eq('id', course_id);
+
+        if (updateError) {
+            throw { status: 500, message: `Failed to save presentation URL: ${updateError.message}` };
+        }
+
+        // Then, start the background job
+        const jobId = crypto.randomUUID();
+        await supabaseAdmin.from('background_jobs').insert({
+            id: jobId,
+            job_type: 'pptx_presentation_processing',
+            status: 'pending',
+            payload
+        });
+        handlePptxPresentationProcessing(jobId, payload).catch(console.error);
         res.status(202).json({ jobId });
         return null; // Important: prevent double response
     },
