@@ -228,12 +228,16 @@ async function handleUploadAndProcess(jobId, payload) {
                 });
             });
 
+            if (!slides.length) {
+                throw new Error('Could not extract any slides from the PPTX file. The file might be empty, corrupted, or in an unsupported format.');
+            }
+
             const parsedContent = {
                 summary: { slides },
                 questions: [],
             };
 
-            console.log(`[Job ${jobId}] .pptx processing complete. Saving content to course...`);
+            console.log(`[Job ${jobId}] .pptx processing complete with ${slides.length} slides. Saving content to course...`);
             const { error: dbError } = await supabaseAdmin
                 .from('courses')
                 .update({
@@ -530,6 +534,10 @@ async function handlePptxPresentationProcessing(jobId, payload) {
                 html_content: slideHtml
             });
         });
+
+        if (!slides.length) {
+            throw new Error('Could not extract any slides from the PPTX file. The file might be empty, corrupted, or in an unsupported format.');
+        }
 
         const parsedContent = {
             summary: {
