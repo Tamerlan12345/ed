@@ -974,9 +974,9 @@
                 <div id="presentation-preview-container" style="margin-top: 15px; min-height: 400px; border: 1px solid #e0e0e0; display: none; background-color: #f9f9f9; padding: 5px; border-radius: 8px;"></div>
                 <button id="process-presentation-btn">Создать/Обновить курс по презентации</button>
                 <hr style="margin: 20px 0;">
-                <h3>ИЛИ Шаг 1В: Генерация по ссылке на PPTX-файл</h3>
-                <input type="url" id="pptx-presentation-url" placeholder="Вставьте прямую ссылку на .pptx файл">
-                <button id="process-pptx-presentation-btn">Создать/Обновить курс по PPTX</button>
+                <h3>ИЛИ Шаг 1В: Генерация из PPTX-файла</h3>
+                <input type="file" id="pptx-file-uploader" accept=".pptx" style="margin-bottom: 0;">
+                <button id="process-pptx-file-btn" style="margin-top: 10px;">Загрузить и обработать PPTX</button>
                 <hr style="margin: 20px 0;">
                 <h3>Описание (Источник для AI)</h3>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -1023,7 +1023,7 @@
         document.getElementById('cancel-edit-btn').addEventListener('click', clearCourseForm);
         document.getElementById('process-file-btn').addEventListener('click', processFileHandler);
         document.getElementById('process-presentation-btn').addEventListener('click', processPresentationHandler);
-        document.getElementById('process-pptx-presentation-btn').addEventListener('click', processPptxPresentationHandler);
+        document.getElementById('process-pptx-file-btn').addEventListener('click', processPptxFileHandler);
         document.getElementById('generate-btn').addEventListener('click', generateContentHandler);
         document.getElementById('text-to-speech-btn').addEventListener('click', textToSpeechHandler);
         document.getElementById('publish-btn').addEventListener('click', publishCourseHandler);
@@ -1108,15 +1108,15 @@
         }
     }
 
-    async function processPptxPresentationHandler() {
-        const btn = document.getElementById('process-pptx-presentation-btn');
+    async function processPptxFileHandler() {
+        const btn = document.getElementById('process-pptx-file-btn');
         btn.disabled = true;
         try {
-            const presentationUrl = document.getElementById('pptx-presentation-url').value.trim();
+            const file = document.getElementById('pptx-file-uploader').files[0];
             const title = document.getElementById('course-title').value.trim();
             const deadlineDays = document.getElementById('course-deadline-days').value.trim();
-            if (!presentationUrl || !title) {
-                showToast('Укажите название курса и ссылку на PPTX презентацию.', 'error');
+            if (!file || !title) {
+                showStatus('Укажите название курса и выберите PPTX файл.', 'error');
                 return;
             }
             let courseId = document.getElementById('course-id').value.trim();
@@ -1127,18 +1127,36 @@
                 showToast(`Создан новый курс. ID: ${courseId}`, 'success');
                 currentEditingCourseId = courseId;
             }
-
-            const data = await apiCall(ACTIONS.PROCESS_PPTX_PRESENTATION, { course_id: courseId, presentation_url: presentationUrl });
-            if (data.jobId) {
-                startJobPolling(data.jobId, courseId);
-                showToast(`Задача обработки PPTX презентации запущена (ID: ${data.jobId}).`, 'info');
-            }
-            document.getElementById('content').value = 'PPTX презентация обрабатывается...';
-
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                try {
+                    const base64File = reader.result.split(',')[1];
+                    // We use the generic UPLOAD_AND_PROCESS action which can handle PPTX
+                    const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
+                        course_id: courseId,
+                        file_name: sanitizeForPath(file.name),
+                        file_data: base64File,
+                        upload_mode: 'course' // This ensures it's treated as course content
+                    });
+                    if (data.jobId) {
+                        startJobPolling(data.jobId, courseId);
+                        showToast(`Задача обработки PPTX файла запущена (ID: ${data.jobId}).`, 'info');
+                    }
+                    document.getElementById('content').value = 'Файл PPTX обрабатывается...';
+                } catch(e) {
+                    /* Handled in apiCall */
+                } finally {
+                    btn.disabled = false; // Re-enable button after API call is complete
+                }
+            };
+            reader.onerror = () => {
+                showToast('Не удалось прочитать файл.', 'error');
+                btn.disabled = false; // Re-enable on error as well
+            };
         } catch(e) {
-            // handled in apiCall
-        } finally {
-            btn.disabled = false;
+            /* Handled in apiCall */
+            btn.disabled = false; // Also re-enable in case of initial synchronous errors
         }
     }
 
