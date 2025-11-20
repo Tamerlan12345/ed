@@ -332,6 +332,29 @@ async function handleUploadAndProcess(jobId, payload) {
 
         const slides = [];
 
+        // Ensure bucket exists
+        try {
+            const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets();
+            if (!bucketsError) {
+                const bucketExists = buckets.find(b => b.name === 'course_materials');
+                if (!bucketExists) {
+                    console.log(`[Job ${jobId}] Bucket 'course_materials' not found. Creating...`);
+                    const { error: createError } = await supabaseAdmin.storage.createBucket('course_materials', {
+                        public: true
+                    });
+                    if (createError) {
+                        console.error(`[Job ${jobId}] Failed to create bucket 'course_materials':`, createError);
+                    } else {
+                        console.log(`[Job ${jobId}] Bucket 'course_materials' created successfully.`);
+                    }
+                }
+            } else {
+                console.error(`[Job ${jobId}] Failed to list buckets:`, bucketsError);
+            }
+        } catch (bucketCheckError) {
+             console.error(`[Job ${jobId}] Error checking/creating bucket:`, bucketCheckError);
+        }
+
         for (let i = 0; i < files.length; i++) {
             const imgFileName = files[i];
             const imgPath = path.join(tempDir, imgFileName);
