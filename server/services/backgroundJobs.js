@@ -320,6 +320,11 @@ async function handleUploadAndProcess(jobId, payload) {
 
         // 4. Сбор и загрузка изображений в Supabase Storage
         const files = fs.readdirSync(tempDir).filter(f => f.startsWith(outputPrefix) && f.endsWith('.png'));
+
+        if (files.length === 0) {
+            throw new Error('Не удалось извлечь изображения слайдов из PDF. Возможно, файл поврежден или пуст.');
+        }
+
         // Сортируем файлы, чтобы слайды шли по порядку (slide-1, slide-2, ..., slide-10)
         // pdftoppm нумерует как slide-01.png или slide-1.png в зависимости от версии,
         // поэтому используем натуральную сортировку.
@@ -347,7 +352,7 @@ async function handleUploadAndProcess(jobId, payload) {
 
             if (uploadError) {
                 console.error(`Ошибка загрузки слайда ${i}:`, uploadError);
-                continue;
+                throw new Error(`Не удалось загрузить слайд ${i + 1} в хранилище. Проверьте настройки Supabase (бакет course_materials). Ошибка: ${uploadError.message}`);
             }
 
             // Получение публичной ссылки
@@ -363,6 +368,10 @@ async function handleUploadAndProcess(jobId, payload) {
                 image_url: publicUrlData.publicUrl,
                 html_content: '' // Оставляем пустым, чтобы фронтенд использовал картинку
            });
+        }
+
+        if (slides.length === 0) {
+             throw new Error('Презентация обработана, но слайды не найдены. Возможно, файл пустой или произошла ошибка конвертации.');
         }
 
         // 5. Сохранение в БД
