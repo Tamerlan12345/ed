@@ -10,6 +10,10 @@ const cheerio = require('cheerio');
 const { Readable } = require('stream');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 const { parsePptxToHtml } = require('./pptxParser');
 
 
@@ -188,122 +192,202 @@ async function handleUploadAndProcess(jobId, payload) {
         if (error) console.error(`Failed to update job ${jobId} status to ${status}:`, error);
     };
 
+    // Функция для очистки временной папки
+    const cleanupTempDir = async (dirPath) => {
+        try {
+            if (dirPath && fs.existsSync(dirPath)) {
+                fs.rmSync(dirPath, { recursive: true, force: true });
+            }
+        } catch (e) {
+            console.error('Error cleaning up temp dir:', e);
+        }
+    };
+
     let tempDir = null;
-    let tempInputPath = null;
-    let tempPdfPath = null;
 
     try {
-        let { course_id, title, file_name, file_data } = payload;
-        console.log(`[Job ${jobId}] Starting processing for course ID: ${course_id}, File: ${file_name}`);
+        let { course_id, file_name, file_data, upload_mode } = payload;
+        console.log(`[Job ${jobId}] Processing file: ${file_name}`);
 
         const buffer = Buffer.from(file_data, 'base64');
-        let textContent = '';
 
-        console.log(`[Job ${jobId}] Buffer created, size: ${buffer.length}. Detecting file type.`);
-        if (file_name.endsWith('.docx')) {
-            console.log(`[Job ${jobId}] Processing .docx file with mammoth...`);
-            const { value } = await mammoth.extractRawText({ buffer });
-            textContent = value;
-            console.log(`[Job ${jobId}] .docx processing complete. Text length: ${textContent.length}`);
-        } else if (file_name.endsWith('.pdf')) {
-            console.log(`[Job ${jobId}] Processing .pdf file with pdf-parse...`);
-            const data = await pdf(buffer);
-            textContent = data.text;
-            console.log(`[Job ${jobId}] .pdf processing complete. Text length: ${textContent.length}`);
-        } else if (file_name.endsWith('.rtf')) {
-            console.log(`[Job ${jobId}] Processing .rtf file with rtf-parser...`);
-            textContent = await new Promise((resolve, reject) => {
-                const stream = Readable.from(buffer);
-                rtfParser.stream(stream, (err, doc) => {
-                    if (err) return reject(err);
-                    const text = doc.content.map(p => p.content.map(s => s.value).join('')).join('\n');
-                    resolve(text);
+        // Если это НЕ PPTX, используем старую логику (для docx, pdf, rtf)
+        if (!file_name.endsWith('.pptx')) {
+            let textContent = '';
+
+            console.log(`[Job ${jobId}] Buffer created, size: ${buffer.length}. Detecting file type (non-PPTX).`);
+            if (file_name.endsWith('.docx')) {
+                console.log(`[Job ${jobId}] Processing .docx file with mammoth...`);
+                const { value } = await mammoth.extractRawText({ buffer });
+                textContent = value;
+                console.log(`[Job ${jobId}] .docx processing complete. Text length: ${textContent.length}`);
+            } else if (file_name.endsWith('.pdf')) {
+                console.log(`[Job ${jobId}] Processing .pdf file with pdf-parse...`);
+                const data = await pdf(buffer);
+                textContent = data.text;
+                console.log(`[Job ${jobId}] .pdf processing complete. Text length: ${textContent.length}`);
+            } else if (file_name.endsWith('.rtf')) {
+                console.log(`[Job ${jobId}] Processing .rtf file with rtf-parser...`);
+                textContent = await new Promise((resolve, reject) => {
+                    const stream = Readable.from(buffer);
+                    rtfParser.stream(stream, (err, doc) => {
+                        if (err) return reject(err);
+                        const text = doc.content.map(p => p.content.map(s => s.value).join('')).join('\n');
+                        resolve(text);
+                    });
                 });
-            });
-            console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
-        } else if (file_name.endsWith('.pptx')) {
-            console.log(`[Job ${jobId}] Processing .pptx file with JSZip/Xml2Js parser...`);
-            try {
-                const slides = await parsePptxToHtml(buffer);
-                console.log(`[Job ${jobId}] Parsed ${slides.length} slides from PPTX.`);
+                console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
+            } else {
+                throw new Error('Unsupported file type. Please upload a .docx, .pdf, .rtf, or .pptx file.');
+            }
 
-                if (slides.length === 0) {
-                    throw new Error('No slides were successfully extracted.');
-                }
+            if (!textContent) {
+                throw new Error('Could not extract text from the document.');
+            }
 
-                const parsedContent = {
-                    summary: { slides },
-                    questions: [],
-                };
+            // --- NEW LOGIC: Route based on upload_mode ---
+            if (upload_mode === 'quiz') {
+                console.log(`[Job ${jobId}] Quiz upload mode detected. Parsing text with AI...`);
+                const quizJson = await parseQuizFromText(textContent);
 
-                console.log(`[Job ${jobId}] .pptx processing complete. Saving content to course...`);
+                console.log(`[Job ${jobId}] AI parsing complete. Saving JSON to content fields and publishing course...`);
                 const { error: dbError } = await supabaseAdmin
                     .from('courses')
                     .update({
-                        content: parsedContent,
-                        draft_content: parsedContent,
-                        description: `Контент из файла: ${file_name} (Конвертация 1-в-1)`
+                        content: quizJson,
+                        draft_content: quizJson,
+                        status: 'published',
+                        description: `Квиз из файла: ${file_name}` // Add a description for clarity
                     })
                     .eq('id', course_id);
 
                 if (dbError) {
-                    throw new Error(`Failed to save PPTX content to course: ${dbError.message}`);
+                    throw new Error(`Failed to save quiz JSON to course: ${dbError.message}`);
                 }
-                console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
-                await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
-                return;
+                console.log(`[Job ${jobId}] Quiz course ${course_id} created and published successfully.`);
+                await updateJobStatus('completed', { message: `Quiz created successfully from ${file_name}` });
 
-            } catch (err) {
-                console.error(`[Job ${jobId}] PPTX processing failed:`, err);
-                throw new Error(`Failed to process PPTX file: ${err.message}`);
+            } else {
+                // --- OLD LOGIC: Save as course material ---
+                console.log(`[Job ${jobId}] Course material mode. Saving extracted text to course description...`);
+                const { error: dbError } = await supabaseAdmin
+                    .from('courses')
+                    .update({ description: textContent })
+                    .eq('id', course_id);
+
+                if (dbError) {
+                    throw new Error(`Failed to save course content: ${dbError.message}`);
+                }
+                console.log(`[Job ${jobId}] Course material processing completed for course ID: ${course_id}.`);
+                await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
             }
-        } else {
-            throw new Error('Unsupported file type. Please upload a .docx, .pdf, or .rtf file.');
+            return; // Exit if not PPTX
         }
 
-        if (!textContent && !file_name.endsWith('.pptx')) {
-            throw new Error('Could not extract text from the document.');
+        // === ЛОГИКА ДЛЯ PPTX (КОНВЕРТАЦИЯ В ИЗОБРАЖЕНИЯ) ===
+
+        // 1. Создаем временную директорию
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pptx-convert-'));
+        const inputPptxPath = path.join(tempDir, 'presentation.pptx');
+        fs.writeFileSync(inputPptxPath, buffer);
+
+        await updateJobStatus('pending', { message: 'Конвертация презентации в PDF (LibreOffice)...' });
+
+        // 2. Конвертация PPTX -> PDF с помощью LibreOffice
+        // --headless: без интерфейса, --outdir: куда сохранить
+        try {
+            await execAsync(`libreoffice --headless --convert-to pdf --outdir "${tempDir}" "${inputPptxPath}"`);
+        } catch (e) {
+            throw new Error(`Ошибка LibreOffice: ${e.message}`);
         }
 
-        // --- NEW LOGIC: Route based on upload_mode ---
-        if (payload.upload_mode === 'quiz') {
-            console.log(`[Job ${jobId}] Quiz upload mode detected. Parsing text with AI...`);
-            const quizJson = await parseQuizFromText(textContent);
-
-            console.log(`[Job ${jobId}] AI parsing complete. Saving JSON to content fields and publishing course...`);
-            const { error: dbError } = await supabaseAdmin
-                .from('courses')
-                .update({
-                    content: quizJson,
-                    draft_content: quizJson,
-                    status: 'published',
-                    description: `Квиз из файла: ${file_name}` // Add a description for clarity
-                })
-                .eq('id', course_id);
-
-            if (dbError) {
-                throw new Error(`Failed to save quiz JSON to course: ${dbError.message}`);
-            }
-            console.log(`[Job ${jobId}] Quiz course ${course_id} created and published successfully.`);
-            await updateJobStatus('completed', { message: `Quiz created successfully from ${file_name}` });
-
-        } else {
-            // --- OLD LOGIC: Save as course material ---
-            console.log(`[Job ${jobId}] Course material mode. Saving extracted text to course description...`);
-            const { error: dbError } = await supabaseAdmin
-                .from('courses')
-                .update({ description: textContent })
-                .eq('id', course_id);
-
-            if (dbError) {
-                throw new Error(`Failed to save course content: ${dbError.message}`);
-            }
-            console.log(`[Job ${jobId}] Course material processing completed for course ID: ${course_id}.`);
-            await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
+        const pdfPath = path.join(tempDir, 'presentation.pdf');
+        if (!fs.existsSync(pdfPath)) {
+            throw new Error('Не удалось создать PDF из презентации.');
         }
+
+        await updateJobStatus('pending', { message: 'Рендеринг слайдов в изображения...' });
+
+        // 3. Конвертация PDF -> PNG (каждый слайд - отдельная картинка)
+        // pdftoppm -png -r 150 (DPI) input.pdf prefix
+        const outputPrefix = 'slide';
+        try {
+            // 150 DPI достаточно для веба, дает хорошее качество FullHD
+            await execAsync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(tempDir, outputPrefix)}"`);
+        } catch (e) {
+            throw new Error(`Ошибка pdftoppm: ${e.message}`);
+        }
+
+        // 4. Сбор и загрузка изображений в Supabase Storage
+        const files = fs.readdirSync(tempDir).filter(f => f.startsWith(outputPrefix) && f.endsWith('.png'));
+        // Сортируем файлы, чтобы слайды шли по порядку (slide-1, slide-2, ..., slide-10)
+        // pdftoppm нумерует как slide-01.png или slide-1.png в зависимости от версии,
+        // поэтому используем натуральную сортировку.
+        files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+        const slides = [];
+
+        for (let i = 0; i < files.length; i++) {
+            const imgFileName = files[i];
+            const imgPath = path.join(tempDir, imgFileName);
+            const imgBuffer = fs.readFileSync(imgPath);
+
+            // Уникальное имя файла для storage: course_id/timestamp_slide_X.png
+            const storagePath = `slides/${course_id}/${Date.now()}_${i + 1}.png`;
+
+            // Загрузка в бакет 'course_materials' (предполагается, что он публичный)
+            // Если бакета 'course_materials' нет, создайте его в Supabase Dashboard или используйте другой.
+            const { data: uploadData, error: uploadError } = await supabaseAdmin
+                .storage
+                .from('course_materials')
+                .upload(storagePath, imgBuffer, {
+                    contentType: 'image/png',
+                    upsert: true
+                });
+
+            if (uploadError) {
+                console.error(`Ошибка загрузки слайда ${i}:`, uploadError);
+                continue;
+            }
+
+            // Получение публичной ссылки
+            const { data: publicUrlData } = supabaseAdmin
+                .storage
+                .from('course_materials')
+                .getPublicUrl(storagePath);
+
+            slides.push({
+                slide_title: `Слайд ${i + 1}`,
+                // Мы не используем html_content, а только image_url.
+                // Фронтенд должен уметь отображать это.
+                image_url: publicUrlData.publicUrl,
+                html_content: '' // Оставляем пустым, чтобы фронтенд использовал картинку
+           });
+        }
+
+        // 5. Сохранение в БД
+        const parsedContent = {
+            summary: { slides },
+            questions: []
+        };
+
+        const { error: dbError } = await supabaseAdmin
+            .from('courses')
+            .update({
+                content: parsedContent,
+                draft_content: parsedContent,
+                description: `Импортировано из PPTX (1-в-1): ${file_name}`
+            })
+            .eq('id', course_id);
+
+        if (dbError) throw new Error(`Ошибка сохранения в БД: ${dbError.message}`);
+
+        await cleanupTempDir(tempDir);
+        await updateJobStatus('completed', { message: `Презентация успешно обработана (${slides.length} слайдов).` });
 
     } catch (error) {
-        console.error(`[Job ${jobId}] Unhandled error during processing:`, error);
+        if (tempDir) await cleanupTempDir(tempDir);
+        console.error(`[Job ${jobId}] Error:`, error);
         await updateJobStatus('failed', null, error.message);
     }
 }
