@@ -14,7 +14,7 @@ const os = require('os');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
-const { parsePptxToHtml } = require('./pptxParser');
+const { parsePptxToHtml, extractTextFromPptx } = require('./pptxParser');
 
 
 // --- AI/External Service Clients ---
@@ -397,10 +397,29 @@ async function handleUploadAndProcess(jobId, payload) {
              throw new Error('Презентация обработана, но слайды не найдены. Возможно, файл пустой или произошла ошибка конвертации.');
         }
 
-        // 5. Сохранение в БД
+        // 5. Извлечение текста для генерации вопросов (параллельно с картинками)
+        let generatedQuestions = [];
+        try {
+            console.log(`[Job ${jobId}] Extracting text from PPTX for quiz generation...`);
+            const pptxText = await extractTextFromPptx(buffer);
+            if (pptxText && pptxText.length > 50) { // Basic check if we got enough text
+                console.log(`[Job ${jobId}] Extracted ${pptxText.length} chars. Generating quiz...`);
+                const quizJson = await parseQuizFromText(pptxText);
+                if (quizJson && quizJson.questions) {
+                    generatedQuestions = quizJson.questions;
+                }
+            } else {
+                console.warn(`[Job ${jobId}] Not enough text extracted from PPTX for quiz generation.`);
+            }
+        } catch (textError) {
+            console.error(`[Job ${jobId}] Failed to generate quiz from PPTX text:`, textError);
+            // We don't fail the whole job if quiz generation fails, as slides are more important for PPTX import
+        }
+
+        // 6. Сохранение в БД
         const parsedContent = {
             summary: { slides },
-            questions: []
+            questions: generatedQuestions
         };
 
         const { error: dbError } = await supabaseAdmin
@@ -415,7 +434,7 @@ async function handleUploadAndProcess(jobId, payload) {
         if (dbError) throw new Error(`Ошибка сохранения в БД: ${dbError.message}`);
 
         await cleanupTempDir(tempDir);
-        await updateJobStatus('completed', { message: `Презентация успешно обработана (${slides.length} слайдов).` });
+        await updateJobStatus('completed', { message: `Презентация успешно обработана (${slides.length} слайдов, ${generatedQuestions.length} вопросов).` });
 
     } catch (error) {
         if (tempDir) await cleanupTempDir(tempDir);
