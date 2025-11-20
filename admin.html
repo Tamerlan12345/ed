@@ -566,7 +566,7 @@
             const slidesHtml = (data.summary?.slides || []).map((slide, index) => `
                 <div class="wysiwyg-slide" data-index="${index}">
                     <div class="wysiwyg-slide-title" contenteditable="true">${escapeHTML(slide.slide_title) || 'Новый слайд'}</div>
-                    <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || '<p>Начните вводить текст...</p>'}</div>
+                    <div class="wysiwyg-slide-content" contenteditable="true">${slide.html_content || (slide.image_url ? '' : '<p>Начните вводить текст...</p>')}</div>
                     ${slide.image_url ? `<img src="${slide.image_url}" alt="Slide Image" style="max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px;">` : ''}
                     <div class="micro-question-area" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
                         ${renderMicroQuestionEditor(slide.slide_question, index)}
