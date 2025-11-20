@@ -10,7 +10,7 @@ const cheerio = require('cheerio');
 const { Readable } = require('stream');
 const fs = require('fs');
 const path = require('path');
-const { execa } = require('execa');
+const execa = require('execa');
 const { fromPath } = require('pdf2pic');
 
 
