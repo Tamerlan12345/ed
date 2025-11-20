@@ -18,7 +18,13 @@ RUN apt-get update && apt-get install -y \
     poppler-utils \
     fonts-liberation \
     fonts-dejavu \
-    fonts-google-rubik \
+    curl \
+    unzip \
+    && mkdir -p /usr/share/fonts/truetype/google-rubik \
+    && curl -L "https://fonts.google.com/download?family=Rubik" -o rubik.zip \
+    && unzip rubik.zip -d /usr/share/fonts/truetype/google-rubik \
+    && rm rubik.zip \
+    && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
