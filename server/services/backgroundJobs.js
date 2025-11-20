@@ -220,7 +220,9 @@ async function handleUploadAndProcess(jobId, payload) {
             const html = await converter.toHTML();
             const $ = cheerio.load(html);
             const slides = [];
-            $('section').each((index, element) => {
+            // Check for both 'section' (older versions/alternatives) and '.slide' (pptx-in-html-out)
+            const slideSelector = $('section').length > 0 ? 'section' : '.slide';
+            $(slideSelector).each((index, element) => {
                 const slideHtml = $(element).html();
                 slides.push({
                     slide_title: `Slide ${index + 1}`,
@@ -526,7 +528,9 @@ async function handlePptxPresentationProcessing(jobId, payload) {
         // 3. Transform the HTML into the desired slide format.
         const $ = cheerio.load(html);
         const slides = [];
-        $('section').each((index, element) => {
+        // Check for both 'section' (older versions/alternatives) and '.slide' (pptx-in-html-out)
+        const slideSelector = $('section').length > 0 ? 'section' : '.slide';
+        $(slideSelector).each((index, element) => {
             const slideHtml = $(element).html();
             // For simplicity, we'll use a generic title and the full HTML content.
             slides.push({
