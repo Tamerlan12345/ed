@@ -4,6 +4,7 @@ const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
 const { PPTXInHTMLOut } = require('pptx-in-html-out');
+const { parsePptxToHtml } = require('./pptxParser');
 const rtfParser = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -215,47 +216,39 @@ async function handleUploadAndProcess(jobId, payload) {
             });
             console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
         } else if (file_name.endsWith('.pptx')) {
-            console.log(`[Job ${jobId}] Processing .pptx file with pptx-in-html-out...`);
-            const converter = new PPTXInHTMLOut(buffer);
-            const html = await converter.toHTML();
-            const $ = cheerio.load(html);
-            const slides = [];
-            // Check for both 'section' (older versions/alternatives) and '.slide' (pptx-in-html-out)
-            const slideSelector = $('section').length > 0 ? 'section' : '.slide';
-            $(slideSelector).each((index, element) => {
-                const slideHtml = $(element).html();
-                slides.push({
-                    slide_title: `Slide ${index + 1}`,
-                    html_content: slideHtml,
-                });
-            });
+            console.log(`[Job ${jobId}] Processing .pptx file with custom parser...`);
+            try {
+                const slides = await parsePptxToHtml(buffer);
 
-            if (!slides.length) {
-                throw new Error('Could not extract any slides from the PPTX file. The file might be empty, corrupted, or in an unsupported format.');
+                if (!slides || !slides.length) {
+                    throw new Error('Could not extract any slides from the PPTX file.');
+                }
+
+                const parsedContent = {
+                    summary: { slides },
+                    questions: [],
+                };
+
+                console.log(`[Job ${jobId}] .pptx processing complete with ${slides.length} slides. Saving content to course...`);
+                const { error: dbError } = await supabaseAdmin
+                    .from('courses')
+                    .update({
+                        content: parsedContent,
+                        draft_content: parsedContent,
+                        description: `Контент из файла: ${file_name}`
+                    })
+                    .eq('id', course_id);
+
+                if (dbError) {
+                    throw new Error(`Failed to save PPTX content to course: ${dbError.message}`);
+                }
+                console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
+                await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
+                return;
+            } catch (err) {
+                console.error(`[Job ${jobId}] PPTX parsing failed:`, err);
+                throw new Error(`Failed to parse PPTX file: ${err.message}`);
             }
-
-            const parsedContent = {
-                summary: { slides },
-                questions: [],
-            };
-
-            console.log(`[Job ${jobId}] .pptx processing complete with ${slides.length} slides. Saving content to course...`);
-            const { error: dbError } = await supabaseAdmin
-                .from('courses')
-                .update({
-                    content: parsedContent,
-                    draft_content: parsedContent,
-                    description: `Контент из файла: ${file_name}`
-                })
-                .eq('id', course_id);
-
-            if (dbError) {
-                throw new Error(`Failed to save PPTX content to course: ${dbError.message}`);
-            }
-            console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
-            await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
-            return;
-
         } else {
             throw new Error('Unsupported file type. Please upload a .docx, .pdf, or .rtf file.');
         }
