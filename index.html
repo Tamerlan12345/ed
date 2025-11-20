@@ -17,7 +17,12 @@
             overflow: hidden;
             border: 1px solid #ddd;
             margin-bottom: 20px;
-            /* Use container query or aspect-ratio if supported by browser, but padding-bottom trick is in inline style */
+        }
+        .slide-image {
+             width: 100%;
+             height: auto;
+             display: block;
+             object-fit: contain;
         }
         .ppt-text-box {
             /* absolute positioning is set inline */
@@ -1244,7 +1249,16 @@
                 summaryData.forEach((slideData, slideIndex) => {
                     const slideDiv = document.createElement('div');
                     slideDiv.className = 'presentation-slide';
-                    let imageHtml = slideData.image_url ? `<img src="${slideData.image_url}" alt="Slide Image">` : '';
+                    let imageHtml = '';
+                    if (slideData.image_url) {
+                         // If it's an image-only slide (like from PPTX conversion), render it as a full-width image
+                         if (!slideData.html_content || slideData.html_content.trim() === '') {
+                             imageHtml = `<img src="${slideData.image_url}" alt="Slide Image" class="slide-image">`;
+                         } else {
+                             // If there is content alongside the image (mixed mode)
+                             imageHtml = `<img src="${slideData.image_url}" alt="Slide Image">`;
+                         }
+                    }
                     let questionHtml = '';
 
                     if (slideData.slide_question) {

@@ -4,11 +4,14 @@ const { createClient: createPexelsClient } = require('pexels');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
 const { PPTXInHTMLOut } = require('pptx-in-html-out');
-const { parsePptxToHtml } = require('./pptxParser');
 const rtfParser = require('rtf-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { Readable } = require('stream');
+const fs = require('fs');
+const path = require('path');
+const { execa } = require('execa');
+const { fromPath } = require('pdf2pic');
 
 
 // --- AI/External Service Clients ---
@@ -186,6 +189,10 @@ async function handleUploadAndProcess(jobId, payload) {
         if (error) console.error(`Failed to update job ${jobId} status to ${status}:`, error);
     };
 
+    let tempDir = null;
+    let tempInputPath = null;
+    let tempPdfPath = null;
+
     try {
         let { course_id, title, file_name, file_data } = payload;
         console.log(`[Job ${jobId}] Starting processing for course ID: ${course_id}, File: ${file_name}`);
@@ -216,12 +223,100 @@ async function handleUploadAndProcess(jobId, payload) {
             });
             console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
         } else if (file_name.endsWith('.pptx')) {
-            console.log(`[Job ${jobId}] Processing .pptx file with custom parser...`);
+            console.log(`[Job ${jobId}] Processing .pptx file with LibreOffice conversion...`);
             try {
-                const slides = await parsePptxToHtml(buffer);
+                // 1. Setup temp directory and paths
+                const tempDirName = `pptx_processing_${jobId}`;
+                tempDir = path.join('/tmp', tempDirName); // Assuming /tmp is available
+                if (!fs.existsSync(tempDir)) {
+                    fs.mkdirSync(tempDir, { recursive: true });
+                }
+                tempInputPath = path.join(tempDir, 'input.pptx');
+                fs.writeFileSync(tempInputPath, buffer);
+                console.log(`[Job ${jobId}] Saved temp PPTX to ${tempInputPath}`);
 
-                if (!slides || !slides.length) {
-                    throw new Error('Could not extract any slides from the PPTX file.');
+                // 2. Convert to PDF using LibreOffice
+                console.log(`[Job ${jobId}] Converting PPTX to PDF...`);
+                try {
+                    await execa('libreoffice', [
+                        '--headless',
+                        '--convert-to', 'pdf',
+                        '--outdir', tempDir,
+                        tempInputPath
+                    ]);
+                } catch (loError) {
+                    console.error(`[Job ${jobId}] LibreOffice conversion failed:`, loError);
+                    throw new Error('Failed to convert PPTX to PDF. Ensure LibreOffice is installed.');
+                }
+
+                tempPdfPath = path.join(tempDir, 'input.pdf');
+                if (!fs.existsSync(tempPdfPath)) {
+                    throw new Error('PDF file was not created by LibreOffice.');
+                }
+                console.log(`[Job ${jobId}] PDF created at ${tempPdfPath}`);
+
+                // 3. Convert PDF to images using pdf2pic
+                console.log(`[Job ${jobId}] Converting PDF pages to images...`);
+                const options = {
+                    density: 150, // DPI
+                    saveFilename: "slide",
+                    savePath: tempDir,
+                    format: "png",
+                    width: 1920,
+                    height: 1080
+                };
+                const convert = fromPath(tempPdfPath, options);
+                // pdf2pic returns a bulk result if using .bulk, but standard usage converts page by page or all
+                // 'bulk' converts all pages. It returns an array of objects describing the images.
+                const conversionResults = await convert.bulk(-1); // -1 means all pages
+                console.log(`[Job ${jobId}] Converted ${conversionResults.length} slides to images.`);
+
+                // 4. Upload images to Supabase and build slides array
+                const slides = [];
+                const bucketName = 'course-materials'; // Or a dedicated 'slides' bucket
+
+                for (let i = 0; i < conversionResults.length; i++) {
+                    const result = conversionResults[i];
+                    // result.path might be the full path or result.name the filename.
+                    // pdf2pic output structure: { page: 1, name: 'slide.1', path: '/tmp/.../slide.1.png' }
+                    const imagePath = result.path;
+                    if (!fs.existsSync(imagePath)) {
+                        console.warn(`[Job ${jobId}] Image file not found: ${imagePath}`);
+                        continue;
+                    }
+                    const imageBuffer = fs.readFileSync(imagePath);
+                    const storagePath = `slides/${jobId}/slide_${i + 1}.png`;
+
+                    const { data: uploadData, error: uploadError } = await supabaseAdmin
+                        .storage
+                        .from(bucketName)
+                        .upload(storagePath, imageBuffer, {
+                            contentType: 'image/png',
+                            upsert: true
+                        });
+
+                    if (uploadError) {
+                        console.error(`[Job ${jobId}] Failed to upload slide ${i + 1}:`, uploadError);
+                        continue;
+                    }
+
+                    // Get public URL
+                    const { data: publicUrlData } = supabaseAdmin
+                        .storage
+                        .from(bucketName)
+                        .getPublicUrl(storagePath);
+
+                    const publicUrl = publicUrlData.publicUrl;
+
+                    slides.push({
+                        slide_title: `Слайд ${i + 1}`,
+                        image_url: publicUrl,
+                        html_content: '' // Empty HTML content as we are using full slide images
+                    });
+                }
+
+                if (slides.length === 0) {
+                    throw new Error('No slides were successfully converted and uploaded.');
                 }
 
                 const parsedContent = {
@@ -235,7 +330,7 @@ async function handleUploadAndProcess(jobId, payload) {
                     .update({
                         content: parsedContent,
                         draft_content: parsedContent,
-                        description: `Контент из файла: ${file_name}`
+                        description: `Контент из файла: ${file_name} (Конвертация 1-в-1)`
                     })
                     .eq('id', course_id);
 
@@ -245,9 +340,20 @@ async function handleUploadAndProcess(jobId, payload) {
                 console.log(`[Job ${jobId}] Course content from PPTX saved successfully for course ${course_id}.`);
                 await updateJobStatus('completed', { message: `Successfully processed PPTX file ${file_name}` });
                 return;
+
             } catch (err) {
-                console.error(`[Job ${jobId}] PPTX parsing failed:`, err);
-                throw new Error(`Failed to parse PPTX file: ${err.message}`);
+                console.error(`[Job ${jobId}] PPTX processing failed:`, err);
+                throw new Error(`Failed to process PPTX file: ${err.message}`);
+            } finally {
+                // Cleanup temp directory
+                if (tempDir && fs.existsSync(tempDir)) {
+                    try {
+                        fs.rmSync(tempDir, { recursive: true, force: true });
+                        console.log(`[Job ${jobId}] Cleaned up temp directory ${tempDir}`);
+                    } catch (cleanupErr) {
+                        console.error(`[Job ${jobId}] Failed to clean up temp directory:`, cleanupErr);
+                    }
+                }
             }
         } else {
             throw new Error('Unsupported file type. Please upload a .docx, .pdf, or .rtf file.');
