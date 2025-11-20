@@ -1,6 +1,6 @@
 # --- STAGE 1: Builder ---
 # This stage installs all dependencies and can be used for building/testing.
-FROM node:20 as builder
+FROM node:20-bullseye-slim as builder
 
 WORKDIR /usr/src/app
 
@@ -14,7 +14,16 @@ COPY . .
 
 # --- STAGE 2: Production ---
 # This stage creates the final, lean production image.
-FROM node:20-slim
+FROM node:20-bullseye-slim
+
+# Install runtime dependencies for PPTX conversion
+# LibreOffice for PPTX -> PDF
+# Ghostscript and GraphicsMagick for PDF -> Image conversion (used by pdf2pic)
+RUN apt-get update && apt-get install -y \
+    libreoffice \
+    ghostscript \
+    graphicsmagick \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /usr/src/app
