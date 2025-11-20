@@ -1,14 +1,45 @@
 const JSZip = require('jszip');
 const xml2js = require('xml2js');
 
+/**
+* Парсит PPTX буфер и возвращает массив объектов слайдов с HTML контентом.
+* Пытается сохранить изображения и верстку.
+*/
 async function parsePptxToHtml(buffer) {
     const zip = await JSZip.loadAsync(buffer);
     const parser = new xml2js.Parser();
     const slides = [];
+    const mediaFiles = {};
 
-    // 1. Determine Slide Size from ppt/presentation.xml
-    let slideWidth = 12192000; // Default 16:9 width in EMU
-    let slideHeight = 6858000; // Default 16:9 height in EMU
+    // 1. Извлекаем медиа-файлы (картинки)
+    // PPTX хранит картинки в папке ppt/media/
+    const mediaFolder = zip.folder("ppt/media");
+    if (mediaFolder) {
+        mediaFolder.forEach((relativePath, file) => {
+             // relativePath is "image1.png"
+             // We need to store it with the key that will be used in rels, which is usually just the filename if target is "../media/image1.png"
+             // But let's verify. Rels target is "image1.png" or "../media/image1.png".
+             // Our parser logic below: const target = attr.Target.replace('../media/', '');
+             // So we expect mediaFiles to be keyed by "image1.png".
+        });
+
+        // Since forEach is synchronous in JSZip but we need async content extraction,
+        // we collect promises.
+        const mediaPromises = [];
+        mediaFolder.forEach((relativePath, file) => {
+            mediaPromises.push((async () => {
+                const fileData = await file.async("base64");
+                const ext = relativePath.split('.').pop();
+                const mimeType = ext === 'png' ? 'image/png' : (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : 'image/octet-stream';
+                mediaFiles[relativePath] = `data:${mimeType};base64,${fileData}`;
+            })());
+        });
+        await Promise.all(mediaPromises);
+    }
+
+    // 2. Определяем размер слайдов
+    let slideWidth = 9144000; // Default width (EMU)
+    let slideHeight = 6858000; // Default height (EMU)
 
     if (zip.file('ppt/presentation.xml')) {
         const presXml = await zip.file('ppt/presentation.xml').async('string');
@@ -20,27 +51,46 @@ async function parsePptxToHtml(buffer) {
         }
     }
 
-    // 2. Find slides
+    // 3. Находим файлы слайдов и связей (rels) для маппинга картинок
+    // Файлы слайдов: ppt/slides/slide1.xml
+    // Связи слайдов: ppt/slides/_rels/slide1.xml.rels
     const slideFiles = Object.keys(zip.files).filter(fileName =>
         fileName.match(/^ppt\/slides\/slide\d+\.xml$/)
     ).sort((a, b) => {
         const numA = parseInt(a.match(/slide(\d+)\.xml/)[1]);
         const numB = parseInt(b.match(/slide(\d+)\.xml/)[1]);
-        return numA - numB;
+       return numA - numB;
     });
-
-    if (slideFiles.length === 0) {
-        throw new Error('No slides found in the PPTX file.');
-    }
 
     for (let i = 0; i < slideFiles.length; i++) {
         const fileName = slideFiles[i];
+        const slideNumber = i + 1;
+
+        // Получаем XML слайда
         const slideXmlContent = await zip.file(fileName).async('string');
         const slideObj = await parser.parseStringPromise(slideXmlContent);
 
-        const slideHtml = await processSlide(slideObj, slideWidth, slideHeight);
+        // Получаем связи (rels) для этого слайда, чтобы найти ID картинок
+        const relsFileName = fileName.replace('ppt/slides/', 'ppt/slides/_rels/') + '.rels';
+        const relMap = {}; // Map: rId -> Target (path to media)
+
+        if (zip.file(relsFileName)) {
+            const relsXmlContent = await zip.file(relsFileName).async('string');
+            const relsObj = await parser.parseStringPromise(relsXmlContent);
+            if (relsObj.Relationships && relsObj.Relationships.Relationship) {
+                relsObj.Relationships.Relationship.forEach(rel => {
+                    const attr = rel['$'];
+                    // Target обычно выглядит как "../media/image1.png"
+                    const target = attr.Target.replace('../media/', '');
+                    relMap[attr.Id] = target;
+                });
+            }
+        }
+
+        const slideHtml = await processSlide(slideObj, slideWidth, slideHeight, relMap, mediaFiles);
+
         slides.push({
-            slide_title: `Slide ${i + 1}`,
+            slide_title: `Слайд ${slideNumber}`,
             html_content: slideHtml
         });
     }
@@ -48,136 +98,96 @@ async function parsePptxToHtml(buffer) {
     return slides;
 }
 
-async function processSlide(slideObj, slideWidth, slideHeight) {
-    // Calculate aspect ratio for padding-bottom
+async function processSlide(slideObj, slideWidth, slideHeight, relMap, mediaFiles) {
+    // Конвертация EMU в пиксели (приближенно для веба, 96 DPI)
+    // 1 inch = 914400 EMU = 96 px
+    // Scale factor: уменьшаем огромные размеры PPTX до разумных CSS пикселей
+    // Допустим, ширина слайда будет 100% контейнера, но для позиционирования используем проценты.
+
     const aspectRatioPct = (slideHeight / slideWidth) * 100;
 
-    let html = `<div class="slide-container" style="position: relative; width: 100%; padding-bottom: ${aspectRatioPct}%; background-color: #fff; overflow: hidden; border: 1px solid #ddd;">`;
+    // Базовый контейнер слайда. overflow: hidden важно, чтобы скрыть элементы за краями.
+    let html = `<div class="ppt-slide" style="position: relative; width: 100%; padding-bottom: ${aspectRatioPct}%; background-color: #fff; overflow: hidden; border: 1px solid #eee;">`;
+    // Внутренний контейнер для абсолютного позиционирования элементов
+    html += `<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">`;
 
     const spTree = slideObj['p:sld']['p:cSld'][0]['p:spTree'][0];
 
-    // Shapes often contain text
-    if (spTree['p:sp']) {
-        for (const sp of spTree['p:sp']) {
-            const shapeHtml = await processShape(sp, slideWidth, slideHeight);
-            html += shapeHtml;
-        }
-    }
+    // Функция для рекурсивного обхода групп фигур
+    const processShapesRecursively = async (container) => {
+        let shapesHtml = '';
 
-    // Groups might contain shapes
-    if (spTree['p:grpSp']) {
-        for (const grp of spTree['p:grpSp']) {
-             if (grp['p:sp']) {
-                 for (const sp of grp['p:sp']) {
-                      // Note: We are treating group shapes as top-level for now, ignoring group transforms.
-                      // This is a simplification.
-                      const shapeHtml = await processShape(sp, slideWidth, slideHeight);
-                      html += shapeHtml;
-                 }
-             }
+        // 1. Обычные фигуры (текстовые блоки, прямоугольники)
+        if (container['p:sp']) {
+            for (const sp of container['p:sp']) {
+                shapesHtml += await processShape(sp, slideWidth, slideHeight);
+            }
         }
-    }
 
-    html += `</div>`;
+        // 2. Изображения (p:pic)
+        if (container['p:pic']) {
+            for (const pic of container['p:pic']) {
+                shapesHtml += await processPicture(pic, slideWidth, slideHeight, relMap, mediaFiles);
+            }
+        }
+
+        // 3. Группы фигур (p:grpSp)
+        if (container['p:grpSp']) {
+            for (const grp of container['p:grpSp']) {
+                // TODO: Обработка трансформаций группы (пока рекурсивно берем элементы как есть)
+                shapesHtml += await processShapesRecursively(grp);
+            }
+        }
+
+        return shapesHtml;
+    };
+
+    html += await processShapesRecursively(spTree);
+    html += `</div></div>`;
     return html;
 }
 
-async function processShape(sp, slideWidth, slideHeight) {
-    // 1. Extract Text
-    const txBody = sp['p:txBody'];
-    if (!txBody) return ''; // No text body
+async function processPicture(pic, slideWidth, slideHeight, relMap, mediaFiles) {
+    try {
+        const blipFill = pic['p:blipFill'];
+        if (!blipFill || !blipFill[0]['a:blip']) return '';
 
-    let textContent = '';
-    let paragraphHtml = '';
+       const embedId = blipFill[0]['a:blip'][0]['$']['r:embed'];
+        const imageName = relMap[embedId];
+        const base64Image = mediaFiles[imageName];
 
-    const paragraphs = txBody[0]['a:p'];
-    if (paragraphs) {
-        for (const p of paragraphs) {
-             let pContent = '';
-             let pStyles = [];
+        if (!base64Image) return '';
 
-             // Paragraph Properties (alignment)
-             let textAlign = 'left';
-             if (p['a:pPr'] && p['a:pPr'][0]['$'] && p['a:pPr'][0]['$'].algn) {
-                 const algn = p['a:pPr'][0]['$'].algn;
-                 if (algn === 'ctr') textAlign = 'center';
-                 if (algn === 'r') textAlign = 'right';
-                 if (algn === 'j') textAlign = 'justify';
-             }
+        const spPr = pic['p:spPr'][0];
+        const xfrm = spPr['a:xfrm'][0];
+        const off = xfrm['a:off'][0]['$'];
+        const ext = xfrm['a:ext'][0]['$'];
 
-             const runs = p['a:r'];
-             if (runs) {
-                 for (const r of runs) {
-                     const t = r['a:t'];
-                     if (t) {
-                         let text = typeof t[0] === 'string' ? t[0] : (t[0]._ || '');
-                         if (!text) continue;
+        const xEmu = parseInt(off.x);
+        const yEmu = parseInt(off.y);
+        const wEmu = parseInt(ext.cx);
+        const hEmu = parseInt(ext.cy);
 
-                         // Run Properties (bold, italic, size, color)
-                         let rStyle = '';
-                         if (r['a:rPr']) {
-                             const rPr = r['a:rPr'][0];
-                             if (rPr['$']) {
-                                 if (rPr['$'].b === '1') rStyle += 'font-weight: bold;';
-                                 if (rPr['$'].i === '1') rStyle += 'font-style: italic;';
-                                 if (rPr['$'].u === 'sng') rStyle += 'text-decoration: underline;';
+        const leftPct = (xEmu / slideWidth) * 100;
+        const topPct = (yEmu / slideHeight) * 100;
+        const widthPct = (wEmu / slideWidth) * 100;
+        const heightPct = (hEmu / slideHeight) * 100;
 
-                                 if (rPr['$'].sz) {
-                                     // sz is in hundredths of a point.
-                                     const sizePt = parseInt(rPr['$'].sz) / 100;
-                                     // Use clamping to prevent huge text on small screens or use vw
-                                     // A standard slide is ~10 inches wide. 10 inches = 720pt.
-                                     // So font size as % of slide width might be robust?
-                                     // Slide width in pts is 720 (approx).
-                                     // font size 18pt -> 18/720 = 2.5% of width.
-                                     // Let's try 'em' or 'rem' or just px. PX is easiest but not responsive.
-                                     // Let's convert to % of container width.
-                                     // Assume standard width 10in = 960px (approx for web).
-                                     // 12192000 EMU = 960px? No.
-                                     // Let's stick to pixels but maybe allow CSS to scale the whole container.
-                                     // Or use container query units (cqw) if supported, but % is safer.
-                                     // Let's just output 'pt' as is, browsers handle pt well enough usually,
-                                     // but for a scaled container (transform: scale), px/pt is fine.
-                                     rStyle += `font-size: ${sizePt}pt;`;
-                                 }
-                             }
-                             // Color
-                             if (rPr['a:solidFill']) {
-                                 if (rPr['a:solidFill'][0]['a:srgbClr']) {
-                                     const color = rPr['a:solidFill'][0]['a:srgbClr'][0]['$'].val;
-                                     rStyle += `color: #${color};`;
-                                 } else {
-                                     // Default color if using scheme color, maybe black?
-                                     // rStyle += `color: #333;`;
-                                 }
-                             }
-                         }
-
-                         pContent += `<span style="${rStyle}">${text}</span>`;
-                     }
-                 }
-             }
-             // Only add paragraph if it has content or is a line break
-             if (pContent) {
-                 paragraphHtml += `<p style="margin: 0; text-align: ${textAlign}; white-space: pre-wrap;">${pContent}</p>`;
-             } else {
-                 // Empty paragraph (newline)
-                 paragraphHtml += `<p style="margin: 0; height: 1em;">&nbsp;</p>`;
-             }
-        }
+        return `<img src="${base64Image}" style="position: absolute; left: ${leftPct}%; top: ${topPct}%; width: ${widthPct}%; height: ${heightPct}%; object-fit: contain; z-index: 1;" />`;
+    } catch (e) {
+        console.warn("Error processing picture:", e);
+        return '';
     }
+}
 
-    if (!paragraphHtml) return '';
-
-    // 2. Extract Geometry/Layout
+async function processShape(sp, slideWidth, slideHeight) {
+    // 1. Позиционирование
     const spPr = sp['p:spPr'];
-    if (!spPr) return '';
+    if (!spPr || !spPr[0]['a:xfrm']) return '';
 
-    const xfrm = spPr[0]['a:xfrm'];
-    if (!xfrm) return '';
-
-    const off = xfrm[0]['a:off'][0]['$'];
-    const ext = xfrm[0]['a:ext'][0]['$'];
+    const xfrm = spPr[0]['a:xfrm'][0];
+    const off = xfrm['a:off'][0]['$'];
+    const ext = xfrm['a:ext'][0]['$'];
 
     const xEmu = parseInt(off.x);
     const yEmu = parseInt(off.y);
@@ -189,17 +199,87 @@ async function processShape(sp, slideWidth, slideHeight) {
     const widthPct = (wEmu / slideWidth) * 100;
     const heightPct = (hEmu / slideHeight) * 100;
 
-    // Style for the text box
-    const style = `
-        position: absolute;
-        left: ${leftPct}%;
-        top: ${topPct}%;
-        width: ${widthPct}%;
-        height: ${heightPct}%;
-        z-index: 10;
-    `;
+    // 2. Извлечение текста
+    const txBody = sp['p:txBody'];
+    if (!txBody) {
+        // Это может быть просто фигура (прямоугольник), проверим заливку
+        // Если нужно рисовать цветные блоки - можно добавить логику здесь
+        return '';
+    }
 
-    return `<div class="ppt-text-box" style="${style}">${paragraphHtml}</div>`;
+    let paragraphHtml = '';
+    const paragraphs = txBody[0]['a:p'];
+
+    if (paragraphs) {
+        for (const p of paragraphs) {
+            let pContent = '';
+            let textAlign = 'left';
+
+            if (p['a:pPr'] && p['a:pPr'][0]['$'] && p['a:pPr'][0]['$'].algn) {
+                const algn = p['a:pPr'][0]['$'].algn;
+                if (algn === 'ctr') textAlign = 'center';
+                if (algn === 'r') textAlign = 'right';
+                if (algn === 'j') textAlign = 'justify';
+            }
+
+            const runs = p['a:r'];
+            if (runs) {
+                for (const r of runs) {
+                    const t = r['a:t'];
+                    if (t) {
+                        let text = typeof t[0] === 'string' ? t[0] : (t[0]._ || '');
+
+                        let rStyle = '';
+                        if (r['a:rPr']) {
+                            const rPr = r['a:rPr'][0];
+                            if (rPr['$']) {
+                                if (rPr['$'].b === '1') rStyle += 'font-weight: bold;';
+                                if (rPr['$'].i === '1') rStyle += 'font-style: italic;';
+                                if (rPr['$'].u === 'sng') rStyle += 'text-decoration: underline;';
+
+                                // Размер шрифта
+                                if (rPr['$'].sz) {
+                                    // sz in hundredths of a point
+                                    const sizePt = parseInt(rPr['$'].sz) / 100;
+                                    // Адаптация под размер контейнера.
+                                    // Грубая эвристика: слайд ~10 дюймов шириной.
+                                    // Лучше использовать 'em' относительно высоты контейнера или vw,
+                                    // но px проще. Чтобы текст масштабировался, используем clamp или %?
+                                    // Попробуем 'container query' единицы cqw, если поддерживается,
+                                    // или просто оставим px, так как весь слайд scale-ится через CSS transform в index.html.
+                                    rStyle += `font-size: ${sizePt * 1.33}px;`; // pt to px conversion approx
+                                }
+                            }
+                            // Цвет текста
+                            if (rPr['a:solidFill']) {
+                                let colorHex = '000000';
+                                if (rPr['a:solidFill'][0]['a:srgbClr']) {
+                                    colorHex = rPr['a:solidFill'][0]['a:srgbClr'][0]['$'].val;
+                                } else if (rPr['a:solidFill'][0]['a:schemeClr']) {
+                                    // Упрощение: если цвет из схемы, ставим черный или серый
+                                    // Чтобы сделать реально 1-в-1, нужно парсить цветовую схему темы (theme1.xml)
+                                    colorHex = '333333';
+                                }
+                                rStyle += `color: #${colorHex};`;
+                            }
+                        }
+
+                        pContent += `<span style="${rStyle}">${text}</span>`;
+                    }
+                }
+            }
+
+            if (pContent) {
+                paragraphHtml += `<p style="margin: 0; text-align: ${textAlign}; white-space: pre-wrap; line-height: 1.2;">${pContent}</p>`;
+            } else {
+                paragraphHtml += `<p style="margin: 0; height: 1em;">&nbsp;</p>`;
+            }
+        }
+    }
+
+    if (!paragraphHtml) return '';
+
+    return `<div class="ppt-text-box" style="position: absolute; left: ${leftPct}%; top: ${topPct}%; width: ${widthPct}%; height: ${heightPct}%; z-index: 2; overflow: hidden;">${paragraphHtml}</div>`;
 }
 
 module.exports = { parsePptxToHtml };
