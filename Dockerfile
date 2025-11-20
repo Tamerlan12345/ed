@@ -20,10 +20,11 @@ RUN apt-get update && apt-get install -y \
     fonts-dejavu \
     curl \
     unzip \
+    && curl -L "https://github.com/googlefonts/rubik/archive/refs/heads/main.zip" -o rubik.zip \
+    && unzip rubik.zip \
     && mkdir -p /usr/share/fonts/truetype/google-rubik \
-    && curl -L "https://fonts.google.com/download?family=Rubik" -o rubik.zip \
-    && unzip rubik.zip -d /usr/share/fonts/truetype/google-rubik \
-    && rm rubik.zip \
+    && cp rubik-main/fonts/variable/*.ttf /usr/share/fonts/truetype/google-rubik/ \
+    && rm -rf rubik.zip rubik-main \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
