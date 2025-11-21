@@ -28,6 +28,116 @@ const shuffleArray = (array) => {
     return array;
 };
 
+// POST /api/getUserProfileData
+const getUserProfileData = async (req, res) => {
+    const supabase = req.supabase;
+    const user = req.user; // Contains { id, email, ... } from middleware
+
+    try {
+        // 1. Get user details
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('full_name, department')
+            .eq('id', user.id)
+            .single();
+
+        if (userError) throw userError;
+
+        // 2. Get user progress with course details
+        const { data: progressData, error: progressError } = await supabase
+            .from('user_progress')
+            .select(`
+                score, percentage, completed_at, time_spent_seconds, deadline_date, attempts,
+                courses (id, title, status, deadline_days)
+            `)
+            .eq('user_id', user.id);
+
+        if (progressError) throw progressError;
+
+        // 3. Get simulation results
+        const { data: simResults, error: simError } = await supabase
+            .from('simulation_results')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+
+        if (simError) throw simError;
+
+        // 4. Calculate aggregates
+        const coursesAssigned = progressData.length;
+        const coursesCompleted = progressData.filter(p => p.completed_at).length;
+
+        const completedTests = progressData.filter(p => p.percentage != null);
+        const averageScore = completedTests.length > 0
+            ? Math.round(completedTests.reduce((acc, p) => acc + (p.percentage || 0), 0) / completedTests.length)
+            : 0;
+
+        const totalTimeSeconds = progressData.reduce((acc, p) => acc + (p.time_spent_seconds || 0), 0);
+        const totalTimeMinutes = Math.floor(totalTimeSeconds / 60);
+
+        // 5. Format courses list
+        const formattedCourses = progressData.map(p => {
+            let status = 'assigned';
+            if (p.completed_at) status = 'completed';
+            else if (p.deadline_date && new Date(p.deadline_date) < new Date()) status = 'overdue'; // Or check logic for overdue
+
+            return {
+                id: p.courses.id,
+                title: p.courses.title,
+                status: status,
+                score: p.percentage || 0,
+                completed_at: p.completed_at,
+                deadline_date: p.deadline_date,
+                progress: p.percentage || 0, // Using percentage as progress estimate
+                attempts: p.attempts || 0
+            };
+        });
+
+        // 6. Format simulations list
+        const formattedSimulations = simResults.map(s => ({
+            id: s.id,
+            scenario: s.scenario,
+            average_score: s.evaluation && s.evaluation.average_score ? s.evaluation.average_score : 0,
+            created_at: s.created_at,
+            feedback_summary: s.evaluation && s.evaluation.general_comment ? s.evaluation.general_comment : 'Нет отзыва',
+            // Include full details for the frontend "Details" view
+            evaluation_details: s.evaluation ? s.evaluation : null,
+            // Assuming we don't store the full dialogue history in the 'simulation_results' table separate from evaluation?
+            // Checking the schema: simulation_results has (id, user_id, created_at, scenario, persona, evaluation).
+            // The 'evaluation' JSONB usually contains the evaluation result.
+            // The 'history' (dialogue) was passed to the evaluation prompt but not explicitly stored in the 'simulation_results' table based on the `dialogueSimulator` function in the previous code block.
+            // Let's check `dialogueSimulator` function logic again.
+            // ... await supabaseAdmin.from('simulation_results').insert({ user_id: user.id, scenario, persona, evaluation });
+            // It seems the dialogue history itself is NOT stored in the DB, only the evaluation.
+            // Wait, the 'evaluation' is the JSON response from AI.
+            // If the history is not stored, we cannot display it.
+            // Let's check if I can modify `dialogueSimulator` to store the dialogue history too.
+        }));
+
+        const responsePayload = {
+            user: {
+                full_name: userData.full_name,
+                department: userData.department,
+                email: user.email // From auth middleware
+            },
+            stats: {
+                courses_assigned: coursesAssigned,
+                courses_completed: coursesCompleted,
+                average_score: averageScore,
+                total_time_minutes: totalTimeMinutes
+            },
+            courses: formattedCourses,
+            simulations: formattedSimulations
+        };
+
+        res.status(200).json(responsePayload);
+
+    } catch (error) {
+        console.error('Error getting user profile data:', error);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    }
+};
+
 // POST /api/getCourseContent
 const getCourseContent = async (req, res) => {
     const supabase = req.supabase; // Assuming middleware adds this
@@ -485,6 +595,11 @@ ${JSON.stringify(history)}
 
             const jsonString = rawResponse.substring(jsonStart, jsonEnd + 1);
             const evaluation = JSON.parse(jsonString);
+
+            // Include dialogue history in the evaluation object for storage
+            // Note: We are modifying the object that goes into the 'evaluation' jsonb column
+            evaluation.dialogue_history = history;
+
             await supabaseAdmin.from('simulation_results').insert({ user_id: user.id, scenario, persona, evaluation });
             res.status(200).json({ answer: evaluation });
         } else {
@@ -613,6 +728,7 @@ const textToSpeechUser = async (req, res) => {
 
 
 module.exports = {
+    getUserProfileData,
     getCourseContent,
     getJobStatus,
     getLeaderboard,
