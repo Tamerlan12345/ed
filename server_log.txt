@@ -7,4 +7,3 @@
 [33m[nodemon] watching path(s): *.*[39m
 [33m[nodemon] watching extensions: js,mjs,cjs,json[39m
 [32m[nodemon] starting `node server/index.js`[39m
-Server is running and listening on port 3002

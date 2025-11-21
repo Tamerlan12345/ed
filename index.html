@@ -2141,9 +2141,10 @@
             const data = await fetchAuthenticated('/api/getUserProfileData', { method: 'POST' });
 
             // Update Profile Header
-            const initials = data.user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+            const fullName = data.user.full_name || data.user.email || 'Пользователь';
+            const initials = fullName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
             document.getElementById('profile-avatar').textContent = initials;
-            document.getElementById('profile-name').textContent = data.user.full_name;
+            document.getElementById('profile-name').textContent = fullName;
             document.getElementById('profile-dept').textContent = data.user.department || 'Департамент не указан';
             document.getElementById('profile-email').textContent = data.user.email || '';
 
