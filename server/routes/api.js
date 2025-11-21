@@ -21,6 +21,7 @@ apiRouter.post('/getDetailedReport', adminAuthMiddleware, getDetailedReport);
 // The middleware will attach `req.supabase` and `req.user` for the controllers to use.
 apiRouter.use(userAuthMiddleware);
 
+apiRouter.post('/getUserProfileData', userController.getUserProfileData);
 apiRouter.post('/getCourseContent', userController.getCourseContent);
 apiRouter.post('/get-job-status', userController.getJobStatus); // Should this be admin only? For now, user-facing.
 apiRouter.post('/get-leaderboard', userController.getLeaderboard);
