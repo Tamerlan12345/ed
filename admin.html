@@ -206,8 +206,11 @@
     <div id="toast-container"></div>
     <div id="login-view" class="hidden">
         <div style="display: flex; flex-direction: column; align-items: center; gap: 15px; max-width: 400px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Centras Insurance" style="height: 60px;">
-            <h1 style="font-size: 1.5em; text-align: center; margin: 0;">CIC Learn</h1>
+            <div class="window-header" style="display: flex; flex-direction: column; align-items: center; border-bottom: none; padding-bottom: 0;">
+                <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Centras Insurance" style="height: 60px; margin-bottom: 15px;">
+                <h1 style="font-size: 2.2em; margin: 0; color: var(--primary-color); font-weight: 800; letter-spacing: 1px;">CIC Learn</h1>
+                <p style="font-size: 1.1em; color: var(--text-light-color); margin-top: 5px; font-weight: 500;">Обучающая платформа</p>
+            </div>
             <h2 style="font-size: 1.2em; color: var(--text-color); margin: 0;">Вход для администратора</h2>
             <input type="email" id="admin-email" value="test1@cic.kz" placeholder="Email администратора" style="margin-bottom: 0;">
             <input type="password" id="admin-password" placeholder="Пароль" style="margin-bottom: 0;">
