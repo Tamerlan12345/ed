@@ -45,6 +45,7 @@ CREATE TABLE public.user_progress (
     attempts integer DEFAULT 0 NOT NULL,
     time_spent_seconds integer DEFAULT 0 NOT NULL,
     deadline_date timestamp with time zone NULL, -- Дедлайн для прохождения
+    last_slide_index integer DEFAULT 0,
     PRIMARY KEY (user_id, course_id)
 );
 
