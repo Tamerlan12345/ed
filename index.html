@@ -849,10 +849,10 @@
     </div>
     <div id="auth-view" class="container">
         <div class="window">
-            <div class="window-header" style="flex-direction: column; gap: 10px;">
-                <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Centras Insurance" style="height: 60px;">
-                <h1 style="font-size: 1.5em; text-align: center;">Обучающая платформа CIC Learn</h1>
-                <h2 style="font-size: 1.2em; color: var(--text-color);">Вход в систему</h2>
+            <div class="window-header" style="display: flex; flex-direction: column; align-items: center; border-bottom: none; padding-bottom: 0;">
+                <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Centras Insurance" style="height: 60px; margin-bottom: 15px;">
+                <h1 style="font-size: 2.2em; margin: 0; color: var(--primary-color); font-weight: 800; letter-spacing: 1px;">CIC Learn</h1>
+                <p style="font-size: 1.1em; color: var(--text-light-color); margin-top: 5px; font-weight: 500;">Обучающая платформа</p>
             </div>
             <form id="auth-form" style="max-width: 400px; margin: 0 auto;">
                 <p style="text-align: center;">Пожалуйста, используйте выданные вам логин и пароль.</p>
@@ -1295,6 +1295,10 @@
             leaderboardContent.innerHTML = '<p style="color: var(--error-color);">Не удалось загрузить лидерборд.</p>';
         }
     }
+    async function loadCourses() {
+        await showMainMenu();
+    }
+
     async function showMainMenu() {
         appView.classList.remove('presentation-mode-active');
         stopTimeTracking();
@@ -1626,7 +1630,7 @@
         backToMenuBtn.classList.remove('hidden');
         backButtonAction = showMainMenu;
         try {
-            if (!currentCourse.summary || forceRegenerate) {
+            if (!currentCourse.summary || (Array.isArray(currentCourse.summary) && currentCourse.summary.length === 0) || forceRegenerate) {
                 const data = await fetchAuthenticated('/api/getCourseContent', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1902,6 +1906,8 @@
                 secondsSinceLastUpdate += 30;
                 sendTimeUpdate(currentCourse.id, 30);
             }, 30000);
+
+            container.style.opacity = '1';
         } catch (error) {
             console.error('Не удалось загрузить или отобразить контент курса:', error);
             showToast('Ошибка при загрузке контента курса.', 'error');
@@ -2115,8 +2121,16 @@
 
                     showToast('Вы успешно записаны на курс!', 'success');
 
-                    // Refresh data and view
-                    await showMainMenu();
+                    // 1. Переключаем вкладку UI на "Назначенные"
+                    const assignedTabBtn = document.querySelector('.tab-btn[data-filter="assigned"]');
+                    if (assignedTabBtn) {
+                        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                        assignedTabBtn.classList.add('active');
+                    }
+
+                    // 2. ПРИНУДИТЕЛЬНО перезагружаем список курсов с сервера
+                    // Это критично, так как локальный массив courses содержит устаревшие данные (статус "not_assigned")
+                    await loadCourses();
 
                 } catch (error) {
                     console.error('Failed to assign course:', error);
