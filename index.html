@@ -576,8 +576,54 @@
             margin-left: auto; /* Push to the far right */
             order: 2;
         }
+        #profile-btn {
+            order: 2;
+        }
         #logout-btn {
             order: 3;
+        }
+    </style>
+    <style id="header-buttons-styles">
+        .header-icon-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            color: var(--text-light-color);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            padding: 6px 12px;
+            border-radius: 10px;
+            margin-left: 0;
+            min-width: 70px;
+            box-shadow: none;
+            margin-top: 0;
+            font-family: 'Lato', sans-serif;
+        }
+        .header-icon-btn i {
+            font-size: 1.4em;
+            margin-bottom: 2px;
+            transition: transform 0.3s ease;
+        }
+        .header-icon-btn span {
+            font-size: 0.75em;
+            font-weight: 700;
+            opacity: 0.9;
+            transition: opacity 0.3s ease;
+        }
+        .header-icon-btn:hover {
+            background-color: rgba(0, 90, 166, 0.08);
+            color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+        .header-icon-btn:hover i {
+            transform: scale(1.1);
+        }
+        .header-icon-btn:active {
+            transform: translateY(0);
         }
     </style>
     <style id="profile-styles">
@@ -836,8 +882,14 @@
                     <h3><i class="fa-solid fa-trophy"></i> Топ Учеников Недели</h3>
                     <div id="leaderboard-content"></div>
                 </div>
-                 <button id="profile-btn" style="background: transparent; border: none; cursor: pointer; font-size: 1.5em; margin-left: 20px;" title="Мой профиль"><i class="fa-solid fa-user-circle"></i></button>
-                 <button id="logout-btn" style="background: transparent; border: none; cursor: pointer; font-size: 1.5em; margin-left: 10px;" title="Выйти"><i class="fa-solid fa-right-from-bracket"></i></button>
+                 <button id="profile-btn" class="header-icon-btn" title="Мой профиль">
+                    <i class="fa-solid fa-user-circle"></i>
+                    <span>Профиль</span>
+                 </button>
+                 <button id="logout-btn" class="header-icon-btn" title="Выйти">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span>Выйти</span>
+                 </button>
             </div>
             <div id="content-loader" class="hidden" style="display: flex; justify-content: center; align-items: center; height: 60vh;"><div class="loader"></div></div>
             <div class="content-area" id="content-area">
