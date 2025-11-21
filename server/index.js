@@ -12,7 +12,8 @@ const PORT = process.env.PORT || 3002;
 
 // --- GLOBAL MIDDLEWARES ---
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // For parsing application/json
+app.use(express.json({ limit: '50mb' })); // For parsing application/json
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '..'))); // Serve static files like index.html
 
 // --- API ROUTING ---
