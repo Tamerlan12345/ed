@@ -2,6 +2,69 @@ const JSZip = require('jszip');
 const xml2js = require('xml2js');
 
 /**
+ * Extracts text content from a PPTX buffer by parsing slide XMLs.
+ * @param {Buffer} buffer - The PPTX file buffer.
+ * @returns {Promise<string>} - The extracted text.
+ */
+async function extractTextFromPptx(buffer) {
+    try {
+        const zip = await JSZip.loadAsync(buffer);
+        const slideFiles = Object.keys(zip.files).filter(fileName =>
+            fileName.startsWith('ppt/slides/slide') && fileName.endsWith('.xml')
+        );
+
+        // Sort slides naturally (slide1, slide2, slide10, etc.)
+        slideFiles.sort((a, b) => {
+            const numA = parseInt(a.match(/slide(\d+)\.xml/)[1]);
+            const numB = parseInt(b.match(/slide(\d+)\.xml/)[1]);
+            return numA - numB;
+        });
+
+        let fullText = '';
+        const parser = new xml2js.Parser();
+
+        for (const fileName of slideFiles) {
+            const slideXml = await zip.file(fileName).async('string');
+            const result = await parser.parseStringPromise(slideXml);
+
+            // Helper function to recursively extract text from the parsed object
+            const extractTextRecursive = (obj) => {
+                let text = '';
+                if (typeof obj === 'string') {
+                    return obj;
+                }
+                if (Array.isArray(obj)) {
+                    obj.forEach(item => {
+                        text += extractTextRecursive(item) + ' ';
+                    });
+                } else if (typeof obj === 'object' && obj !== null) {
+                    // Specific check for <a:t> tags which hold the text in PPTX
+                    if (obj['a:t']) {
+                         text += extractTextRecursive(obj['a:t']) + ' ';
+                    } else {
+                        Object.keys(obj).forEach(key => {
+                            if (key !== '$') { // Skip attributes
+                                text += extractTextRecursive(obj[key]) + ' ';
+                            }
+                        });
+                    }
+                }
+                return text;
+            };
+
+            const slideText = extractTextRecursive(result);
+            // Clean up whitespace
+            fullText += slideText.replace(/\s+/g, ' ').trim() + '\n\n';
+        }
+
+        return fullText.trim();
+    } catch (error) {
+        console.error('Error extracting text from PPTX:', error);
+        throw new Error('Failed to parse PPTX structure for text extraction.');
+    }
+}
+
+/**
 * Парсит PPTX буфер и возвращает массив объектов слайдов с HTML контентом.
 * Пытается сохранить изображения и верстку.
 */
@@ -15,14 +78,6 @@ async function parsePptxToHtml(buffer) {
     // PPTX хранит картинки в папке ppt/media/
     const mediaFolder = zip.folder("ppt/media");
     if (mediaFolder) {
-        mediaFolder.forEach((relativePath, file) => {
-             // relativePath is "image1.png"
-             // We need to store it with the key that will be used in rels, which is usually just the filename if target is "../media/image1.png"
-             // But let's verify. Rels target is "image1.png" or "../media/image1.png".
-             // Our parser logic below: const target = attr.Target.replace('../media/', '');
-             // So we expect mediaFiles to be keyed by "image1.png".
-        });
-
         // Since forEach is synchronous in JSZip but we need async content extraction,
         // we collect promises.
         const mediaPromises = [];
@@ -282,4 +337,4 @@ async function processShape(sp, slideWidth, slideHeight) {
     return `<div class="ppt-text-box" style="position: absolute; left: ${leftPct}%; top: ${topPct}%; width: ${widthPct}%; height: ${heightPct}%; z-index: 2; overflow: hidden;">${paragraphHtml}</div>`;
 }
 
-module.exports = { parsePptxToHtml };
+module.exports = { parsePptxToHtml, extractTextFromPptx };

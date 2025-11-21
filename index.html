@@ -244,7 +244,7 @@
         }
         .presentation-slide img {
             max-width: 100%;
-            max-height: 80vh; /* Increased max-height for full slides */
+            max-height: 85vh; /* Increased max-height for better visibility */
             width: auto;
             height: auto;
             object-fit: contain;
@@ -254,10 +254,12 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             flex-shrink: 0;
         }
+        /* Allow image to take full width if height permits */
         .presentation-slide img.full-slide-image {
-            max-height: 80vh;
-            width: auto;
-            max-width: 100%;
+             width: 100%;
+             height: 100%;
+             max-height: 85vh;
+             object-fit: contain;
         }
         /* Скрываем пустой контейнер контента, если текста нет */
         .presentation-slide-content:empty {
@@ -729,7 +731,7 @@
 
     async function sendTimeUpdate(courseId, seconds) {
         try {
-            await fetchAuthenticated('/api/updateTimeSpent', {
+            await fetchAuthenticated('/api/update-time-spent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ course_id: courseId, time_spent_seconds: seconds })
@@ -906,16 +908,24 @@
             windowEl.insertBefore(tabsEl, contentAreaEl);
         }
 
-        productContent.classList.add('hidden');
-        testView.classList.add('hidden');
-        testResultsView.classList.add('hidden');
-        simulatorView.classList.add('hidden');
-        backToMenuBtn.classList.add('hidden');
-        document.getElementById('leaderboard-container').classList.remove('hidden');
-        document.getElementById('main-content-wrapper').classList.remove('hidden');
-        mainMenu.classList.remove('hidden');
-        document.getElementById('main-menu-tabs').classList.remove('hidden');
-        extraToolsDiv.classList.remove('hidden');
+        if (productContent) productContent.classList.add('hidden');
+        if (testView) testView.classList.add('hidden');
+        if (testResultsView) testResultsView.classList.add('hidden');
+        if (simulatorView) simulatorView.classList.add('hidden');
+        if (backToMenuBtn) backToMenuBtn.classList.add('hidden');
+
+        const leaderboardContainer = document.getElementById('leaderboard-container');
+        if (leaderboardContainer) leaderboardContainer.classList.remove('hidden');
+
+        const mainContentWrapper = document.getElementById('main-content-wrapper');
+        if (mainContentWrapper) mainContentWrapper.classList.remove('hidden');
+
+        if (mainMenu) mainMenu.classList.remove('hidden');
+
+        const mainMenuTabs = document.getElementById('main-menu-tabs');
+        if (mainMenuTabs) mainMenuTabs.classList.remove('hidden');
+
+        if (extraToolsDiv) extraToolsDiv.classList.remove('hidden');
         loadLeaderboard();
         mainMenu.innerHTML = Array.from({length: 3}, () => '<div class="skeleton-card"></div>').join('');
         try {
