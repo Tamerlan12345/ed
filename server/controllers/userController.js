@@ -115,7 +115,7 @@ const getCourses = async (req, res) => {
 
         const { data: allProgress, error: progressError } = await supabase
             .from('user_progress')
-            .select('course_id, completed_at, score, percentage, deadline_date')
+            .select('course_id, completed_at, score, percentage, deadline_date, last_slide_index')
             .eq('user_id', user.id);
 
         if (progressError) throw progressError;
@@ -501,16 +501,32 @@ const updateTimeSpent = async (req, res) => {
     const supabase = req.supabase;
     const user = req.user;
     try {
-        const { course_id, seconds_spent } = req.body;
-        const { error } = await supabase.rpc('increment_time_spent', {
-            p_course_id: course_id,
-            p_user_id: user.id,
-            p_seconds_spent: seconds_spent
-        });
-        if (error) throw error;
-        res.status(200).json({ message: 'Time updated.' });
+        const { course_id, seconds_spent, last_slide_index } = req.body;
+
+        // 1. Update time spent (using RPC for atomic increment)
+        if (seconds_spent) {
+            const { error: rpcError } = await supabase.rpc('increment_time_spent', {
+                p_course_id: course_id,
+                p_user_id: user.id,
+                p_seconds_spent: seconds_spent
+            });
+            if (rpcError) throw rpcError;
+        }
+
+        // 2. Update last_slide_index if provided
+        if (last_slide_index !== undefined) {
+            const { error: updateError } = await supabase
+                .from('user_progress')
+                .update({ last_slide_index })
+                .eq('user_id', user.id)
+                .eq('course_id', course_id);
+
+            if (updateError) throw updateError;
+        }
+
+        res.status(200).json({ message: 'Progress updated.' });
     } catch (error) {
-        console.error('Error updating time spent:', error);
+        console.error('Error updating progress:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };

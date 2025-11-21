@@ -205,11 +205,15 @@
 <body>
     <div id="toast-container"></div>
     <div id="login-view" class="hidden">
-        <h1>Вход для администратора</h1>
-        <input type="email" id="admin-email" value="test1@cic.kz">
-        <input type="password" id="admin-password" placeholder="Пароль">
-        <button id="login-btn">Войти</button>
-        <div id="login-error" class="status error hidden"></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 15px; max-width: 400px; margin: 40px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Centras Insurance" style="height: 60px;">
+            <h1 style="font-size: 1.5em; text-align: center; margin: 0;">CIC Learn</h1>
+            <h2 style="font-size: 1.2em; color: var(--text-color); margin: 0;">Вход для администратора</h2>
+            <input type="email" id="admin-email" value="test1@cic.kz" placeholder="Email администратора" style="margin-bottom: 0;">
+            <input type="password" id="admin-password" placeholder="Пароль" style="margin-bottom: 0;">
+            <button id="login-btn" style="width: 100%; margin-top: 10px;">Войти</button>
+            <div id="login-error" class="status error hidden" style="width: 100%;"></div>
+        </div>
     </div>
 
     <div id="panel-view" class="hidden">

@@ -585,9 +585,13 @@
     <div id="toast-container"></div>
     <div id="auth-view" class="container">
         <div class="window">
-            <div class="window-header"><h1>Вход в систему</h1></div>
-            <form id="auth-form">
-                <p>Пожалуйста, используйте выданные вам логин и пароль.</p>
+            <div class="window-header" style="flex-direction: column; gap: 10px;">
+                <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Centras Insurance" style="height: 60px;">
+                <h1 style="font-size: 1.5em; text-align: center;">Обучающая платформа CIC Learn</h1>
+                <h2 style="font-size: 1.2em; color: var(--text-color);">Вход в систему</h2>
+            </div>
+            <form id="auth-form" style="max-width: 400px; margin: 0 auto;">
+                <p style="text-align: center;">Пожалуйста, используйте выданные вам логин и пароль.</p>
                 <input type="email" id="user-email" placeholder="Рабочий Email" required>
                 <input type="password" id="user-password" placeholder="Пароль" required>
                 <div id="auth-error" class="hidden"></div>
@@ -738,6 +742,18 @@
             });
         } catch (error) {
             console.error('Failed to update time spent:', error);
+        }
+    }
+
+    async function sendSlideUpdate(courseId, slideIndex) {
+        try {
+            await fetchAuthenticated('/api/update-time-spent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: courseId, last_slide_index: slideIndex })
+            });
+        } catch (error) {
+            console.error('Failed to update slide index:', error);
         }
     }
 
@@ -1338,7 +1354,16 @@
                 prevBtn.textContent = 'Назад';
                 const nextBtn = document.createElement('button');
                 nextBtn.textContent = 'Вперед';
+
+                // Restore saved progress or default to 0
                 let currentIndex = 0;
+                if (currentCourse.progress && typeof currentCourse.progress.last_slide_index === 'number') {
+                    // Ensure the saved index is within bounds
+                    if (currentCourse.progress.last_slide_index >= 0 && currentCourse.progress.last_slide_index < slides.length) {
+                        currentIndex = currentCourse.progress.last_slide_index;
+                    }
+                }
+
                 const updateSliderUI = () => {
                     slides.forEach((slide, index) => slide.classList.toggle('active', index === currentIndex));
                     prevBtn.disabled = currentIndex === 0;
@@ -1358,8 +1383,23 @@
                         slideCounter.textContent = `Слайд ${currentIndex + 1} из ${slides.length}`;
                     }
                 };
-                prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateSliderUI(); } });
-                nextBtn.addEventListener('click', () => { if (currentIndex < slides.length - 1) { currentIndex++; updateSliderUI(); } });
+
+                prevBtn.addEventListener('click', () => {
+                    if (currentIndex > 0) {
+                        currentIndex--;
+                        updateSliderUI();
+                        sendSlideUpdate(currentCourse.id, currentIndex);
+                    }
+                });
+
+                nextBtn.addEventListener('click', () => {
+                    if (currentIndex < slides.length - 1) {
+                        currentIndex++;
+                        updateSliderUI();
+                        sendSlideUpdate(currentCourse.id, currentIndex);
+                    }
+                });
+
                 updateSliderUI();
                 return { slider, prevBtn, nextBtn };
             };
@@ -1647,21 +1687,28 @@
                 const courseId = e.target.dataset.courseId;
                 if (!courseId) return;
                 const button = e.target;
+                const originalText = button.textContent;
+
                 button.disabled = true;
-                button.textContent = 'Запись...';
+                button.innerHTML = '<div class="loader" style="width: 20px; height: 20px; border-width: 3px; display: inline-block; vertical-align: middle;"></div>';
+
                 try {
                     await fetchAuthenticated('/api/assign-course', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ course_id: courseId })
                     });
+
                     showToast('Вы успешно записаны на курс!', 'success');
-                    document.querySelector('.tab-btn[data-filter="assigned"]').click();
+
+                    // Refresh data and view
+                    await showMainMenu();
+
                 } catch (error) {
                     console.error('Failed to assign course:', error);
                     showToast(`Не удалось записаться на курс: ${error.message}`, 'error');
                     button.disabled = false;
-                    button.textContent = 'Начать изучение';
+                    button.textContent = originalText;
                 }
             }
         });
