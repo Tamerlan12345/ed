@@ -1624,6 +1624,8 @@
         productContent.classList.remove('hidden');
         mainMenu.classList.add('hidden');
         profileView.classList.add('hidden'); // Hide profile view
+        if (testView) testView.classList.add('hidden');
+        if (testResultsView) testResultsView.classList.add('hidden');
         document.getElementById('main-menu-tabs').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
         document.getElementById('extra-tools').classList.add('hidden');
@@ -1974,10 +1976,41 @@
             }
         }
     };
-    function startTest(courseId) {
+    async function startTest(courseId) {
         stopTimeTracking(); // Stop time tracking when test starts
         const courseGroup = courses.find(group => group.courses.some(c => c.id === courseId));
         if (courseGroup) currentCourse = courseGroup.courses.find(c => c.id === courseId);
+
+        if (currentCourse && currentCourse.progress && currentCourse.progress.deadline_date) {
+            const deadline = new Date(currentCourse.progress.deadline_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (today > deadline) {
+                showToast('Срок сдачи теста истек. Результат 0% отправлен.', 'error');
+                try {
+                    await fetchAuthenticated('/api/saveTestResult', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            course_id: currentCourse.id,
+                            score: 0,
+                            total_questions: currentCourse.questions ? currentCourse.questions.length : 0,
+                            percentage: 0,
+                            time_spent_seconds: 0
+                        })
+                    });
+                     // Update local progress to reflect the failure
+                     if (!currentCourse.progress) currentCourse.progress = {};
+                     currentCourse.progress.completed_at = new Date().toISOString();
+                     currentCourse.progress.score = 0;
+                     currentCourse.progress.percentage = 0;
+                } catch (e) {
+                    console.error('Failed to submit 0 result for expired deadline:', e);
+                }
+                return;
+            }
+        }
+
         const progress = userProgress[courseId];
         const attempts = progress ? progress.attempts : 0;
         if (attempts >= MAX_ATTEMPTS) {
