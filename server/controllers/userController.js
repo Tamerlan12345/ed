@@ -47,7 +47,7 @@ const getUserProfileData = async (req, res) => {
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
             .select(`
-                score, percentage, completed_at, time_spent_seconds, deadline_date, attempts,
+                score, percentage, completed_at, time_spent_seconds, deadline_date, attempts, last_slide_index,
                 courses (id, title, status, deadline_days)
             `)
             .eq('user_id', user.id);
@@ -78,17 +78,27 @@ const getUserProfileData = async (req, res) => {
         // 5. Format courses list
         const formattedCourses = progressData.map(p => {
             let status = 'assigned';
-            if (p.completed_at) status = 'completed';
-            else if (p.deadline_date && new Date(p.deadline_date) < new Date()) status = 'overdue'; // Or check logic for overdue
+            let is_late = false;
+
+            if (p.completed_at) {
+                status = 'completed';
+                if (p.deadline_date && new Date(p.completed_at) > new Date(p.deadline_date)) {
+                    is_late = true;
+                }
+            } else if (p.deadline_date && new Date(p.deadline_date) < new Date()) {
+                status = 'overdue';
+            }
 
             return {
                 id: p.courses.id,
                 title: p.courses.title,
                 status: status,
+                is_late: is_late,
                 score: p.percentage || 0,
                 completed_at: p.completed_at,
                 deadline_date: p.deadline_date,
-                progress: p.percentage || 0, // Using percentage as progress estimate
+                progress: p.completed_at ? 100 : (p.percentage || 0), // If completed, 100%. Else percentage (if test taken but not passed?) or 0.
+                last_slide_index: p.last_slide_index || 0,
                 attempts: p.attempts || 0
             };
         });

@@ -2272,22 +2272,63 @@
                     if (course.status === 'completed') {
                         statusClass = 'status-completed';
                         statusText = 'Завершен';
+                        if (course.is_late) {
+                            statusText += ' (С опозданием)';
+                            statusClass = 'status-overdue'; // Use overdue color for late completion warning
+                        }
                         actionBtn = `<button class="btn view-results-btn" style="padding: 5px 10px; font-size: 0.8em; background-color: var(--success-color);" data-course-id="${course.id}">Результат</button>`;
                     } else if (course.status === 'overdue') {
                         statusClass = 'status-overdue';
                         statusText = 'Просрочен';
                     }
 
-                    const deadlineText = course.completed_at
-                        ? new Date(course.completed_at).toLocaleDateString('ru-RU')
-                        : (course.deadline_date ? new Date(course.deadline_date).toLocaleDateString('ru-RU') : '-');
+                    // Format dates including time
+                    const formatDate = (dateString) => {
+                        if (!dateString) return '-';
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString('ru-RU', {
+                            year: 'numeric',
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    };
+
+                    let deadlineHtml = '-';
+                    if (course.completed_at) {
+                        deadlineHtml = `
+                            <div style="font-size: 0.9em;">
+                                <div style="color: var(--success-color);">Завершен:</div>
+                                <div>${formatDate(course.completed_at)}</div>
+                                ${course.is_late ? '<div style="color: var(--error-color); font-weight: bold; font-size: 0.8em;">Просрочено</div>' : ''}
+                            </div>
+                        `;
+                    } else if (course.deadline_date) {
+                        deadlineHtml = `
+                            <div style="font-size: 0.9em;">
+                                <div style="color: var(--text-light-color);">Дедлайн:</div>
+                                <div>${formatDate(course.deadline_date)}</div>
+                            </div>
+                        `;
+                    }
+
+                    // Calculate display progress
+                    let progressDisplay = '0%';
+                    if (course.status === 'completed') {
+                        progressDisplay = '100%';
+                    } else if (course.last_slide_index > 0) {
+                        progressDisplay = `Слайд ${course.last_slide_index + 1}`;
+                    } else if (course.progress > 0) {
+                        progressDisplay = `${course.progress}%`;
+                    }
 
                     tr.innerHTML = `
                         <td>${course.title}</td>
                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                        <td>${course.progress || 0}%</td>
-                        <td>${course.score || '-'}%</td>
-                        <td>${deadlineText}</td>
+                        <td>${progressDisplay}</td>
+                        <td>${course.score !== null ? course.score + '%' : '-'}</td>
+                        <td>${deadlineHtml}</td>
                         <td>${actionBtn}</td>
                     `;
                     tbody.appendChild(tr);
