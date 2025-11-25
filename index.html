@@ -1314,6 +1314,8 @@
         appView.classList.remove('hidden');
         showLoader();
         await showMainMenu();
+        checkLiveMeetings();
+        setInterval(checkLiveMeetings, 60000); // Check every minute
         hideLoader();
     }
     async function handleLogout() {
@@ -2286,11 +2288,6 @@
         // Profile Button Event Listener
         if (profileBtn) {
             profileBtn.addEventListener('click', loadUserProfile);
-        }
-
-        if(userData.token) {
-            checkLiveMeetings();
-            setInterval(checkLiveMeetings, 60000);
         }
     });
 
