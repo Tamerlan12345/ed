@@ -2114,6 +2114,71 @@ async function addMaterialHandler() {
 
     document.getElementById('refresh-sim-results-btn').addEventListener('click', loadSimulatorResults);
 
+    // --- MEETING MANAGEMENT ---
+    async function loadCoursesForMeetings() {
+        const courses = await apiCall(ACTIONS.GET_COURSES_ADMIN);
+        const select = document.getElementById('meeting-course-select');
+        select.innerHTML = '<option value="">Выберите курс...</option>';
+        courses.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.title}</option>`;
+        });
+    }
+
+    async function loadMeetings() {
+        const meetings = await apiCall(ACTIONS.GET_ADMIN_MEETINGS);
+        const tbody = document.querySelector('#meetings-table tbody');
+        tbody.innerHTML = '';
+        meetings.forEach(m => {
+            const date = new Date(m.start_time).toLocaleString();
+            tbody.innerHTML += `
+                <tr>
+                    <td>${date}</td>
+                    <td>${m.courses?.title}</td>
+                    <td>${m.title}</td>
+                    <td>
+                        <button onclick="openAdminJitsi('${m.jitsi_room_id}')" style="background:#28a745;">Войти как ведущий</button>
+                        <button onclick="deleteMeeting('${m.id}')" style="background:#dc3545;">Удалить</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    async function deleteMeeting(meetingId) {
+        if (confirm('Удалить эту встречу?')) {
+            await apiCall(ACTIONS.DELETE_MEETING, { meeting_id: meetingId });
+            loadMeetings();
+        }
+    }
+
+    function openAdminJitsi(roomId) {
+        document.getElementById('admin-jitsi-modal').classList.remove('hidden');
+        const domain = 'meet.jit.si';
+        const options = {
+            roomName: roomId,
+            width: '100%',
+            height: '100%',
+            parentNode: document.querySelector('#admin-jitsi-frame'),
+            userInfo: { displayName: 'Преподаватель' }
+        };
+        window.adminJitsiApi = new JitsiMeetExternalAPI(domain, options);
+    }
+
+    function closeAdminJitsi() {
+        if(window.adminJitsiApi) window.adminJitsiApi.dispose();
+        document.getElementById('admin-jitsi-modal').classList.add('hidden');
+    }
+
+    document.getElementById('create-meeting-btn').addEventListener('click', async () => {
+        const course_id = document.getElementById('meeting-course-select').value;
+        const title = document.getElementById('meeting-title').value;
+        const start_time = document.getElementById('meeting-start-time').value;
+        if(!course_id || !title || !start_time) return alert('Заполните все поля');
+
+        await apiCall(ACTIONS.CREATE_MEETING, { course_id, title, start_time });
+        loadMeetings();
+    });
+
 
     document.getElementById('export-csv-btn').addEventListener('click', async (e) => {
         const btn = e.target;
