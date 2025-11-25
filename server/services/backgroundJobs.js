@@ -512,7 +512,9 @@ async function handleUploadAndProcess(jobId, payload) {
             .update({
                 content: parsedContent,
                 draft_content: parsedContent,
-                description: `Импортировано из ${file_name.endsWith('.pptx') ? 'PPTX' : 'PDF'} (1-в-1): ${file_name}`
+                description: (extractedText && extractedText.length > 0)
+                    ? extractedText
+                    : `Импортировано из ${file_name.endsWith('.pptx') ? 'PPTX' : 'PDF'} (1-в-1): ${file_name}`
             })
             .eq('id', course_id);
 
