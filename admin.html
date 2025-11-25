@@ -26,7 +26,7 @@
         }
         body { font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; padding: 20px; max-width: 1200px; margin: auto; background-color: var(--bg-color); color: var(--text-color); }
         h1, h2, h3 { color: var(--primary-color); }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         input, textarea, button, select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 16px; }
         button { background-color: var(--primary-color); color: white; cursor: pointer; border: none; font-weight: bold; transition: background-color 0.2s; }
         button:hover { background-color: var(--secondary-color); }
@@ -265,7 +265,7 @@
         <div id="admin-jitsi-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column;">
             <div class="jitsi-header" style="background: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;">
                 <h3>Режим ведущего</h3>
-                <button onclick="closeAdminJitsi()">Завершить для всех</button>
+                <button onclick="closeAdminJitsi()" style="background-color: #dc3545;">Выйти из встречи</button>
             </div>
             <div id="admin-jitsi-frame" style="flex: 1; width: 100%;"></div>
         </div>
@@ -2201,12 +2201,36 @@ async function addMaterialHandler() {
             parentNode: document.querySelector('#admin-jitsi-frame'),
             userInfo: { displayName: 'Преподаватель' }
         };
-        window.adminJitsiApi = new JitsiMeetExternalAPI(domain, options);
+        // Очищаем предыдущий фрейм если он есть, на всякий случай
+        const frameContainer = document.querySelector('#admin-jitsi-frame');
+        frameContainer.innerHTML = '';
+
+        try {
+            window.adminJitsiApi = new JitsiMeetExternalAPI(domain, options);
+             // Добавляем обработчик закрытия встречи внутри самого Jitsi (когда юзер жмет красную трубку)
+            window.adminJitsiApi.addEventListeners({
+                videoConferenceLeft: closeAdminJitsi
+            });
+        } catch (e) {
+            console.error("Ошибка запуска Jitsi:", e);
+            alert("Не удалось запустить видеоконференцию.");
+            closeAdminJitsi();
+        }
     }
 
     function closeAdminJitsi() {
-        if(window.adminJitsiApi) window.adminJitsiApi.dispose();
+        try {
+            if(window.adminJitsiApi) {
+                window.adminJitsiApi.dispose();
+                window.adminJitsiApi = null;
+            }
+        } catch (e) {
+            console.error("Ошибка при закрытии Jitsi:", e);
+        }
+        // В любом случае скрываем окно
         document.getElementById('admin-jitsi-modal').classList.add('hidden');
+        // Очищаем контейнер, чтобы не дублировались фреймы при следующем открытии
+        document.getElementById('admin-jitsi-frame').innerHTML = '';
     }
 
     document.getElementById('create-meeting-btn').addEventListener('click', async () => {
