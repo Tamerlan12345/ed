@@ -737,6 +737,30 @@ const textToSpeechUser = async (req, res) => {
 };
 
 
+// Функция для получения встреч пользователя
+const getUserMeetings = async (req, res) => {
+    const supabase = req.supabase;
+    const user = req.user;
+
+    try {
+        // Получаем встречи, которые начнутся в будущем или начались не более 2 часов назад
+        // RLS политика в БД сама отфильтрует курсы, на которые пользователь не записан
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+        const { data, error } = await supabase
+            .from('meetings')
+            .select('*, courses(title)')
+            .gte('start_time', twoHoursAgo)
+            .order('start_time', { ascending: true });
+
+        if (error) throw error;
+        res.status(200).json(data);
+    } catch (error) {
+        console.error('Error fetching meetings:', error);
+        res.status(500).json({ error: 'Internal error' });
+    }
+};
+
 module.exports = {
     getUserProfileData,
     getCourseContent,
@@ -752,4 +776,5 @@ module.exports = {
     updateTimeSpent,
     markNotificationsAsRead,
     textToSpeechUser,
+    getUserMeetings,
 };
