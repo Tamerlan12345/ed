@@ -4,17 +4,40 @@ require('dotenv').config({ path: path.join(__dirname, '..', 'config.env') });
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
 const apiRouter = require('./routes/api'); // Import the refactored router
 
 // --- INITIALIZE EXPRESS APP ---
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// --- SECURITY MIDDLEWARES ---
+app.use(helmet({
+    contentSecurityPolicy: false, // Adjust this policy based on your frontend needs
+}));
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again after 15 minutes'
+});
+app.use('/api', limiter);
+
+app.use(cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    credentials: true
+}));
+
 // --- GLOBAL MIDDLEWARES ---
-app.use(cors());
+app.use(morgan('combined'));
 app.use(express.json({ limit: '50mb' })); // For parsing application/json
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '..'))); // Serve static files like index.html
+
+// --- HEALTH CHECK ---
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // --- API ROUTING ---
 // All API-related routes are now handled in the /routes/api.js module.
@@ -35,11 +58,27 @@ app.get('/*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
+// --- GLOBAL ERROR HANDLING ---
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        status: 'error',
+        message: 'Something went wrong!'
+    });
+});
+
 // --- SERVER STARTUP ---
 // This check ensures the server only starts when the script is executed directly (not when imported).
 if (require.main === module) {
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         console.log(`Server is running and listening on port ${PORT}`);
+    });
+
+    process.on('SIGTERM', () => {
+        console.log('SIGTERM signal received: closing HTTP server');
+        server.close(() => {
+            console.log('HTTP server closed');
+        });
     });
 }
 
