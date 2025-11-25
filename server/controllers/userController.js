@@ -1,6 +1,7 @@
 const { createSupabaseClient, createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -761,6 +762,55 @@ const getUserMeetings = async (req, res) => {
     }
 };
 
+const generateJitsiToken = async (req, res) => {
+    const user = req.user;
+    const { roomName } = req.body;
+    const supabase = req.supabase;
+
+    if (!roomName) {
+        return res.status(400).json({ error: 'roomName is required.' });
+    }
+    if (!process.env.JITSI_APP_ID || !process.env.JITSI_APP_SECRET) {
+        console.error('Jitsi App ID or Secret is not configured on the server.');
+        return res.status(500).json({ error: 'Video conferencing is not configured correctly.' });
+    }
+
+    try {
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('full_name, is_admin')
+            .eq('id', user.id)
+            .single();
+
+        if (userError) throw userError;
+
+        const payload = {
+            context: {
+                user: {
+                    id: user.id,
+                    name: userData.full_name || user.email,
+                    avatar: '', // Optional: Add avatar URL if you have one
+                    email: user.email,
+                }
+            },
+            aud: 'jitsi',
+            iss: process.env.JITSI_APP_ID,
+            sub: 'meet.jit.si', // Your Jitsi domain
+            room: roomName,
+            exp: Math.floor(Date.now() / 1000) + (7200), // Token valid for 2 hours
+            moderator: userData.is_admin === true,
+        };
+
+        const token = jwt.sign(payload, process.env.JITSI_APP_SECRET);
+
+        res.status(200).json({ token });
+
+    } catch (error) {
+        console.error('Error generating Jitsi token:', error);
+        res.status(500).json({ error: 'Failed to generate token.' });
+    }
+};
+
 module.exports = {
     getUserProfileData,
     getCourseContent,
@@ -777,4 +827,5 @@ module.exports = {
     markNotificationsAsRead,
     textToSpeechUser,
     getUserMeetings,
+    generateJitsiToken,
 };

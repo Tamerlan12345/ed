@@ -2,6 +2,7 @@ const request = require('supertest');
 const { expect } = require('chai');
 const sinon = require('sinon');
 const proxyquire = require('proxyquire');
+const jwt = require('jsonwebtoken');
 
 describe('API Endpoints', () => {
     let app;
@@ -232,6 +233,100 @@ describe('API Endpoints', () => {
             expect(response.status).to.equal(200);
             expect(response.body.questions).to.be.an('array');
             expect(response.body.questions).to.have.lengthOf(0);
+        });
+    });
+
+    describe('POST /api/generate-jitsi-token', () => {
+        const mockRoomName = 'test-room-123';
+        const mockJitsiAppId = 'test-app-id';
+        const mockJitsiAppSecret = 'test-app-secret';
+
+        beforeEach(() => {
+            // Set up environment variables for the test
+            process.env.JITSI_APP_ID = mockJitsiAppId;
+            process.env.JITSI_APP_SECRET = mockJitsiAppSecret;
+        });
+
+        afterEach(() => {
+            // Clean up environment variables
+            delete process.env.JITSI_APP_ID;
+            delete process.env.JITSI_APP_SECRET;
+        });
+
+        it('should generate a valid token for a regular user', async () => {
+            const fakeUser = { full_name: 'Test User', is_admin: false };
+            supabaseStub.single.resolves({ data: fakeUser, error: null });
+
+            const response = await request(app)
+                .post('/api/generate-jitsi-token')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({ roomName: mockRoomName });
+
+            expect(response.status).to.equal(200);
+            expect(response.body).to.have.property('token');
+
+            // Verify the token content
+            const decoded = jwt.verify(response.body.token, mockJitsiAppSecret);
+            expect(decoded.iss).to.equal(mockJitsiAppId);
+            expect(decoded.room).to.equal(mockRoomName);
+            expect(decoded.context.user.name).to.equal(fakeUser.full_name);
+            expect(decoded.moderator).to.be.false;
+        });
+
+        it('should generate a valid token for an admin user with moderator privileges', async () => {
+            const fakeAdmin = { full_name: 'Admin User', is_admin: true };
+            supabaseStub.single.resolves({ data: fakeAdmin, error: null });
+
+            // For this test, we need to ensure the user middleware can be "tricked"
+            // into using a different user ID if needed, but our current setup is fine
+            // as long as the stub returns the correct data.
+
+            const response = await request(app)
+                .post('/api/generate-jitsi-token')
+                .set('Authorization', 'Bearer mock-user-token') // The middleware is stubbed, so this is fine
+                .send({ roomName: mockRoomName });
+
+            expect(response.status).to.equal(200);
+            expect(response.body).to.have.property('token');
+
+            const decoded = jwt.verify(response.body.token, mockJitsiAppSecret);
+            expect(decoded.moderator).to.be.true;
+            expect(decoded.context.user.name).to.equal(fakeAdmin.full_name);
+        });
+
+        it('should return 400 if roomName is not provided', async () => {
+            const response = await request(app)
+                .post('/api/generate-jitsi-token')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({});
+
+            expect(response.status).to.equal(400);
+        });
+
+        it('should return 500 if Jitsi secrets are not configured', async () => {
+            delete process.env.JITSI_APP_ID; // Simulate missing config
+            const fakeUser = { full_name: 'Test User', is_admin: false };
+            supabaseStub.single.resolves({ data: fakeUser, error: null });
+
+            const response = await request(app)
+                .post('/api/generate-jitsi-token')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({ roomName: mockRoomName });
+
+            expect(response.status).to.equal(500);
+            expect(response.body.error).to.include('not configured');
+        });
+
+        it('should return 500 if database call fails', async () => {
+            supabaseStub.single.resolves({ data: null, error: new Error('DB Error') });
+
+            const response = await request(app)
+                .post('/api/generate-jitsi-token')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({ roomName: mockRoomName });
+
+            expect(response.status).to.equal(500);
+            expect(response.body.error).to.equal('Failed to generate token.');
         });
     });
 });
