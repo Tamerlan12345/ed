@@ -233,8 +233,41 @@
             <button id="results-tab-btn">Отчеты и Результаты</button>
             <button id="leaderboard-tab-btn">Лидерборд</button>
             <button id="simulator-tab-btn">Результаты Тренажера</button>
+            <button id="meetings-tab-btn">Видеоконференции</button>
         </div>
         <hr>
+
+        <div id="meetings-view" class="hidden">
+            <h2>Управление Видеоконференциями</h2>
+            <div id="create-meeting-form">
+                <h3>Создать новую встречу</h3>
+                <select id="meeting-course-select"></select>
+                <input type="text" id="meeting-title" placeholder="Тема встречи">
+                <input type="datetime-local" id="meeting-start-time">
+                <button id="create-meeting-btn">Создать</button>
+            </div>
+            <hr>
+            <h3>Запланированные встречи</h3>
+            <table id="meetings-table" style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>Время начала</th>
+                        <th>Курс</th>
+                        <th>Тема</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div id="admin-jitsi-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; flex-direction: column;">
+            <div class="jitsi-header" style="background: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;">
+                <h3>Режим преподавателя</h3>
+                <button onclick="closeAdminJitsi()">Завершить для всех</button>
+            </div>
+            <div id="admin-jitsi-frame" style="flex: 1; width: 100%;"></div>
+        </div>
 
         <div id="leaderboard-view" class="hidden">
             <h2>Настройки Лидерборда "Топ учеников недели"</h2>
@@ -444,14 +477,16 @@
         document.getElementById('groups-view'),
         document.getElementById('results-view'),
         document.getElementById('leaderboard-view'),
-        document.getElementById('simulator-results-view')
+        document.getElementById('simulator-results-view'),
+        document.getElementById('meetings-view')
     ];
     const allBtns = [
         document.getElementById('courses-tab-btn'),
         document.getElementById('groups-tab-btn'),
         document.getElementById('results-tab-btn'),
         document.getElementById('leaderboard-tab-btn'),
-        document.getElementById('simulator-tab-btn')
+        document.getElementById('simulator-tab-btn'),
+        document.getElementById('meetings-tab-btn')
     ];
     // Course UI elements
     const coursesGrid = document.getElementById('courses-grid');
@@ -882,6 +917,10 @@
             if (allViews[index].id === 'results-view') loadResults();
             if (allViews[index].id === 'leaderboard-view') loadLeaderboardSettings();
             if (allViews[index].id === 'simulator-results-view') loadSimulatorResults();
+            if (allViews[index].id === 'meetings-view') {
+                loadMeetings();
+                loadCoursesForMeetings();
+            }
         });
     });
 
