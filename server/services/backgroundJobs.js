@@ -307,16 +307,23 @@ async function handleUploadAndProcess(jobId, payload) {
 
         const buffer = Buffer.from(file_data, 'base64');
 
-        // Если это НЕ PPTX и НЕ PDF, используем старую логику (для docx, rtf)
-        if (!file_name.endsWith('.pptx') && !file_name.endsWith('.pdf')) {
+        // ОПРЕДЕЛЕНИЕ РЕЖИМА ОБРАБОТКИ
+        // Мы используем "Текстовый режим" (без картинок), если:
+        // 1. Это Word (.docx) или RTF (.rtf)
+        // 2. ИЛИ это PDF, НО включена галочка auto_generate_content
+        const isPdfWithAutoGen = file_name.endsWith('.pdf') && auto_generate_content;
+        const isTextDoc = file_name.endsWith('.docx') || file_name.endsWith('.rtf');
+        const processAsText = isTextDoc || isPdfWithAutoGen;
+
+        if (processAsText) {
             let textContent = '';
 
-            console.log(`[Job ${jobId}] Buffer created, size: ${buffer.length}. Detecting file type (text-only).`);
+            console.log(`[Job ${jobId}] Buffer created. Processing as TEXT document (Mode: ${isPdfWithAutoGen ? 'PDF Auto-Gen' : 'Standard Doc'}).`);
+
             if (file_name.endsWith('.docx')) {
                 console.log(`[Job ${jobId}] Processing .docx file with mammoth...`);
                 const { value } = await mammoth.extractRawText({ buffer });
                 textContent = value;
-                console.log(`[Job ${jobId}] .docx processing complete. Text length: ${textContent.length}`);
             } else if (file_name.endsWith('.rtf')) {
                 console.log(`[Job ${jobId}] Processing .rtf file with rtf-parser...`);
                 textContent = await new Promise((resolve, reject) => {
@@ -327,16 +334,21 @@ async function handleUploadAndProcess(jobId, payload) {
                         resolve(text);
                     });
                 });
-                console.log(`[Job ${jobId}] .rtf processing complete. Text length: ${textContent.length}`);
+            } else if (file_name.endsWith('.pdf')) {
+                console.log(`[Job ${jobId}] Processing .pdf file with pdf-parse (Text Mode)...`);
+                const data = await pdf(buffer);
+                textContent = data.text;
             } else {
-                throw new Error('Unsupported file type. Please upload a .docx, .rtf, .pdf or .pptx file.');
+                throw new Error('Unsupported file type for text processing.');
             }
+
+            console.log(`[Job ${jobId}] Processing complete. Extracted text length: ${textContent.length}`);
 
             if (!textContent) {
                 throw new Error('Could not extract text from the document.');
             }
 
-            // --- NEW LOGIC: Route based on upload_mode ---
+            // --- Logics based on upload_mode ---
             if (upload_mode === 'quiz') {
                 console.log(`[Job ${jobId}] Quiz upload mode detected. Parsing text with AI...`);
                 const quizJson = await parseQuizFromText(textContent);
@@ -348,45 +360,41 @@ async function handleUploadAndProcess(jobId, payload) {
                         content: quizJson,
                         draft_content: quizJson,
                         status: 'published',
-                        description: `Квиз из файла: ${file_name}` // Add a description for clarity
+                        description: `Квиз из файла: ${file_name}`
                     })
                     .eq('id', course_id);
 
-                if (dbError) {
-                    throw new Error(`Failed to save quiz JSON to course: ${dbError.message}`);
-                }
-                console.log(`[Job ${jobId}] Quiz course ${course_id} created and published successfully.`);
+                if (dbError) throw new Error(`Failed to save quiz JSON to course: ${dbError.message}`);
+
                 await updateJobStatus('completed', { message: `Quiz created successfully from ${file_name}` });
 
             } else {
-                // Course material mode: save text and then decide on generation.
+                // Course material mode
                 console.log(`[Job ${jobId}] Course material mode. Saving extracted text to course description...`);
                 const { error: dbError } = await supabaseAdmin
                     .from('courses')
                     .update({ description: textContent })
                     .eq('id', course_id);
 
-                if (dbError) {
-                    throw new Error(`Failed to save course content: ${dbError.message}`);
-                }
+                if (dbError) throw new Error(`Failed to save course content: ${dbError.message}`);
 
                 if (auto_generate_content) {
                     console.log(`[Job ${jobId}] auto_generate_content is true. Triggering full content generation...`);
-                    // Await the generation process so the job status is correctly handled
-                    // by the handleGenerateContent function, including errors.
+                    // Запускаем генерацию. Статус обновится внутри этой функции.
                     await handleGenerateContent(jobId, { course_id, generation_mode: 'full' });
                     console.log(`[Job ${jobId}] Content generation process finished.`);
-                    // The status is updated by handleGenerateContent, so we don't update it here.
                 } else {
                     console.log(`[Job ${jobId}] auto_generate_content is false. Finishing job.`);
-                    console.log(`[Job ${jobId}] Course material processing completed for course ID: ${course_id}.`);
                     await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
                 }
             }
             return;
         }
 
-        // === ЛОГИКА ДЛЯ ВИЗУАЛЬНЫХ ПРЕЗЕНТАЦИЙ (PPTX, PDF) ===
+        // === ЛОГИКА ДЛЯ ВИЗУАЛЬНЫХ ПРЕЗЕНТАЦИЙ (PPTX, или PDF без галочки) ===
+        // Сюда попадаем, если это PPTX или если это PDF и галочка ВЫКЛЮЧЕНА.
+
+        console.log(`[Job ${jobId}] Processing as VISUAL presentation (Slides + Quiz).`);
 
         // 1. Создаем временную директорию
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'presentation-convert-'));
@@ -412,8 +420,7 @@ async function handleUploadAndProcess(jobId, payload) {
                 throw new Error('Не удалось создать PDF из презентации.');
             }
         } else {
-             // --- PDF BRANCH ---
-             // Файл уже является PDF, пропускаем конвертацию
+             // --- PDF BRANCH (Visual Mode) ---
              console.log(`[Job ${jobId}] Processing PDF file directly (skipping LibreOffice).`);
              pdfPath = path.join(tempDir, 'presentation.pdf');
              fs.writeFileSync(pdfPath, buffer);
@@ -422,76 +429,45 @@ async function handleUploadAndProcess(jobId, payload) {
         await updateJobStatus('pending', { message: 'Рендеринг слайдов в изображения...' });
 
         // 3. Конвертация PDF -> PNG (каждый слайд - отдельная картинка)
-        // pdftoppm -png -r 150 (DPI) input.pdf prefix
         const outputPrefix = 'slide';
         try {
-            // 150 DPI достаточно для веба, дает хорошее качество FullHD
             await execAsync(`pdftoppm -png -r 150 "${pdfPath}" "${path.join(tempDir, outputPrefix)}"`);
         } catch (e) {
             throw new Error(`Ошибка pdftoppm: ${e.message}`);
         }
 
-        // 4. Сбор и загрузка изображений в Supabase Storage
+        // 4. Сбор и загрузка изображений
         const files = fs.readdirSync(tempDir).filter(f => f.startsWith(outputPrefix) && f.endsWith('.png'));
 
         if (files.length === 0) {
-            throw new Error('Не удалось извлечь изображения слайдов из PDF. Возможно, файл поврежден или пуст.');
+            throw new Error('Не удалось извлечь изображения слайдов.');
         }
 
-        // Сортируем файлы, чтобы слайды шли по порядку (slide-1, slide-2, ..., slide-10)
-        // pdftoppm нумерует как slide-01.png или slide-1.png в зависимости от версии,
-        // поэтому используем натуральную сортировку.
         files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
         const slides = [];
 
         // Ensure bucket exists
         try {
-            const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets();
-            if (!bucketsError) {
-                const bucketExists = buckets.find(b => b.name === 'course_materials');
-                if (!bucketExists) {
-                    console.log(`[Job ${jobId}] Bucket 'course_materials' not found. Creating...`);
-                    const { error: createError } = await supabaseAdmin.storage.createBucket('course_materials', {
-                        public: true
-                    });
-                    if (createError) {
-                        console.error(`[Job ${jobId}] Failed to create bucket 'course_materials':`, createError);
-                    } else {
-                        console.log(`[Job ${jobId}] Bucket 'course_materials' created successfully.`);
-                    }
-                }
-            } else {
-                console.error(`[Job ${jobId}] Failed to list buckets:`, bucketsError);
+            const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+            if (buckets && !buckets.find(b => b.name === 'course_materials')) {
+                await supabaseAdmin.storage.createBucket('course_materials', { public: true });
             }
-        } catch (bucketCheckError) {
-             console.error(`[Job ${jobId}] Error checking/creating bucket:`, bucketCheckError);
-        }
+        } catch (e) { console.error('Bucket check failed', e); }
 
         for (let i = 0; i < files.length; i++) {
             const imgFileName = files[i];
             const imgPath = path.join(tempDir, imgFileName);
             const imgBuffer = fs.readFileSync(imgPath);
-
-            // Уникальное имя файла для storage: course_id/timestamp_slide_X.png
             const storagePath = `slides/${course_id}/${Date.now()}_${i + 1}.png`;
 
-            // Загрузка в бакет 'course_materials' (предполагается, что он публичный)
-            // Если бакета 'course_materials' нет, создайте его в Supabase Dashboard или используйте другой.
-            const { data: uploadData, error: uploadError } = await supabaseAdmin
+            const { error: uploadError } = await supabaseAdmin
                 .storage
                 .from('course_materials')
-                .upload(storagePath, imgBuffer, {
-                    contentType: 'image/png',
-                    upsert: true
-                });
+                .upload(storagePath, imgBuffer, { contentType: 'image/png', upsert: true });
 
-            if (uploadError) {
-                console.error(`Ошибка загрузки слайда ${i}:`, uploadError);
-                throw new Error(`Не удалось загрузить слайд ${i + 1} в хранилище. Проверьте настройки Supabase (бакет course_materials). Ошибка: ${uploadError.message}`);
-            }
+            if (uploadError) throw new Error(`Upload failed for slide ${i}: ${uploadError.message}`);
 
-            // Получение публичной ссылки
             const { data: publicUrlData } = supabaseAdmin
                 .storage
                 .from('course_materials')
@@ -499,50 +475,34 @@ async function handleUploadAndProcess(jobId, payload) {
 
             slides.push({
                 slide_title: `Слайд ${i + 1}`,
-                // Мы не используем html_content, а только image_url.
-                // Фронтенд должен уметь отображать это.
                 image_url: publicUrlData.publicUrl,
-                html_content: '' // Оставляем пустым, чтобы фронтенд использовал картинку
-           });
+                html_content: ''
+            });
         }
 
-        if (slides.length === 0) {
-             throw new Error('Презентация обработана, но слайды не найдены. Возможно, файл пустой или произошла ошибка конвертации.');
-        }
-
-        // 5. Извлечение текста для генерации вопросов (параллельно с картинками)
+        // 5. Извлечение текста для генерации вопросов
         let generatedQuestions = [];
         let extractedText = '';
 
         try {
             console.log(`[Job ${jobId}] Extracting text for quiz generation...`);
-
             if (file_name.endsWith('.pptx')) {
                  extractedText = await extractTextFromPptx(buffer);
             } else {
-                 // For PDF, we use pdf-parse
                  const data = await pdf(buffer);
                  extractedText = data.text;
             }
 
             if (extractedText && extractedText.length > 50) {
-                console.log(`[Job ${jobId}] Extracted ${extractedText.length} chars. Generating quiz...`);
                 const textChunks = chunkText(extractedText);
-                console.log(`[Job ${jobId}] Text chunked into ${textChunks.length} parts for quiz generation.`);
                 for (const chunk of textChunks) {
                     try {
                         const quizJson = await parseQuizFromText(chunk);
                         if (quizJson && quizJson.questions) {
                             generatedQuestions.push(...quizJson.questions);
                         }
-                    } catch (chunkError) {
-                        console.error(`[Job ${jobId}] Error processing a text chunk for quiz:`, chunkError);
-                        // Decide if you want to stop or continue. For now, we continue.
-                    }
+                    } catch (e) { console.error(e); }
                 }
-                console.log(`[Job ${jobId}] Total questions generated after processing all chunks: ${generatedQuestions.length}`);
-            } else {
-                console.warn(`[Job ${jobId}] Not enough text extracted for quiz generation.`);
             }
         } catch (textError) {
             console.error(`[Job ${jobId}] Failed to generate quiz from text:`, textError);
@@ -559,16 +519,14 @@ async function handleUploadAndProcess(jobId, payload) {
             .update({
                 content: parsedContent,
                 draft_content: parsedContent,
-                description: (extractedText && extractedText.length > 0)
-                    ? extractedText
-                    : `Импортировано из ${file_name.endsWith('.pptx') ? 'PPTX' : 'PDF'} (1-в-1): ${file_name}`
+                description: (extractedText && extractedText.length > 0) ? extractedText : `Импортировано: ${file_name}`
             })
             .eq('id', course_id);
 
         if (dbError) throw new Error(`Ошибка сохранения в БД: ${dbError.message}`);
 
         await cleanupTempDir(tempDir);
-        await updateJobStatus('completed', { message: `Презентация успешно обработана (${slides.length} слайдов, ${generatedQuestions.length} вопросов).` });
+        await updateJobStatus('completed', { message: `Презентация успешно обработана (${slides.length} слайдов).` });
 
     } catch (error) {
         if (tempDir) await cleanupTempDir(tempDir);
