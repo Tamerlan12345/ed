@@ -2191,34 +2191,44 @@ async function addMaterialHandler() {
         }
     }
 
-function openAdminJitsi(roomId) {
+async function openAdminJitsi(roomId) {
     document.getElementById('admin-jitsi-modal').classList.remove('hidden');
     const frameContainer = document.querySelector('#admin-jitsi-frame');
-    frameContainer.innerHTML = ''; // Очистка
+    frameContainer.innerHTML = '<h4>Получение токена для входа...</h4>'; // Loading message
 
     try {
+        // Fetch the JWT token from your new endpoint
+        const tokenResponse = await fetch('/api/generate-jitsi-token', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ roomName: roomId })
+        });
+
+        if (!tokenResponse.ok) {
+            const errorData = await tokenResponse.json();
+            throw new Error(errorData.error || 'Не удалось получить токен авторизации для Jitsi.');
+        }
+
+        const { token } = await tokenResponse.json();
+
+        // Now initialize Jitsi with the token
         const domain = 'meet.jit.si';
         const options = {
             roomName: roomId,
             width: '100%',
             height: '100%',
             parentNode: frameContainer,
-            // jwt: token, // УБИРАЕМ JWT
+            jwt: token, // <-- Use the fetched token here
             userInfo: {
-                displayName: 'Преподаватель (Админ)'
-            },
-            configOverwrite: {
-                prejoinPageEnabled: false,
-                startWithAudioMuted: true,
-                startWithVideoMuted: true
-            },
-            interfaceConfigOverwrite: {
-                // Настройка интерфейса (опционально)
+                displayName: 'Преподаватель' // This is still useful for display purposes
             }
         };
 
+        frameContainer.innerHTML = ''; // Clear loading message
         window.adminJitsiApi = new JitsiMeetExternalAPI(domain, options);
-
         window.adminJitsiApi.addEventListeners({
             videoConferenceLeft: closeAdminJitsi
         });
@@ -2226,6 +2236,7 @@ function openAdminJitsi(roomId) {
     } catch (e) {
         console.error("Ошибка запуска Jitsi:", e);
         frameContainer.innerHTML = `<p class="error">Не удалось запустить видеоконференцию: ${e.message}</p>`;
+        // Don't auto-close on error, let the user see the message.
     }
 }
 
