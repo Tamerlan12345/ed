@@ -1197,45 +1197,95 @@
 
     async function processFileHandler() {
         const btn = document.getElementById('process-file-btn');
+        const originalText = btn.textContent; // Сохраняем исходный текст
+
+        // 1. Блокируем кнопку и меняем текст для индикации
         btn.disabled = true;
+        btn.textContent = 'Чтение файла...';
+
         try {
-            const file = document.getElementById('file-uploader').files[0];
-            const title = document.getElementById('course-title').value.trim();
+            const fileInput = document.getElementById('file-uploader');
+            const file = fileInput.files[0];
+            const titleInput = document.getElementById('course-title');
+            const title = titleInput.value.trim();
             const deadlineDays = document.getElementById('course-deadline-days').value.trim();
+            const uploadModeSelect = document.getElementById('upload-mode-select');
+            const autoGenerateCheckbox = document.getElementById('auto-generate-checkbox');
+
             if (!file || !title) {
-                showStatus('Укажите название и выберите файл.', 'error');
+                showStatus('Укажите название курса и выберите файл.', 'error');
+                // Возвращаем кнопку в исходное состояние при ошибке валидации
+                btn.disabled = false;
+                btn.textContent = originalText;
                 return;
             }
+
             let courseId = document.getElementById('course-id').value.trim();
+
+            // Если курса нет, создаем его
             if (!courseId) {
-                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, { title: title, deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null });
+                btn.textContent = 'Создание курса...';
+                const newCourse = await apiCall(ACTIONS.CREATE_COURSE, {
+                    title: title,
+                    deadline_days: deadlineDays ? parseInt(deadlineDays, 10) : null
+                });
                 courseId = newCourse.id;
                 document.getElementById('course-id').value = courseId;
                 showToast(`Создан новый курс. ID: ${courseId}`, 'success');
                 currentEditingCourseId = courseId;
             }
+
+            // Читаем и загружаем файл
+            btn.textContent = 'Загрузка на сервер...';
+
             const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                try {
-                    const base64File = reader.result.split(',')[1];
-                    const uploadMode = document.getElementById('upload-mode-select').value;
-                    const autoGenerate = document.getElementById('auto-generate-checkbox').checked;
-                    const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
-                        course_id: courseId,
-                        file_name: sanitizeForPath(file.name),
-                        file_data: base64File,
-                        upload_mode: uploadMode,
-                        auto_generate_content: autoGenerate
-                    });
-                    if (data.jobId) {
-                        startJobPolling(data.jobId, courseId);
-                        showToast(`Задача обработки файла запущена (ID: ${data.jobId}).`, 'info');
-                    }
-                    document.getElementById('description').value = 'Файл обрабатывается...';
-                } catch(e) { /* Handled in apiCall */ }
-            };
-        } catch(e) { /* Handled */ }
+
+            // Оборачиваем чтение файла в промис для удобства управления потоком
+            const fileData = await new Promise((resolve, reject) => {
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+                reader.readAsDataURL(file);
+            });
+
+            const base64File = fileData.split(',')[1];
+            const uploadMode = uploadModeSelect.value;
+            const autoGenerate = autoGenerateCheckbox.checked;
+
+            btn.textContent = 'Отправка задачи...';
+
+            const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
+                course_id: courseId,
+                file_name: sanitizeForPath(file.name),
+                file_data: base64File,
+                upload_mode: uploadMode,
+                auto_generate_content: autoGenerate
+            });
+
+            if (data.jobId) {
+                startJobPolling(data.jobId, courseId);
+                showToast(`Задача обработки файла запущена (ID: ${data.jobId}). Следите за статусом.`, 'info');
+
+                // Визуальная обратная связь в поле описания
+                const descField = document.getElementById('description');
+                if (descField) {
+                    descField.value = `[${new Date().toLocaleTimeString()}] Файл загружен. Начата фоновая обработка... Пожалуйста, подождите обновления.`;
+                }
+            }
+
+        } catch(e) {
+            console.error(e);
+            // Ошибки apiCall уже показывают тост, но на всякий случай:
+            if (!e.message.includes('API Call Failed')) {
+                 showStatus(`Ошибка: ${e.message}`, 'error');
+            }
+        } finally {
+            // 2. Всегда возвращаем кнопку в рабочее состояние
+            btn.disabled = false;
+            btn.textContent = originalText;
+
+            // Сбрасываем input файла, чтобы можно было загрузить тот же файл повторно если нужно
+            document.getElementById('file-uploader').value = '';
+        }
     }
 
     async function processPresentationHandler() {
