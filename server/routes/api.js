@@ -37,8 +37,5 @@ apiRouter.post('/markNotificationsAsRead', userController.markNotificationsAsRea
 apiRouter.post('/text-to-speech-user', userController.textToSpeechUser);
 apiRouter.post('/getUserMeetings', userController.getUserMeetings);
 
-// New endpoint for generating Jitsi tokens
-apiRouter.post('/generate-jitsi-token', userController.generateJitsiToken);
-
 
 module.exports = apiRouter;

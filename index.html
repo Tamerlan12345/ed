@@ -2341,64 +2341,40 @@
     }
 
     // Открытие окна Jitsi для пользователя
-async function openUserJitsi(roomId, title) {
-    const modal = document.getElementById('user-jitsi-modal');
-    const frameContainer = document.getElementById('user-jitsi-frame');
-    modal.classList.remove('hidden');
-    frameContainer.innerHTML = '<h4>Подключение к встрече...</h4>';
+    function openUserJitsi(roomId, title) {
+        document.getElementById('user-jitsi-modal').classList.remove('hidden');
 
-    try {
-        // Step 1: Fetch the JWT token from the backend
-        const tokenResponse = await fetchAuthenticated('/api/generate-jitsi-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roomName: roomId })
-        });
+        // Используем email или имя из профиля (userData определен в твоем коде)
+        const displayName = userData.email || 'Студент';
 
-        // The token is inside the response from fetchAuthenticated already
-        const token = tokenResponse.token;
-
-        if (!token) {
-            throw new Error('Токен для подключения не был получен.');
-        }
-
-        // Step 2: Initialize Jitsi with the token
         const domain = 'meet.jit.si';
         const options = {
             roomName: roomId,
             width: '100%',
             height: '100%',
-            parentNode: frameContainer,
-            jwt: token, // <-- Use the token here
+            parentNode: document.querySelector('#user-jitsi-frame'),
             userInfo: {
-                // The name is already in the token, but we can set it here as a fallback
-                displayName: userData.email || 'Студент'
+                displayName: displayName
             },
             configOverwrite: {
-                startWithAudioMuted: true,
-                startWithVideoMuted: true,
-                prejoinPageEnabled: false
+                startWithAudioMuted: true, // Студент заходит молча
+                startWithVideoMuted: true, // Без видео
+                prejoinPageEnabled: false  // Без предбанника
             },
             interfaceConfigOverwrite: {
+                // Ограниченный тулбар для студентов
                 TOOLBAR_BUTTONS: [
                     'microphone', 'camera', 'chat', 'raisehand', 'tileview', 'fullscreen', 'hangup'
                 ]
             }
         };
-
-        frameContainer.innerHTML = ''; // Clear loading message
         window.userJitsiApi = new JitsiMeetExternalAPI(domain, options);
 
-        // Auto-close when the user leaves the conference
+        // Автоматическое закрытие при завершении звонка
         window.userJitsiApi.addEventListeners({
             videoConferenceLeft: closeUserJitsi
         });
-
-    } catch (error) {
-        console.error('Failed to open Jitsi meeting for user:', error);
-        frameContainer.innerHTML = `<p style="color: var(--error-color); padding: 20px;">Ошибка подключения к встрече: ${error.message}</p>`;
     }
-}
 
     function closeUserJitsi() {
         if (window.userJitsiApi) window.userJitsiApi.dispose();
