@@ -419,31 +419,6 @@ const adminActionHandlers = {
         if (dbError) throw dbError;
         return dbRecord;
     },
-    [ACTIONS.CREATE_MEETING]: async ({ payload, supabaseAdmin }) => {
-        const { course_id, title, start_time } = payload;
-        // Генерируем сложный ID комнаты: CourseID + Random
-        const roomId = `CIC_Live_${course_id}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-
-        const { error } = await supabaseAdmin
-            .from('meetings')
-            .insert({ course_id, title, start_time, jitsi_room_id: roomId });
-        if (error) throw error;
-        return { message: 'Встреча создана' };
-    },
-    [ACTIONS.GET_ADMIN_MEETINGS]: async ({ supabaseAdmin }) => {
-        const { data, error } = await supabaseAdmin
-            .from('meetings')
-            .select('*, courses(title)')
-            .order('start_time', { ascending: false });
-        if (error) throw error;
-        return data;
-    },
-    [ACTIONS.DELETE_MEETING]: async ({ payload, supabaseAdmin }) => {
-        const { meeting_id } = payload;
-        const { error } = await supabaseAdmin.from('meetings').delete().eq('id', meeting_id);
-        if (error) throw error;
-        return { message: 'Встреча удалена' };
-    },
 };
 
 const handleAdminAction = async (req, res) => {
