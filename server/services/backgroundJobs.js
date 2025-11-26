@@ -73,16 +73,24 @@ async function parseQuizFromText(textContent) {
     try {
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        // Find the start and end of the JSON object
         const textResponse = response.text();
-        const firstBrace = textResponse.indexOf('{');
-        const lastBrace = textResponse.lastIndexOf('}');
 
-        if (firstBrace === -1 || lastBrace === -1) {
-            throw new Error('AI response does not contain a valid JSON object.');
+        let jsonString;
+
+        // Strategy 1: Look for a JSON markdown block
+        const markdownMatch = textResponse.match(/```json\n([\s\S]*?)\n```/);
+        if (markdownMatch && markdownMatch[1]) {
+            jsonString = markdownMatch[1];
+        } else {
+            // Strategy 2: Fallback to finding the first and last brace
+            const firstBrace = textResponse.indexOf('{');
+            const lastBrace = textResponse.lastIndexOf('}');
+            if (firstBrace === -1 || lastBrace === -1) {
+                throw new Error('AI response does not contain a valid JSON object.');
+            }
+            jsonString = textResponse.substring(firstBrace, lastBrace + 1);
         }
 
-        const jsonString = textResponse.substring(firstBrace, lastBrace + 1);
         const parsedJson = JSON.parse(jsonString);
 
         // Basic validation
