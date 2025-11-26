@@ -41,11 +41,6 @@ const ACTIONS = {
 
     // Misc Actions
     TEXT_TO_SPEECH: 'text_to_speech',
-
-    // Meeting Actions
-    CREATE_MEETING: 'create_meeting',
-    DELETE_MEETING: 'delete_meeting',
-    GET_ADMIN_MEETINGS: 'get_admin_meetings',
 };
 
 // Check if we are in a Node.js environment
