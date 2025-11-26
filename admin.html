@@ -201,6 +201,13 @@
             margin: 0;
         }
     </style>
+    <style>
+        #auto-generate-checkbox {
+            width: auto;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+    </style>
 </head>
 <body>
     <div id="toast-container"></div>
@@ -988,6 +995,12 @@
                         <option value="quiz">Готовый тест</option>
                     </select>
                 </div>
+                <div style="margin-top: 10px;">
+                    <label for="auto-generate-checkbox" style="display: inline-flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="auto-generate-checkbox" style="margin-right: 8px;">
+                        <span>Сразу создать контент (слайды и тест)</span>
+                    </label>
+                </div>
                 <button id="process-file-btn" style="margin-top: 10px;">Загрузить и извлечь текст</button>
                 <hr style="margin: 20px 0;">
                 <h3>ИЛИ Шаг 1Б: Генерация по ссылке на Google Slides</h3>
@@ -1207,11 +1220,13 @@
                 try {
                     const base64File = reader.result.split(',')[1];
                     const uploadMode = document.getElementById('upload-mode-select').value;
+                    const autoGenerate = document.getElementById('auto-generate-checkbox').checked;
                     const data = await apiCall(ACTIONS.UPLOAD_AND_PROCESS, {
                         course_id: courseId,
                         file_name: sanitizeForPath(file.name),
                         file_data: base64File,
-                        upload_mode: uploadMode
+                        upload_mode: uploadMode,
+                        auto_generate_content: autoGenerate
                     });
                     if (data.jobId) {
                         startJobPolling(data.jobId, courseId);

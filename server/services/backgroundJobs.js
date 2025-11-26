@@ -302,8 +302,8 @@ async function handleUploadAndProcess(jobId, payload) {
     let tempDir = null;
 
     try {
-        let { course_id, file_name, file_data, upload_mode } = payload;
-        console.log(`[Job ${jobId}] Processing file: ${file_name}`);
+        let { course_id, file_name, file_data, upload_mode, auto_generate_content = false } = payload;
+        console.log(`[Job ${jobId}] Processing file: ${file_name} with auto_generate: ${auto_generate_content}`);
 
         const buffer = Buffer.from(file_data, 'base64');
 
@@ -359,7 +359,7 @@ async function handleUploadAndProcess(jobId, payload) {
                 await updateJobStatus('completed', { message: `Quiz created successfully from ${file_name}` });
 
             } else {
-                // --- OLD LOGIC: Save as course material ---
+                // Course material mode: save text and then decide on generation.
                 console.log(`[Job ${jobId}] Course material mode. Saving extracted text to course description...`);
                 const { error: dbError } = await supabaseAdmin
                     .from('courses')
@@ -369,10 +369,21 @@ async function handleUploadAndProcess(jobId, payload) {
                 if (dbError) {
                     throw new Error(`Failed to save course content: ${dbError.message}`);
                 }
-                console.log(`[Job ${jobId}] Course material processing completed for course ID: ${course_id}.`);
-                await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
+
+                if (auto_generate_content) {
+                    console.log(`[Job ${jobId}] auto_generate_content is true. Triggering full content generation...`);
+                    // Await the generation process so the job status is correctly handled
+                    // by the handleGenerateContent function, including errors.
+                    await handleGenerateContent(jobId, { course_id, generation_mode: 'full' });
+                    console.log(`[Job ${jobId}] Content generation process finished.`);
+                    // The status is updated by handleGenerateContent, so we don't update it here.
+                } else {
+                    console.log(`[Job ${jobId}] auto_generate_content is false. Finishing job.`);
+                    console.log(`[Job ${jobId}] Course material processing completed for course ID: ${course_id}.`);
+                    await updateJobStatus('completed', { message: `File processed for course ${course_id}` });
+                }
             }
-            return; // Exit if not PPTX
+            return;
         }
 
         // === ЛОГИКА ДЛЯ ВИЗУАЛЬНЫХ ПРЕЗЕНТАЦИЙ (PPTX, PDF) ===
@@ -632,32 +643,47 @@ ${courseData.description}
                 },
                 questions: [{ question: "string", options: ["string"], correct_option_index: 0 }]
             };
-            finalPrompt = `Задание: Ты — профессиональный методолог страховой компании Centras Insurance (CIC). Твоя задача — создать обучающий курс СТРОГО на основе предоставленного ИСХОДНОГО ТЕКСТА.
+            finalPrompt = `
+                Задание: Ты — Старший методолог страховой компании. Твоя задача — создать детальный и информативный обучающий курс на основе предоставленного ИСХОДНОГО ТЕКСТА.
 
-ИСХОДНЫЙ ТЕКСТ:
-${courseData.description}
+                ИСХОДНЫЙ ТЕКСТ:
+                ---
+                ${courseData.description}
+                ---
 
-ТРЕБОВАНИЯ К КОНТЕНТУ:
-1.  **Объем:** Создай ровно 12 (двенадцать) слайдов. Не больше, не меньше.
-2.  **Источник истины:** Использовать ТОЛЬКО информацию из исходного текста. Запрещено придумывать факты, добавлять внешнюю информацию или общие фразы, которых нет в документе. Если информации не хватает, декомпозируй сложные темы на подтемы, давая больше деталей.
-3.  **Структура:**
-    * Слайд 1: Титульный (Название программы/договора, Цели обучения).
-    * Слайды 2-11: Основная часть. Подробно раскрой темы: Условия страхования, Риски (покрываемые и исключения), Франшизы, Действия при страховом случае. Разбей большие темы на несколько слайдов для лучшего восприятия.
-    * Слайд 12: Заключение и ключевые выводы.
-4.  **Формат слайда (HTML):**
-    * Используй теги <h2> для заголовков.
-    * Используй <ul> и <li> для списков.
-    * Используй <strong> для выделения важных терминов.
-    * **Важно:** Текст должен быть **понятным, развернутым и объясняющим**, а не просто сухим списком тезисов. Если пункт требует пояснения — напиши его но используя определения с предоставленного материала (додумывать запрещено). Избегай чрезмерного сокращения в ущерб смыслу.
-5.  **Изображения:** Для каждого слайда подбери *image_search_term* (1-2 слова на английском), отражающий суть (e.g., "car accident", "contract signing", "medical help"), для поиска в фотобанке.
-6.  **Тест (Quiz):**
-    * Сгенерируй **от 20 до 30 вопросов** по материалу курса.
-    * Вопросы должны проверять понимание условий, рисков и действий.
-    * У каждого вопроса должно быть 4 варианта ответа.
+                КЛЮЧЕВЫЕ ТРЕБОВАНИЯ К КОНТЕНТУ И СТРУКТУРЕ:
 
-ТРЕБОВАНИЯ К ВЫВОДУ (JSON):
-Верни строго валидный JSON, соответствующий структуре: ${JSON.stringify(outputFormat)}
-`;
+                1.  **Полнота информации:**
+                    *   **Запрет сокращений:** Нельзя необоснованно сокращать информацию. Важные пояснения к тезисам из исходного текста должны быть включены в слайд.
+                    *   **Развернутые тезисы:** Вместо коротких буллитов (2-3 слова) используй полноценные предложения, которые раскрывают суть условия, риска или процедуры.
+
+                2.  **Структура курса (12 слайдов):**
+                    *   **Слайд 1:** Титульный (Название, цели обучения).
+                    *   **Слайды 2-11:** Основная часть. Глубоко раскрой ключевые темы. Один слайд — одна законченная мысль или связанный блок условий.
+                    *   **Слайд 12:** Ключевые выводы и заключение.
+
+                3.  **Правило сноски (обработка "переполнения"):**
+                    *   Если детальное объяснение какого-либо условия занимает слишком много места и перегружает слайд, ты должен:
+                        1.  Написать основную, самую важную суть (Main Takeaway) в основном тексте слайда.
+                        2.  В конце этого предложения поставить символ звёздочки (*).
+                        3.  В самом низу слайда, внутри тега \`<small>\`, добавить сноску. Например: \`<small>* - полные условия см. в Договоре страхования/Материалах программы.</small>\`
+
+                4.  **Формат HTML:**
+                    *   Заголовки: \`<h2>\`
+                    *   Списки: \`<ul>\` и \`<li>\`
+                    *   Выделение: \`<strong>\`
+
+                5.  **Изображения:** Для каждого слайда подбери 'image_search_term' (1-2 слова на английском), отражающий суть.
+
+                6.  **Тест (Quiz):**
+                    *   **Источник истины:** Вопросы должны быть СТРОГО на основе ключевых тезисов, которые ты выделил и включил в сгенерированные слайды.
+                    *   **Запрет:** Не задавать вопросы по мелким деталям из исходного текста, которые НЕ вошли в презентацию (кроме тех, что отмечены сноской).
+                    *   Сгенерируй от 20 до 30 вопросов.
+                    *   Каждый вопрос должен иметь 4 варианта ответа.
+
+                ТРЕБОВАНИЯ К ВЫВОДУ (JSON):
+                Верни СТРОГО валидный JSON без лишних слов и markdown-форматирования. Структура должна точно соответствовать: ${JSON.stringify(outputFormat)}
+            `;
             console.log(`[Job ${jobId}] Generating full content with Gemini...`);
             const result = await model.generateContent(finalPrompt);
             const response = await result.response;
