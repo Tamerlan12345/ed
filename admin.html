@@ -2213,7 +2213,10 @@ function openAdminJitsi(roomId) {
                 startWithVideoMuted: true
             },
             interfaceConfigOverwrite: {
-                // Настройка интерфейса (опционально)
+                TOOLBAR_BUTTONS: [
+                    'microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'chat',
+                    'raisehand', 'settings', 'tileview'
+                ]
             }
         };
 
