@@ -13,6 +13,10 @@ const apiRouter = require('./routes/api'); // Import the refactored router
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// --- TRUST PROXY ---
+// This is necessary for express-rate-limit to work correctly behind a reverse proxy.
+app.set('trust proxy', 1);
+
 // --- SECURITY MIDDLEWARES ---
 app.use(helmet({
     contentSecurityPolicy: false, // Adjust this policy based on your frontend needs
