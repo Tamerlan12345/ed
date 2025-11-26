@@ -18,6 +18,13 @@ const { parsePptxToHtml, extractTextFromPptx } = require('./pptxParser');
 
 
 // --- AI/External Service Clients ---
+function chunkText(text, maxLength = 9000) {
+    const chunks = [];
+    for (let i = 0; i < text.length; i += maxLength) {
+        chunks.push(text.substring(i, i + maxLength));
+    }
+    return chunks;
+}
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const pexelsClient = process.env.PEXELS_API_KEY ? createPexelsClient(process.env.PEXELS_API_KEY) : null;
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
@@ -217,8 +224,19 @@ async function handlePresentationProcessing(jobId, payload) {
             const textContent = data.text.replace(/\s+/g, ' ').trim();
 
             if (textContent && textContent.length > 50) {
-                 const quizJson = await parseQuizFromText(textContent);
-                 if (quizJson && quizJson.questions) generatedQuestions = quizJson.questions;
+                const textChunks = chunkText(textContent);
+                console.log(`[Job ${jobId}] Text chunked into ${textChunks.length} parts.`);
+                for (const chunk of textChunks) {
+                    try {
+                        const quizJson = await parseQuizFromText(chunk);
+                        if (quizJson && quizJson.questions) {
+                            generatedQuestions.push(...quizJson.questions);
+                        }
+                    } catch (chunkError) {
+                        console.error(`[Job ${jobId}] Error processing a text chunk for quiz:`, chunkError);
+                    }
+                }
+                console.log(`[Job ${jobId}] Total questions generated: ${generatedQuestions.length}`);
             }
         } catch (textError) {
             console.error(`[Job ${jobId}] Quiz generation failed:`, textError);
@@ -498,10 +516,20 @@ async function handleUploadAndProcess(jobId, payload) {
 
             if (extractedText && extractedText.length > 50) {
                 console.log(`[Job ${jobId}] Extracted ${extractedText.length} chars. Generating quiz...`);
-                const quizJson = await parseQuizFromText(extractedText);
-                if (quizJson && quizJson.questions) {
-                    generatedQuestions = quizJson.questions;
+                const textChunks = chunkText(extractedText);
+                console.log(`[Job ${jobId}] Text chunked into ${textChunks.length} parts for quiz generation.`);
+                for (const chunk of textChunks) {
+                    try {
+                        const quizJson = await parseQuizFromText(chunk);
+                        if (quizJson && quizJson.questions) {
+                            generatedQuestions.push(...quizJson.questions);
+                        }
+                    } catch (chunkError) {
+                        console.error(`[Job ${jobId}] Error processing a text chunk for quiz:`, chunkError);
+                        // Decide if you want to stop or continue. For now, we continue.
+                    }
                 }
+                console.log(`[Job ${jobId}] Total questions generated after processing all chunks: ${generatedQuestions.length}`);
             } else {
                 console.warn(`[Job ${jobId}] Not enough text extracted for quiz generation.`);
             }
