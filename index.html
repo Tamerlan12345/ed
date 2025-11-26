@@ -2341,43 +2341,55 @@
     }
 
     // Открытие окна Jitsi для пользователя
-function openUserJitsi(roomId, title) {
+async function openUserJitsi(roomId, title) {
     const modal = document.getElementById('user-jitsi-modal');
     const frameContainer = document.getElementById('user-jitsi-frame');
     modal.classList.remove('hidden');
-    frameContainer.innerHTML = '';
+    frameContainer.innerHTML = '<h4>Подключение к встрече...</h4>';
 
     try {
-        // Мы больше НЕ запрашиваем токен с сервера
-        // const tokenResponse = await fetchAuthenticated(...)
+        // Step 1: Fetch the JWT token from the backend
+        const tokenResponse = await fetchAuthenticated('/api/generate-jitsi-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomName: roomId })
+        });
 
+        // The token is inside the response from fetchAuthenticated already
+        const token = tokenResponse.token;
+
+        if (!token) {
+            throw new Error('Токен для подключения не был получен.');
+        }
+
+        // Step 2: Initialize Jitsi with the token
         const domain = 'meet.jit.si';
         const options = {
             roomName: roomId,
             width: '100%',
             height: '100%',
             parentNode: frameContainer,
-            // jwt: token, // УБИРАЕМ JWT
+            jwt: token, // <-- Use the token here
             userInfo: {
+                // The name is already in the token, but we can set it here as a fallback
                 displayName: userData.email || 'Студент'
             },
             configOverwrite: {
                 startWithAudioMuted: true,
                 startWithVideoMuted: true,
-                // Отключаем лобби, если админ не включил его явно внутри встречи
                 prejoinPageEnabled: false
             },
             interfaceConfigOverwrite: {
                 TOOLBAR_BUTTONS: [
                     'microphone', 'camera', 'chat', 'raisehand', 'tileview', 'fullscreen', 'hangup'
-                ],
-                // Скрываем кнопку "Пригласить", чтобы студенты не звали лишних
-                HIDE_INVITE_MORE_HEADER: true
+                ]
             }
         };
 
+        frameContainer.innerHTML = ''; // Clear loading message
         window.userJitsiApi = new JitsiMeetExternalAPI(domain, options);
 
+        // Auto-close when the user leaves the conference
         window.userJitsiApi.addEventListeners({
             videoConferenceLeft: closeUserJitsi
         });
