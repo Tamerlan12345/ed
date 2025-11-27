@@ -62,6 +62,132 @@
             transition: transform 0.2s ease; /* Smooth scaling */
         }
     </style>
+    <style id="character-styles">
+        /* --- Animated Character Widget --- */
+        .character-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            pointer-events: none; /* Let clicks pass through except on bubble */
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Container for the sprite to handle scaling/positioning */
+        .character-container {
+            position: relative;
+            width: 208px;
+            height: 312px;
+            transform-origin: bottom right;
+            transform: scale(0.6); /* Default scale to not take too much space */
+        }
+
+        /* The sprite itself */
+        .character-sprite {
+            width: 208px;
+            height: 312px;
+            background-image: url('by.png');
+            background-repeat: no-repeat;
+            background-position: -208px -624px; /* Default Idle */
+            pointer-events: auto; /* Allow interaction with character */
+        }
+
+        /* Speech Bubble */
+        .character-bubble {
+            position: absolute;
+            bottom: 280px;
+            right: 180px;
+            background: white;
+            border: 2px solid var(--primary-color);
+            border-radius: 20px;
+            padding: 15px 20px;
+            width: 200px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-size: 0.9em;
+            color: var(--text-color);
+            opacity: 0;
+            transform: translateY(10px) scale(0.9);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .character-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            right: 40px;
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: var(--primary-color) transparent;
+            display: block;
+            width: 0;
+        }
+
+        .character-bubble.visible {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Animations */
+        @keyframes sprite-walk-h {
+            from { background-position-x: 0px; }
+            to { background-position-x: -832px; } /* 4 * 208 */
+        }
+
+        .pose-walk {
+            animation: sprite-walk-h 0.8s steps(4) infinite;
+            background-position-y: 0px !important;
+        }
+
+        .pose-idle {
+            background-position: -208px -624px !important; /* Row 3, Col 2 */
+            animation: sway 3s ease-in-out infinite;
+        }
+
+        .pose-back {
+            background-position: -416px -624px !important; /* Row 3, Col 3 */
+        }
+
+        .pose-peek {
+            background-position: 0px 0px !important; /* Row 1, Col 1 (Side view) */
+        }
+
+        .pose-serious {
+             background-position: -624px -624px !important; /* Row 3, Col 4 (Back view variation) */
+        }
+
+        @keyframes sway {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.02); }
+        }
+
+        /* Specific positions for views */
+        #auth-view .character-widget {
+            bottom: 40%;
+            right: -250px; /* Start off-screen */
+            transition: right 1s ease-out;
+        }
+        #auth-view .character-widget.entered {
+            right: calc(50% - 380px); /* Position next to the form (form is centered) */
+        }
+        /* If screen is small, move it elsewhere or hide */
+        @media (max-width: 1000px) {
+            #auth-view .character-widget.entered {
+                right: 20px;
+                bottom: 20px;
+                transform: scale(0.8);
+            }
+        }
+
+        #test-view .character-widget {
+            bottom: 20px;
+            right: 20px;
+        }
+
+        .character-widget.hidden {
+            display: none !important;
+        }
+    </style>
     <style>
         /* Card UI Overrides for .menu-item */
         .menu-item {
@@ -866,6 +992,12 @@
 </head>
 <body>
     <div id="toast-container"></div>
+    <div id="character-widget" class="character-widget hidden">
+        <div class="character-container">
+            <div id="character-bubble" class="character-bubble">Привет! Я помогу тебе освоиться.</div>
+            <div id="character-sprite" class="character-sprite pose-idle"></div>
+        </div>
+    </div>
     <div id="generic-modal" class="modal">
         <div class="modal-content">
             <span class="modal-close">&times;</span>
@@ -991,6 +1123,12 @@
                         <div id="main-menu"></div>
                         <div id="extra-tools" style="padding-top: 20px; border-top: 1px solid #eee;">
                             <button id="launch-simulator-btn">Диалоговый тренажер</button>
+                            <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
+                                <label for="toggle-character-checkbox" style="font-size: 0.9em; cursor: pointer;">
+                                    <input type="checkbox" id="toggle-character-checkbox" onchange="toggleCharacter(this.checked)" checked>
+                                    Анимированный помощник
+                                </label>
+                            </div>
                         </div>
                         <div id="admin-controls" class="hidden"></div>
                         <div id="product-content" class="hidden"></div>
@@ -1162,6 +1300,172 @@
     const modalCloseBtn = document.querySelector('.modal-close');
     const modalBody = document.getElementById('modal-body');
 
+    /* --- Character Logic --- */
+    const charWidget = document.getElementById('character-widget');
+    const charSprite = document.getElementById('character-sprite');
+    const charBubble = document.getElementById('character-bubble');
+    let charIdleTimer = null;
+    let charActionTimer = null;
+
+    const charPhrases = {
+        welcome: ["Привет! 👋", "Рад видеть!", "Давай учиться!", "Введи пароль 👇"],
+        worry: ["Ты тут? 👀", "Я заскучал...", "Ау-у...", "Не спи! 💤"],
+        password: ["Не подглядываю 🙈", "Секретики...", "Тсс... 🤫", "Я отвернулся"],
+        peek: ["Всё ввёл? 👀", "Можно смотреть?", "Долго ещё?"],
+        success: ["Ура! Погнали! 🚀", "Отлично!", "Заходим..."],
+        test_start: ["Соберись! 😐", "Ты сможешь! 💪", "Время пошло ⏱️"],
+        test_good: ["Молодец! 🏆", "Так держать! ⭐", "Горжусь! 😎"],
+        test_bad: ["Эх... 😔", "Надо подучить 📚", "Не расстраивайся"]
+    };
+
+    function setCharPose(poseClass) {
+        charSprite.className = `character-sprite ${poseClass}`;
+    }
+
+    function showBubble(text, duration = 3000) {
+        charBubble.textContent = text;
+        charBubble.classList.add('visible');
+        setTimeout(() => charBubble.classList.remove('visible'), duration);
+    }
+
+    function getRandomPhrase(key) {
+        const phrases = charPhrases[key];
+        return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    let characterEnabled = localStorage.getItem('characterEnabled') !== 'false';
+
+    function toggleCharacter(enable) {
+        characterEnabled = enable;
+        localStorage.setItem('characterEnabled', enable);
+        if (enable) {
+             moveCharacterTo(authView.classList.contains('hidden') ? 'app-view' : 'auth-view');
+             // If we are in app view, keep it hidden until test? Or show in menu?
+             // Logic says: hidden in app view generally.
+             if (!authView.classList.contains('hidden')) handleAuthViewCharacter();
+        } else {
+             charWidget.classList.add('hidden');
+        }
+    }
+
+    // Debounce function
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+
+    function initCharacter() {
+        if (!characterEnabled) return;
+
+        // Debounced event listener
+        const debouncedReset = debounce(resetIdleTimer, 1000);
+
+        // Global event listeners for inactivity
+        ['mousemove', 'keydown', 'scroll', 'click'].forEach(evt => {
+            window.addEventListener(evt, debouncedReset);
+        });
+        resetIdleTimer();
+    }
+
+    function resetIdleTimer() {
+        if (!characterEnabled) return;
+        clearTimeout(charIdleTimer);
+
+        // Don't reset if hidden
+        if (charWidget.classList.contains('hidden')) return;
+
+        if (!testView.classList.contains('hidden')) {
+             // In test mode, don't go into "worry" mode easily, keep serious
+             return;
+        }
+
+        // Return to idle pose if not in special state
+        if (charSprite.classList.contains('pose-back') || charSprite.classList.contains('pose-peek')) {
+             // Keep these states if interacting with password
+        } else {
+             setCharPose('pose-idle');
+        }
+
+        charIdleTimer = setTimeout(() => {
+            if (charWidget.classList.contains('hidden') || !characterEnabled) return;
+            // Trigger "Worry" state
+            setCharPose('pose-peek'); // Use peek/side view for worry
+            showBubble(getRandomPhrase('worry'));
+        }, 20000); // 20 sec inactivity
+    }
+
+    function handleAuthViewCharacter() {
+        if (!characterEnabled) return;
+        charWidget.classList.remove('hidden');
+        // Animation to enter
+        setTimeout(() => {
+            charWidget.classList.add('entered');
+            setCharPose('pose-walk');
+            // Stop walking after 1 sec (css transition time)
+            setTimeout(() => {
+                setCharPose('pose-idle');
+                showBubble(getRandomPhrase('welcome'));
+            }, 1000);
+        }, 500);
+
+        // Password interactions
+        const pwdInput = document.getElementById('user-password');
+        pwdInput.addEventListener('focus', () => {
+            setCharPose('pose-back');
+            showBubble(getRandomPhrase('password'));
+
+            // Random peek logic
+            clearInterval(charActionTimer);
+            charActionTimer = setInterval(() => {
+                if(Math.random() > 0.7) {
+                    setCharPose('pose-peek');
+                    showBubble(getRandomPhrase('peek'), 1500);
+                    setTimeout(() => setCharPose('pose-back'), 1500);
+                }
+            }, 3000);
+        });
+
+        pwdInput.addEventListener('blur', () => {
+            clearInterval(charActionTimer);
+            setCharPose('pose-idle');
+        });
+
+        // Login button reaction
+        document.getElementById('auth-form').addEventListener('submit', () => {
+            setCharPose('pose-walk'); // Excited?
+            showBubble(getRandomPhrase('success'));
+        });
+    }
+
+    function handleTestCharacter(start = true) {
+        if (!characterEnabled) return;
+        charWidget.classList.remove('hidden');
+
+        if (start) {
+             setCharPose('pose-serious');
+             showBubble(getRandomPhrase('test_start'));
+        }
+    }
+
+    function moveCharacterTo(containerId) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.appendChild(charWidget);
+            charWidget.classList.remove('hidden');
+            // Trigger reflow/class updates
+            if (containerId === 'auth-view') {
+                 handleAuthViewCharacter();
+            } else {
+                 charWidget.classList.remove('entered'); // Reset specific auth anims
+                 setCharPose('pose-idle');
+            }
+        }
+    }
+
     if (modalCloseBtn) {
         modalCloseBtn.onclick = function() {
             genericModal.style.display = "none";
@@ -1255,6 +1559,9 @@
         userData.email = session.user.email;
         userData.token = session.access_token;
         authView.classList.add('hidden');
+
+        charWidget.classList.add('hidden');
+
         appView.classList.remove('hidden');
         showLoader();
         await showMainMenu();
@@ -1269,6 +1576,8 @@
         authView.classList.remove('hidden');
         document.getElementById('user-email').value = '';
         document.getElementById('user-password').value = '';
+
+        moveCharacterTo('auth-view');
     }
     async function checkSession() {
         showLoader();
@@ -2150,6 +2459,9 @@
         productContent.classList.add('hidden');
         testView.classList.remove('hidden');
 
+        moveCharacterTo('test-view');
+        handleTestCharacter(true);
+
         // Установка названия курса в шапку теста
         document.getElementById('test-course-title').textContent = currentCourse.title;
 
@@ -2252,8 +2564,23 @@
     async function showTestResultsView() {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         testView.classList.add('hidden');
+
+        const resultsView = document.getElementById('test-results');
+        if(resultsView) {
+            resultsView.appendChild(charWidget);
+            charWidget.classList.remove('hidden');
+        }
+
         testResultsView.classList.remove('hidden');
         const percentage = Math.round((score / currentQuestions.length) * 100);
+
+        if (percentage >= 80) {
+            setCharPose('pose-walk'); // Joy
+            showBubble(getRandomPhrase('test_good'));
+        } else {
+            setCharPose('pose-serious'); // Disappointed/Neutral
+            showBubble(getRandomPhrase('test_bad'));
+        }
         document.getElementById('results-product-name').textContent = currentCourse.title;
         document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`;
 
@@ -2344,7 +2671,16 @@
         });
         appView.classList.add('hidden');
         authView.classList.add('hidden');
+
+        initCharacter(); // Init character logic
+
         checkSession();
+
+        // Initial check
+        if (!userData.token) {
+             moveCharacterTo('auth-view');
+        }
+
         backToMenuBtn.addEventListener('click', () => {
             if (typeof backButtonAction === 'function') backButtonAction();
         });
@@ -2367,6 +2703,12 @@
         // Profile Button Event Listener
         if (profileBtn) {
             profileBtn.addEventListener('click', loadUserProfile);
+        }
+
+        // Sync checkbox state
+        const charToggle = document.getElementById('toggle-character-checkbox');
+        if (charToggle) {
+            charToggle.checked = characterEnabled;
         }
     });
 
