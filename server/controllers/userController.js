@@ -551,7 +551,17 @@ const dialogueSimulator = async (req, res) => {
 
         if (action === 'start') {
             const randomScenario = simulationScenarios[Math.floor(Math.random() * simulationScenarios.length)];
-            const prompt = `Ты - симулятор диалога. Ты играешь роль клиента. Твое настроение: "${persona}". Твоя ситуация: "${randomScenario}". Начни диалог с ОДНОЙ короткой фразы, которая описывает твою проблему или вопрос.`;
+
+            // ИЗМЕНЕННЫЙ ПРОМПТ: Добавлено требование "Строго следуй сценарию"
+            const prompt = `
+            Ты - симулятор диалога. Ты играешь роль клиента.
+            Твое настроение: "${persona}".
+            Твоя ситуация (Сценарий): "${randomScenario}".
+
+            ЗАДАНИЕ: Начни диалог с ОДНОЙ короткой фразы.
+            ВАЖНО: Твоя фраза должна СТРОГО соответствовать сценарию. Не выдумывай новых деталей, которых нет в сценарии, но и не копируй текст сценария дословно. Скажи это как живой человек.
+            `;
+
             const result = await model.generateContent(prompt);
             res.status(200).json({ first_message: result.response.text(), scenario: randomScenario });
 
