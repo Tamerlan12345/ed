@@ -63,164 +63,146 @@
         }
     </style>
     <style id="character-styles">
-        /* --- Animated Character Widget --- */
-        .character-widget {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 9999;
-            pointer-events: none; /* Let clicks pass through except on bubble */
-            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+/* --- Animated Character Widget (ОБНОВЛЕНО) --- */
+.character-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10001; /* Поверх оверлея */
+    pointer-events: none;
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
 
-        /* Container for the sprite to handle scaling/positioning */
-        .character-container {
-            position: relative;
-            width: 208px;
-            height: 312px;
-            transform-origin: bottom right;
-            transform: scale(0.6); /* Default scale to not take too much space */
-        }
+.character-container {
+    position: relative;
+    width: 208px;
+    height: 312px;
+    transform-origin: bottom right;
+    transform: scale(0.7); /* Чуть крупнее, чем было (0.6) */
+}
 
-        /* The sprite itself */
-        .character-sprite {
-            width: 208px;
-            height: 312px;
-            background-image: url('by.png');
-            background-repeat: no-repeat;
-            background-position: -208px -624px; /* Default Idle */
-            pointer-events: auto; /* Allow interaction with character */
-        }
+.character-sprite {
+    width: 208px;
+    height: 312px;
+    background-image: url('by.png');
+    background-repeat: no-repeat;
+    background-position: -208px -624px;
+    pointer-events: auto;
+}
 
-        /* Speech Bubble */
-        .character-bubble {
-            position: absolute;
-            bottom: 280px;
-            right: 180px;
-            background: white;
-            border: 2px solid var(--primary-color);
-            border-radius: 20px;
-            padding: 15px 20px;
-            width: 200px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            font-size: 0.9em;
-            color: var(--text-color);
-            opacity: 0;
-            transform: translateY(10px) scale(0.9);
-            transition: all 0.3s ease;
-            pointer-events: auto;
-        }
+/* Облачко диалога - УЛУЧШЕНО */
+.character-bubble {
+    position: absolute;
+    bottom: 260px;
+    right: 160px; /* Привязка к голове персонажа */
+    background: white;
+    border: 2px solid var(--primary-color);
+    border-radius: 15px;
+    padding: 20px; /* Больше отступы */
+    width: max-content; /* Ширина по контенту */
+    max-width: 300px; /* Не шире 300px */
+    min-width: 220px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    font-size: 1.1rem; /* Шрифт крупнее (был 0.9em) */
+    line-height: 1.5;
+    color: var(--text-color);
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+    transform-origin: bottom right;
+    transition: all 0.3s ease;
+    pointer-events: auto;
+    z-index: 10002;
+}
 
-        .character-bubble::after {
-            content: '';
-            position: absolute;
-            bottom: -10px;
-            right: 40px;
-            border-width: 10px 10px 0;
-            border-style: solid;
-            border-color: var(--primary-color) transparent;
-            display: block;
-            width: 0;
-        }
+/* Хвостик облачка */
+.character-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: 20px;
+    right: -12px; /* Хвостик справа, указывает на персонажа */
+    border-width: 12px 0 12px 12px;
+    border-style: solid;
+    border-color: transparent transparent transparent var(--primary-color);
+    display: block;
+    width: 0;
+}
+/* Белая перекрывашка для хвостика (чтобы был контур) */
+.character-bubble::before {
+    content: '';
+    position: absolute;
+    bottom: 20px;
+    right: -9px;
+    border-width: 10px 0 10px 10px;
+    border-style: solid;
+    border-color: transparent transparent transparent white;
+    display: block;
+    width: 0;
+    z-index: 1;
+}
 
-        .character-bubble.visible {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
+.character-bubble.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
 
-        /* Animations */
-        @keyframes sprite-walk-h {
-            from { background-position-x: 0px; }
-            to { background-position-x: -832px; } /* 4 * 208 */
-        }
+/* Кнопки внутри облачка */
+.bubble-actions {
+    margin-top: 15px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
 
-        .pose-walk {
-            animation: sprite-walk-h 0.8s steps(4) infinite;
-            background-position-y: 0px !important;
-        }
+.bubble-btn {
+    background: var(--primary-color);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.bubble-btn:hover { background: var(--secondary-color); }
+.bubble-btn.secondary { background: #e0e0e0; color: #333; }
+.bubble-btn.secondary:hover { background: #d0d0d0; }
 
-        .pose-idle {
-            background-position: -208px -624px !important; /* Row 3, Col 2 */
-            animation: sway 3s ease-in-out infinite;
-        }
+/* Затемнение фона */
+#onboarding-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6); /* Темнее для фокуса */
+    z-index: 10000;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+#onboarding-overlay.visible {
+    opacity: 1;
+}
 
-        .pose-back {
-            background-position: -416px -624px !important; /* Row 3, Col 3 */
-        }
+/* Подсветка активного элемента */
+.highlight-element {
+    position: relative;
+    z-index: 10005 !important;
+    background-color: white;
+    box-shadow: 0 0 0 4px var(--primary-color), 0 0 50px rgba(255,255,255,0.5);
+    border-radius: 8px;
+    pointer-events: auto !important; /* Разрешаем клик */
+    transition: all 0.3s ease;
+}
 
-        .pose-peek {
-            background-position: 0px 0px !important; /* Row 1, Col 1 (Side view) */
-        }
-
-        .pose-serious {
-             background-position: -624px -624px !important; /* Row 3, Col 4 (Back view variation) */
-        }
-
-        @keyframes sway {
-            0%, 100% { transform: scaleY(1); }
-            50% { transform: scaleY(1.02); }
-        }
-
-        /* Specific positions for views */
-        #auth-view .character-widget {
-            bottom: 40%;
-            right: -250px; /* Start off-screen */
-            transition: right 1s ease-out;
-        }
-        #auth-view .character-widget.entered {
-            right: calc(50% - 380px); /* Position next to the form (form is centered) */
-        }
-        /* If screen is small, move it elsewhere or hide */
-        @media (max-width: 1000px) {
-            #auth-view .character-widget.entered {
-                right: 20px;
-                bottom: 20px;
-                transform: scale(0.8);
-            }
-        }
-
-        #test-view .character-widget {
-            bottom: 20px;
-            right: 20px;
-        }
-
-        .character-widget.hidden {
-            display: none !important;
-        }
-
-        /* Onboarding Styles */
-        .bubble-btn {
-            background: var(--primary-color);
-            border: none;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.8em;
-            cursor: pointer;
-            margin-top: 5px;
-            display: block;
-            margin-left: auto;
-        }
-        .bubble-btn:hover {
-            background: var(--secondary-color);
-        }
-        .highlight-element {
-            position: relative;
-            z-index: 10000;
-            box-shadow: 0 0 0 4px var(--secondary-color), 0 0 20px rgba(0,0,0,0.5);
-            background-color: white;
-            pointer-events: none;
-        }
-        #onboarding-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 9998;
-            display: none;
-        }
+/* Animations (оставляем старые) */
+@keyframes sprite-walk-h { from { background-position-x: 0px; } to { background-position-x: -832px; } }
+.pose-walk { animation: sprite-walk-h 0.8s steps(4) infinite; background-position-y: 0px !important; }
+.pose-idle { background-position: -208px -624px !important; animation: sway 3s ease-in-out infinite; }
+.pose-back { background-position: -416px -624px !important; }
+.pose-peek { background-position: 0px 0px !important; }
+.pose-serious { background-position: -624px -624px !important; }
+@keyframes sway { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
     </style>
     <style>
         /* Card UI Overrides for .menu-item */
@@ -1342,122 +1324,194 @@
     let charIdleTimer = null;
     let charActionTimer = null;
 
-    /* --- Onboarding Logic --- */
-    const onboardingOverlay = document.getElementById('onboarding-overlay');
-    let onboardingStep = 0;
+/* --- New Interactive Onboarding Logic --- */
+const onboardingOverlay = document.getElementById('onboarding-overlay');
+let currentStepIndex = 0;
+let tourActive = false;
 
-    const onboardingSteps = [
-        {
-            text: "Рад, что ты зашел! 👋 давай знакомиться я Бейбит Абдиманапович Председатель Правления Centras Insurance. Давай я быстро покажу, как тут всё устроено.",
-            targetId: null,
-            pose: "pose-walk"
-        },
-        {
-            text: "Здесь находятся твои курсы. Нажми на карточку, чтобы начать обучение. 📚",
-            targetId: "main-menu",
-            pose: "pose-idle"
-        },
-        {
-            text: "Тут ты можешь следить за своим прогрессом и достижениями. 🏆",
-            targetId: "profile-btn",
-            pose: "pose-peek"
-        },
-        {
-            text: "А здесь будут важные уведомления. Не пропускай их! 🔔",
-            targetId: "notifications-bell",
-            pose: "pose-back"
-        },
-        {
-            text: "Ну всё, удачи в обучении! Если что, я рядом. 🚀",
-            targetId: null,
-            pose: "pose-walk"
-        }
-    ];
+// Данные тура: каждый шаг может ждать события 'waitClick'
+const tourSteps = [
+    {
+        // Шаг 0: Приветствие
+        text: "Привет! 👋 Я твой помощник. Давай я быстро покажу, как тут всё работает, чтобы ты не запутался.",
+        targetId: null,
+        pose: "pose-walk",
+        type: "info" // Просто информация с кнопкой "Далее"
+    },
+    {
+        // Шаг 1: Уведомления
+        text: "Начнем с важного. <b>Нажми на колокольчик</b> 🔔, чтобы проверить уведомления.",
+        targetId: "notifications-bell",
+        pose: "pose-peek",
+        type: "interaction", // Ждем клика пользователя
+        waitForEvent: "click"
+    },
+    {
+        // Шаг 1.5: Реакция на уведомления
+        text: "Отлично! Здесь будут новости о курсах и дедлайнах. Нажми на колокольчик еще раз, чтобы закрыть их, или просто продолжим.",
+        targetId: "notifications-panel",
+        pose: "pose-idle",
+        type: "info"
+    },
+    {
+        // Шаг 2: Профиль
+        text: "Теперь заглянем в твой кабинет. <b>Нажми на кнопку 'Профиль'</b> 👤.",
+        targetId: "profile-btn",
+        pose: "pose-back",
+        type: "interaction",
+        waitForEvent: "click"
+    },
+    {
+        // Шаг 2.5: Реакция на профиль (когда открылся)
+        text: "Супер! Здесь твоя статистика, история курсов и результаты тестов. Всё под рукой.",
+        targetId: "profile-view", // Подсветим всю карточку профиля
+        pose: "pose-walk",
+        type: "info",
+        delay: 500 // Небольшая задержка, чтобы UI успел отрисоваться
+    },
+    {
+        // Шаг 3: Выход назад
+        text: "Чтобы вернуться к курсам, нажми кнопку <b>'Назад в меню'</b>.",
+        targetId: "back-to-menu-btn",
+        pose: "pose-peek",
+        type: "interaction",
+        waitForEvent: "click"
+    },
+    {
+        // Шаг 4: Финал
+        text: "Ты готов! 🚀 Выбирай курс из списка и начинай обучение. Если что, я буду в углу. Удачи!",
+        targetId: "main-menu",
+        pose: "pose-walk",
+        type: "final"
+    }
+];
 
-    function highlightElement(elementId) {
-        document.querySelectorAll('.highlight-element').forEach(el => {
-            el.classList.remove('highlight-element');
-            el.style.pointerEvents = '';
-        });
+function startInteractiveTour() {
+    if (localStorage.getItem('onboardingCompleted') === 'true') return;
 
-        if (elementId) {
-            const el = document.getElementById(elementId);
-            if (el) {
-                el.classList.add('highlight-element');
-                onboardingOverlay.style.display = 'block';
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    tourActive = true;
+    currentStepIndex = 0;
+
+    // Ensure character is visible in app-view
+    moveCharacterTo('app-view');
+
+    // Показываем персонажа и оверлей
+    charWidget.classList.remove('hidden');
+    onboardingOverlay.style.display = 'block';
+    setTimeout(() => onboardingOverlay.classList.add('visible'), 10);
+
+    // Если мы на экране входа, сначала пропустим (логика запускается в onLoginSuccess)
+    renderStep();
+}
+
+function renderStep() {
+    if (currentStepIndex >= tourSteps.length) {
+        finishTour();
+        return;
+    }
+
+    const step = tourSteps[currentStepIndex];
+    setCharPose(step.pose);
+
+    // Снимаем старую подсветку
+    document.querySelectorAll('.highlight-element').forEach(el => {
+        el.classList.remove('highlight-element');
+    });
+
+    // Задержка перед шагом (если нужно подождать открытия окна)
+    setTimeout(() => {
+        // Подсветка нового элемента
+        if (step.targetId) {
+            const target = document.getElementById(step.targetId);
+            if (target) {
+                target.classList.add('highlight-element');
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-        } else {
-             if (onboardingStep < onboardingSteps.length - 1) {
-                 onboardingOverlay.style.display = 'block';
-             } else {
-                 onboardingOverlay.style.display = 'none';
-             }
-        }
-    }
-
-    function runOnboarding() {
-        if (localStorage.getItem('onboardingCompleted') === 'true') return;
-
-        if (!characterEnabled) {
-            toggleCharacter(true);
-            const checkbox = document.getElementById('toggle-character-checkbox');
-            if (checkbox) checkbox.checked = true;
         }
 
-        onboardingStep = 0;
-        charWidget.classList.remove('hidden');
-        moveCharacterTo('app-view');
+        // Формируем HTML пузыря
+        let buttonsHtml = '';
 
-        setTimeout(() => {
-             processOnboardingStep();
-        }, 1000);
-    }
-
-    function processOnboardingStep() {
-        if (onboardingStep >= onboardingSteps.length) {
-            finishOnboarding();
-            return;
+        if (step.type === 'info') {
+            buttonsHtml = `
+                <button class="bubble-btn secondary" onclick="finishTour()">Пропустить</button>
+                <button class="bubble-btn" onclick="nextStep()">Далее ➔</button>
+            `;
+        } else if (step.type === 'interaction') {
+            // Нет кнопки "Далее", так как ждем клика от юзера
+            // Но оставим "Пропустить" на всякий случай
+            buttonsHtml = `
+                <button class="bubble-btn secondary" onclick="finishTour()">Пропустить</button>
+                <span style="font-size:0.8em; color:#666; align-self:center; margin-left:10px;">(Жду действия...)</span>
+            `;
+            setupInteraction(step);
+        } else if (step.type === 'final') {
+            buttonsHtml = `
+                <button class="bubble-btn" onclick="finishTour()">Погнали! 🚀</button>
+            `;
         }
 
-        const step = onboardingSteps[onboardingStep];
-        setCharPose(step.pose);
-        highlightElement(step.targetId);
-
-        let html = step.text;
-        if (onboardingStep < onboardingSteps.length - 1) {
-             html += `<div style="display:flex; gap:5px; justify-content:flex-end; margin-top:5px;">
-                        <button class="bubble-btn" style="background:#777" onclick="skipOnboarding()">Пропустить</button>
-                        <button class="bubble-btn" onclick="nextOnboardingStep()">Далее</button>
-                      </div>`;
-        } else {
-             html += `<button class="bubble-btn" onclick="finishOnboarding()">Погнали!</button>`;
-        }
-
-        charBubble.innerHTML = html;
+        charBubble.innerHTML = `
+            <div style="margin-bottom:10px;">${step.text}</div>
+            <div class="bubble-actions">${buttonsHtml}</div>
+        `;
         charBubble.classList.add('visible');
+
+    }, step.delay || 0);
+}
+
+function setupInteraction(step) {
+    const target = document.getElementById(step.targetId);
+    if (!target) {
+        // Если элемента нет (баг), пропускаем шаг
+        console.warn(`Target ${step.targetId} not found, skipping step.`);
+        nextStep();
+        return;
     }
 
-    window.nextOnboardingStep = function() {
-        onboardingStep++;
-        processOnboardingStep();
+    const handler = (e) => {
+        // Убираем слушатель, чтобы не сработал дважды
+        target.removeEventListener(step.waitForEvent, handler);
+
+        // Если тур уже завершен (например, нажали "Пропустить"), ничего не делаем
+        if (!tourActive) return;
+
+        // Переходим к следующему шагу с небольшой задержкой
+        setTimeout(() => {
+            if (tourActive) nextStep();
+        }, 300);
     };
 
-    window.skipOnboarding = function() {
-        finishOnboarding();
-    };
+    // Вешаем одноразовый слушатель
+    target.addEventListener(step.waitForEvent, handler, { once: true });
+}
 
-    window.finishOnboarding = function() {
-        localStorage.setItem('onboardingCompleted', 'true');
+window.nextStep = function() {
+    currentStepIndex++;
+    renderStep();
+};
+
+window.finishTour = function() {
+    tourActive = false;
+    localStorage.setItem('onboardingCompleted', 'true');
+
+    // Скрываем всё
+    charBubble.classList.remove('visible');
+    onboardingOverlay.classList.remove('visible');
+    setTimeout(() => {
         onboardingOverlay.style.display = 'none';
-        document.querySelectorAll('.highlight-element').forEach(el => {
-            el.classList.remove('highlight-element');
-            el.style.pointerEvents = '';
-        });
-        charBubble.classList.remove('visible');
-        setCharPose('pose-idle');
-        resetIdleTimer();
-    };
+        // Персонаж тоже пропадает, как просили
+        charWidget.classList.add('hidden');
+    }, 300);
+
+    document.querySelectorAll('.highlight-element').forEach(el => {
+        el.classList.remove('highlight-element');
+    });
+
+    // Сброс позы
+    setCharPose('pose-idle');
+    resetIdleTimer(); // Запускаем обычный таймер бездействия (если персонаж вернется)
+};
 
     const charPhrases = {
         welcome: ["Привет! 👋", "Рад видеть!", "Давай учиться!", "Введи пароль 👇"],
@@ -1707,19 +1761,24 @@
             authButton.textContent = 'Войти';
         }
     }
+    // Обновляем onLoginSuccess
     async function onLoginSuccess(session) {
         userData.email = session.user.email;
         userData.token = session.access_token;
         authView.classList.add('hidden');
 
-        // charWidget.classList.add('hidden'); // Removed to keep character for onboarding
+        // Скрываем виджет авторизации, чтобы он не мешал туру
+        charWidget.classList.add('hidden');
 
         appView.classList.remove('hidden');
         showLoader();
         await showMainMenu();
         hideLoader();
 
-        runOnboarding();
+        // Запускаем тур
+        setTimeout(() => {
+             startInteractiveTour();
+        }, 1000);
     }
     async function handleLogout() {
         await supabaseClient.auth.signOut();
