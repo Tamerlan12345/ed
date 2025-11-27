@@ -1001,7 +1001,7 @@
                     <div class="test-header-controls">
                         <h3 id="test-course-title" style="margin:0; color: var(--primary-color);">Тестирование</h3>
                         <button id="back-to-presentation-from-test" style="background-color: #6c757d; font-size: 0.9em; padding: 5px 10px; margin: 0;">
-                            <i class="fa-solid fa-arrow-left"></i> Назад к материалам
+                            <i class="fa-solid fa-arrow-left"></i> Выйти в меню
                         </button>
                     </div>
 
@@ -1285,8 +1285,10 @@
         document.getElementById('logout-btn').addEventListener('click', handleLogout);
     }
     async function fetchAuthenticated(url, options = {}) {
-        if (!userData.token) throw new Error("Пользователь не авторизован. Токен отсутствует.");
-        const finalOptions = { ...options, headers: { 'Authorization': `Bearer ${userData.token}`, ...options.headers } };
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session || !session.access_token) throw new Error("Пользователь не авторизован. Токен отсутствует.");
+
+        const finalOptions = { ...options, headers: { 'Authorization': `Bearer ${session.access_token}`, ...options.headers } };
         const response = await fetch(url, finalOptions);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText} (${response.status})` }));
@@ -2357,22 +2359,8 @@
 
                 // Принудительная зачистка UI
                 testView.classList.add('hidden');
-                document.getElementById('content-loader').classList.remove('hidden');
 
-                try {
-                    // ПРОВЕРКА: Если данные курса потеряны, идем в меню, иначе - в курс
-                    if (currentCourse && currentCourse.id) {
-                        await showPresentationView(currentCourse.id);
-                    } else {
-                        throw new Error("Course data missing");
-                    }
-                } catch (e) {
-                    console.warn("Ошибка возврата в курс, переход в меню:", e);
-                    showToast('Произошла ошибка при возврате к материалам. Вы перемещены в главное меню.', 'error');
-                    showMainMenu();
-                } finally {
-                    document.getElementById('content-loader').classList.add('hidden');
-                }
+                showMainMenu();
             }
         });
 
