@@ -1481,7 +1481,11 @@
             menuItem.title = 'Этот курс будет доступен после прохождения предыдущего';
         } else {
             menuItem.style.cursor = 'pointer';
-            menuItem.addEventListener('click', () => showPresentationView(course.id));
+            menuItem.addEventListener('click', (e) => {
+                // Не открываем, если кликнули по кнопке "Перепройти"
+                if (e.target.classList.contains('retake-btn') || e.target.closest('.retake-btn')) return;
+                showPresentationView(course.id);
+            });
         }
         if (course.progress?.completed_at) menuItem.classList.add('completed');
         let deadlineHtml = '';
@@ -1502,15 +1506,55 @@
         }
         const courseIcon = course.is_locked ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-book-open"></i>';
 
+        // КНОПКА ПЕРЕПРОЙТИ
+        let retakeBtnHtml = '';
+        if (course.progress?.completed_at) {
+            retakeBtnHtml = `
+                <button class="btn retake-btn"
+                        style="width: 100%; margin-top: 10px; background-color: white; color: var(--primary-color); border: 1px solid var(--primary-color);"
+                        onclick="retakeCourse('${course.id}', this)">
+                    <i class="fa-solid fa-rotate-right"></i> Перепройти
+                </button>
+            `;
+        }
+
         menuItem.innerHTML = `
             <div>
                 <h3><span class="menu-item-icon">${courseIcon}</span>${course.title}</h3>
             </div>
-            <div>${progressBarHtml}${deadlineHtml}</div>`;
+            <div>
+                ${progressBarHtml}
+                ${deadlineHtml}
+                ${retakeBtnHtml}
+            </div>`;
+
         menuItem.style.display = 'flex';
         menuItem.style.flexDirection = 'column';
         menuItem.style.justifyContent = 'space-between';
         return menuItem;
+    }
+
+    // НОВАЯ ФУНКЦИЯ ДЛЯ СБРОСА КУРСА
+    async function retakeCourse(courseId, btnElement) {
+        if (!confirm('Вы уверены, что хотите пройти курс заново? Текущий результат будет сброшен.')) return;
+
+        btnElement.disabled = true;
+        btnElement.innerHTML = '<div class="loader" style="width: 15px; height: 15px; border-width: 2px;"></div>';
+
+        try {
+            await fetchAuthenticated('/api/assign-course', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: courseId, force_reset: true })
+            });
+            showToast('Курс перезапущен!', 'success');
+            await loadCourses(); // Обновляем список
+        } catch (error) {
+            console.error(error);
+            showToast('Ошибка при перезапуске курса', 'error');
+            btnElement.disabled = false;
+            btnElement.textContent = 'Ошибка';
+        }
     }
     function createCatalogMenuItem(course) {
         const menuItem = document.createElement('div');
@@ -1699,8 +1743,10 @@
             simBtn.innerHTML = '<i class="fa-solid fa-comments"></i> Диалоговый тренажер';
             simBtn.className = 'action-btn';
             simBtn.style.marginTop = '10px';
-            // ПЕРЕДАЕМ ID КУРСА
+
+            // ИСПРАВЛЕНИЕ: Передаем ID текущего курса при клике
             simBtn.onclick = () => showSimulatorView(currentCourse.id);
+
             instrumentsPanel.appendChild(testBtn);
             instrumentsPanel.appendChild(simBtn);
             leftSidebar.appendChild(instrumentsPanel);
@@ -2540,22 +2586,36 @@
     }
 
     let currentScenario = '';
+    // Замените старую функцию showSimulatorView на эту:
     function showSimulatorView(fromCourseId = null) {
         stopTimeTracking();
         windowTitle.textContent = 'Диалоговый тренажер';
+
+        // Скрываем все лишнее
         document.getElementById('main-content-wrapper').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
         productContent.classList.add('hidden');
         if (profileView) profileView.classList.add('hidden');
-        simulatorView.classList.remove('hidden');
+        if (testView) testView.classList.add('hidden'); // Важно скрыть тест, если он был открыт
 
+        simulatorView.classList.remove('hidden');
         backToMenuBtn.classList.remove('hidden');
 
         // ЛОГИКА КНОПКИ НАЗАД
+        // Если пришли из курса (передан ID) - возвращаемся в курс
         if (fromCourseId && typeof fromCourseId === 'string') {
             backToMenuBtn.textContent = 'Назад к курсу';
-            backButtonAction = () => showPresentationView(fromCourseId);
+            // Используем замыкание, чтобы запомнить ID
+            backButtonAction = () => {
+                // Восстанавливаем currentCourse если он потерялся
+                if (!currentCourse || currentCourse.id !== fromCourseId) {
+                    const group = courses.find(g => g.courses.some(c => c.id === fromCourseId));
+                    if (group) currentCourse = group.courses.find(c => c.id === fromCourseId);
+                }
+                showPresentationView(fromCourseId);
+            };
         } else {
+            // Если пришли из главного меню
             backToMenuBtn.textContent = 'Назад в меню';
             backButtonAction = showMainMenu;
         }
@@ -2593,7 +2653,12 @@
     startSimulationBtn.addEventListener('click', async () => {
         simulatorSetup.classList.add('hidden');
         simulatorChatArea.classList.remove('hidden');
-        appendSimulatorMessage('...', 'assistant', true);
+
+        // Очищаем чат перед стартом
+        simulatorChatBox.innerHTML = '';
+
+        appendSimulatorMessage('Подбираю сценарий и генерирую ответ...', 'assistant', true);
+
         try {
             const disposition = document.getElementById('disposition-slider').value;
             const data = await fetchAuthenticated('/api/dialogueSimulator', {
@@ -2601,12 +2666,27 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'start', disposition })
             });
-            if (!data.scenario || !data.first_message) throw new Error("Сервер не вернул сценарий или первое сообщение.");
+
+            if (!data.scenario || !data.first_message) throw new Error("Ошибка загрузки сценария.");
+
             currentScenario = data.scenario;
+
+            // ИСПРАВЛЕНИЕ: Явно показываем сценарий пользователю в чате
+            const scenarioDiv = document.createElement('div');
+            scenarioDiv.style.backgroundColor = '#fff3cd';
+            scenarioDiv.style.border = '1px solid #ffeeba';
+            scenarioDiv.style.color = '#856404';
+            scenarioDiv.style.padding = '10px';
+            scenarioDiv.style.marginBottom = '15px';
+            scenarioDiv.style.borderRadius = '5px';
+            scenarioDiv.style.fontSize = '0.9em';
+            scenarioDiv.innerHTML = `<strong>Ваша легенда (Сценарий):</strong><br>${data.scenario}`;
+            simulatorChatBox.prepend(scenarioDiv);
+
             updateLastSimulatorMessage(data.first_message);
             simulationHistory.push({ role: 'assistant', text: data.first_message });
         } catch (error) {
-            updateLastSimulatorMessage(`Ошибка при запуске симуляции: ${error.message}`);
+            updateLastSimulatorMessage(`Ошибка: ${error.message}`);
         }
     });
     simulatorChatForm.addEventListener('submit', async (e) => {
