@@ -1,0 +1,5 @@
+
+> ai-platform-final@1.0.0 start
+> node server/index.js
+
+Server is running and listening on port 3002
