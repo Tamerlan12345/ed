@@ -1,5 +1,10 @@
 
-> ai-platform-final@1.0.0 start
-> node server/index.js
+> ai-platform-final@1.0.0 dev
+> nodemon server/index.js
 
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node server/index.js`[39m
 Server is running and listening on port 3002
