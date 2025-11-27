@@ -315,7 +315,8 @@ const assignCourse = async (req, res) => {
     try {
         const supabase = req.supabase;
         const user = req.user;
-        const { course_id } = req.body;
+        const { course_id, force_reset } = req.body; // Добавили force_reset
+
         if (!course_id) return res.status(400).json({ error: 'course_id is required' });
 
         const { data: course, error: courseError } = await supabase
@@ -324,8 +325,24 @@ const assignCourse = async (req, res) => {
             .eq('id', course_id)
             .single();
 
-        if (courseError || !course) {
-            return res.status(404).json({ error: `Course with id ${course_id} not found.` });
+        if (courseError || !course) return res.status(404).json({ error: 'Course not found' });
+
+        // Логика сброса (Перепройти)
+        if (force_reset) {
+            const { error: resetError } = await supabase
+                .from('user_progress')
+                .update({
+                    completed_at: null,
+                    score: null,
+                    percentage: null,
+                    last_slide_index: 0,
+                    attempts: 0 // Сбрасываем попытки
+                })
+                .eq('user_id', user.id)
+                .eq('course_id', course_id);
+
+            if (resetError) throw resetError;
+            return res.status(200).json({ message: 'Курс перезапущен.' });
         }
 
         const insertData = { user_id: user.id, course_id: course_id };
