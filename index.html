@@ -1699,7 +1699,8 @@
             simBtn.innerHTML = '<i class="fa-solid fa-comments"></i> Диалоговый тренажер';
             simBtn.className = 'action-btn';
             simBtn.style.marginTop = '10px';
-            simBtn.onclick = showSimulatorView;
+            // ПЕРЕДАЕМ ID КУРСА
+            simBtn.onclick = () => showSimulatorView(currentCourse.id);
             instrumentsPanel.appendChild(testBtn);
             instrumentsPanel.appendChild(simBtn);
             leftSidebar.appendChild(instrumentsPanel);
@@ -2299,12 +2300,15 @@
         // Кнопка "Назад" внутри теста
         document.getElementById('back-to-presentation-from-test').addEventListener('click', () => {
             if (confirm("Вы уверены, что хотите прервать тест? Текущий прогресс будет потерян.")) {
+                stopTimeTracking(); // Остановить таймеры если есть
                 if (questionTimerInterval) clearInterval(questionTimerInterval);
-                document.removeEventListener('visibilitychange', handleVisibilityChange); // Убираем слежение за вкладками
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-                if (currentCourse) {
+                // ПРОВЕРКА: Если данные курса потеряны, идем в меню, иначе - в курс
+                if (currentCourse && currentCourse.id) {
                     showPresentationView(currentCourse.id);
                 } else {
+                    console.warn("Данные курса потеряны, возврат в главное меню.");
                     showMainMenu();
                 }
             }
@@ -2536,16 +2540,26 @@
     }
 
     let currentScenario = '';
-    function showSimulatorView() {
-        stopTimeTracking(); // Stop time tracking when simulator starts
+    function showSimulatorView(fromCourseId = null) {
+        stopTimeTracking();
         windowTitle.textContent = 'Диалоговый тренажер';
         document.getElementById('main-content-wrapper').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
         productContent.classList.add('hidden');
         if (profileView) profileView.classList.add('hidden');
         simulatorView.classList.remove('hidden');
+
         backToMenuBtn.classList.remove('hidden');
-        backButtonAction = showMainMenu;
+
+        // ЛОГИКА КНОПКИ НАЗАД
+        if (fromCourseId && typeof fromCourseId === 'string') {
+            backToMenuBtn.textContent = 'Назад к курсу';
+            backButtonAction = () => showPresentationView(fromCourseId);
+        } else {
+            backToMenuBtn.textContent = 'Назад в меню';
+            backButtonAction = showMainMenu;
+        }
+
         simulatorSetup.classList.remove('hidden');
         simulatorChatArea.classList.add('hidden');
         simulatorEvaluationArea.classList.add('hidden');
