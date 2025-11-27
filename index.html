@@ -187,6 +187,40 @@
         .character-widget.hidden {
             display: none !important;
         }
+
+        /* Onboarding Styles */
+        .bubble-btn {
+            background: var(--primary-color);
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            cursor: pointer;
+            margin-top: 5px;
+            display: block;
+            margin-left: auto;
+        }
+        .bubble-btn:hover {
+            background: var(--secondary-color);
+        }
+        .highlight-element {
+            position: relative;
+            z-index: 10000;
+            box-shadow: 0 0 0 4px var(--secondary-color), 0 0 20px rgba(0,0,0,0.5);
+            background-color: white;
+            pointer-events: none;
+        }
+        #onboarding-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9998;
+            display: none;
+        }
     </style>
     <style>
         /* Card UI Overrides for .menu-item */
@@ -991,6 +1025,7 @@
     </style>
 </head>
 <body>
+    <div id="onboarding-overlay"></div>
     <div id="toast-container"></div>
     <div id="character-widget" class="character-widget hidden">
         <div class="character-container">
@@ -1307,6 +1342,123 @@
     let charIdleTimer = null;
     let charActionTimer = null;
 
+    /* --- Onboarding Logic --- */
+    const onboardingOverlay = document.getElementById('onboarding-overlay');
+    let onboardingStep = 0;
+
+    const onboardingSteps = [
+        {
+            text: "Рад, что ты зашел! 👋 давай знакомиться я Бейбит Абдиманапович Председатель Правления Centras Insurance. Давай я быстро покажу, как тут всё устроено.",
+            targetId: null,
+            pose: "pose-walk"
+        },
+        {
+            text: "Здесь находятся твои курсы. Нажми на карточку, чтобы начать обучение. 📚",
+            targetId: "main-menu",
+            pose: "pose-idle"
+        },
+        {
+            text: "Тут ты можешь следить за своим прогрессом и достижениями. 🏆",
+            targetId: "profile-btn",
+            pose: "pose-peek"
+        },
+        {
+            text: "А здесь будут важные уведомления. Не пропускай их! 🔔",
+            targetId: "notifications-bell",
+            pose: "pose-back"
+        },
+        {
+            text: "Ну всё, удачи в обучении! Если что, я рядом. 🚀",
+            targetId: null,
+            pose: "pose-walk"
+        }
+    ];
+
+    function highlightElement(elementId) {
+        document.querySelectorAll('.highlight-element').forEach(el => {
+            el.classList.remove('highlight-element');
+            el.style.pointerEvents = '';
+        });
+
+        if (elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.classList.add('highlight-element');
+                onboardingOverlay.style.display = 'block';
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } else {
+             if (onboardingStep < onboardingSteps.length - 1) {
+                 onboardingOverlay.style.display = 'block';
+             } else {
+                 onboardingOverlay.style.display = 'none';
+             }
+        }
+    }
+
+    function runOnboarding() {
+        if (localStorage.getItem('onboardingCompleted') === 'true') return;
+
+        if (!characterEnabled) {
+            toggleCharacter(true);
+            const checkbox = document.getElementById('toggle-character-checkbox');
+            if (checkbox) checkbox.checked = true;
+        }
+
+        onboardingStep = 0;
+        charWidget.classList.remove('hidden');
+        moveCharacterTo('app-view');
+
+        setTimeout(() => {
+             processOnboardingStep();
+        }, 1000);
+    }
+
+    function processOnboardingStep() {
+        if (onboardingStep >= onboardingSteps.length) {
+            finishOnboarding();
+            return;
+        }
+
+        const step = onboardingSteps[onboardingStep];
+        setCharPose(step.pose);
+        highlightElement(step.targetId);
+
+        let html = step.text;
+        if (onboardingStep < onboardingSteps.length - 1) {
+             html += `<div style="display:flex; gap:5px; justify-content:flex-end; margin-top:5px;">
+                        <button class="bubble-btn" style="background:#777" onclick="skipOnboarding()">Пропустить</button>
+                        <button class="bubble-btn" onclick="nextOnboardingStep()">Далее</button>
+                      </div>`;
+        } else {
+             html += `<button class="bubble-btn" onclick="finishOnboarding()">Погнали!</button>`;
+        }
+
+        charBubble.innerHTML = html;
+        charBubble.classList.add('visible');
+    }
+
+    window.nextOnboardingStep = function() {
+        onboardingStep++;
+        processOnboardingStep();
+    };
+
+    window.skipOnboarding = function() {
+        finishOnboarding();
+    };
+
+    window.finishOnboarding = function() {
+        localStorage.setItem('onboardingCompleted', 'true');
+        onboardingOverlay.style.display = 'none';
+        document.querySelectorAll('.highlight-element').forEach(el => {
+            el.classList.remove('highlight-element');
+            el.style.pointerEvents = '';
+        });
+        charBubble.classList.remove('visible');
+        setCharPose('pose-idle');
+        resetIdleTimer();
+    };
+
     const charPhrases = {
         welcome: ["Привет! 👋", "Рад видеть!", "Давай учиться!", "Введи пароль 👇"],
         worry: ["Ты тут? 👀", "Я заскучал...", "Ау-у...", "Не спи! 💤"],
@@ -1560,12 +1712,14 @@
         userData.token = session.access_token;
         authView.classList.add('hidden');
 
-        charWidget.classList.add('hidden');
+        // charWidget.classList.add('hidden'); // Removed to keep character for onboarding
 
         appView.classList.remove('hidden');
         showLoader();
         await showMainMenu();
         hideLoader();
+
+        runOnboarding();
     }
     async function handleLogout() {
         await supabaseClient.auth.signOut();
