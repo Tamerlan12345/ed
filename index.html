@@ -2349,23 +2349,29 @@
         backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
 
         // Кнопка "Назад" внутри теста
-        document.getElementById('back-to-presentation-from-test').addEventListener('click', () => {
+        document.getElementById('back-to-presentation-from-test').addEventListener('click', async () => {
             if (confirm("Вы уверены, что хотите прервать тест? Текущий прогресс будет потерян.")) {
                 stopTimeTracking(); // Остановить таймеры если есть
                 if (questionTimerInterval) clearInterval(questionTimerInterval);
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
 
+                // Принудительная зачистка UI
+                testView.classList.add('hidden');
+                document.getElementById('content-loader').classList.remove('hidden');
+
                 try {
                     // ПРОВЕРКА: Если данные курса потеряны, идем в меню, иначе - в курс
                     if (currentCourse && currentCourse.id) {
-                        showPresentationView(currentCourse.id);
+                        await showPresentationView(currentCourse.id);
                     } else {
                         throw new Error("Course data missing");
                     }
                 } catch (e) {
                     console.warn("Ошибка возврата в курс, переход в меню:", e);
-                    testView.classList.add('hidden'); // Гарантируем скрытие теста
+                    showToast('Произошла ошибка при возврате к материалам. Вы перемещены в главное меню.', 'error');
                     showMainMenu();
+                } finally {
+                    document.getElementById('content-loader').classList.add('hidden');
                 }
             }
         });
