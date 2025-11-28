@@ -186,19 +186,36 @@
 
 /* Подсветка активного элемента */
 .highlight-element {
-    position: relative;
+    position: relative; /* Или absolute, если не ломает верстку */
     z-index: 10005 !important;
-    background-color: var(--surface-color);
+    background-color: var(--surface-color); /* Чтобы текст был читаем на фоне */
     box-shadow: 0 0 0 4px var(--primary-color), 0 0 50px rgba(255,255,255,0.5);
     border-radius: 8px;
-    pointer-events: auto !important; /* Разрешаем клик */
+    pointer-events: auto !important;
+    cursor: pointer;
     transition: all 0.3s ease;
+}
+
+/* Анимация бега слева направо */
+@keyframes run-across {
+    0% { left: -300px; transform: scale(0.7) scaleX(1); opacity: 1; } /* scaleX(1) если спрайт смотрит вправо */
+    100% { left: calc(100% - 250px); transform: scale(0.7) scaleX(1); opacity: 1; }
+}
+
+/* Класс для запуска анимации бега */
+.character-widget.running-start {
+    position: fixed;
+    bottom: 20px;
+    left: -300px; /* Начальная позиция */
+    right: auto; /* Отключаем right */
+    transition: none; /* Отключаем плавность для JS-контроля */
+    animation: run-across 2s linear forwards; /* Бежит 2 секунды */
 }
 
 /* Animations (оставляем старые) */
 @keyframes sprite-walk-h { from { background-position-x: 0px; } to { background-position-x: -832px; } }
 .pose-walk { animation: sprite-walk-h 0.8s steps(4) infinite; background-position-y: 0px !important; }
-.pose-idle { background-position: -208px -624px !important; animation: sway 3s ease-in-out infinite; }
+.pose-idle { background-position: -208px -624px !important; animation: sway 3s ease-in-out infinite, breathe 3s ease-in-out infinite; }
 .pose-back { background-position: -416px -624px !important; }
 .pose-peek { background-position: 0px 0px !important; }
 .pose-serious { background-position: -624px -624px !important; }
@@ -1381,7 +1398,7 @@ let tourActive = false;
 const tourSteps = [
     {
         // Шаг 1: Приветствие
-        text: "Привет! 👋 Я твой помощник. Давай я быстро покажу, как тут всё работает, чтобы ты не запутался.",
+        text: "Приветствую! 🤝<br>Я <b>Бейбит Абдиманапович</b>,<br>Председатель Правления Centras Insurance.<br><br>Давайте я быстро покажу вам возможности нашей платформы.",
         targetId: null,
         pose: "pose-walk",
         type: "info" // Просто информация с кнопкой "Далее"
@@ -1418,15 +1435,39 @@ function startInteractiveTour() {
     tourActive = true;
     currentStepIndex = 0;
 
-    // Ensure character is visible in app-view
+    // 1. Подготовка персонажа
     moveCharacterTo('app-view');
-
-    // Показываем персонажа и оверлей
     charWidget.classList.remove('hidden');
-    onboardingOverlay.style.display = 'block';
-    setTimeout(() => onboardingOverlay.classList.add('visible'), 10);
 
-    renderStep();
+    // Скрываем пузырь на время бега
+    charBubble.classList.remove('visible');
+
+    // 2. Запуск анимации бега
+    // Ставим позу ходьбы
+    setCharPose('pose-walk');
+
+    // Добавляем класс для анимации CSS
+    charWidget.classList.add('running-start');
+
+    // 3. Ждем окончания забега (2 секунды как в CSS)
+    setTimeout(() => {
+        // Анимация закончилась.
+        // Снимаем класс бега и жестко фиксируем позицию справа (как обычно)
+        charWidget.classList.remove('running-start');
+        charWidget.style.left = 'auto';
+        charWidget.style.right = '20px'; // Возвращаем на место
+
+        // Ставим позу ожидания (дыхание)
+        setCharPose('pose-idle');
+
+        // 4. Показываем затемнение и пузырь с текстом
+        onboardingOverlay.style.display = 'block';
+        setTimeout(() => onboardingOverlay.classList.add('visible'), 10);
+
+        // Запускаем первый шаг тура (диалог)
+        renderStep();
+
+    }, 2000); // Тайминг должен совпадать с animation-duration в CSS (2s)
 }
 
 function renderStep() {
@@ -1600,6 +1641,43 @@ window.finishTour = function() {
             window.addEventListener(evt, debouncedReset);
         });
         resetIdleTimer();
+    }
+
+    function initLoginInteractions() {
+        const emailInput = document.getElementById('user-email');
+        const passInput = document.getElementById('user-password');
+
+        if (!emailInput || !passInput) return;
+
+        // Логика для Email
+        emailInput.addEventListener('focus', () => {
+            if (!characterEnabled) return;
+            moveCharacterTo('auth-view');
+            setCharPose('pose-walk'); // Поза приветствия/ходьбы
+            charBubble.innerHTML = "Рад видеть вас! 👋<br>Введите ваш рабочий Email.";
+            charBubble.classList.add('visible');
+        });
+
+        // Логика для Пароля
+        passInput.addEventListener('focus', () => {
+            if (!characterEnabled) return;
+            moveCharacterTo('auth-view');
+            setCharPose('pose-back'); // Поворачивается спиной или закрывает глаза
+            charBubble.innerHTML = "Тсс... 🤫<br>Я отвернулся.<br>Вводите пароль смело.";
+            charBubble.classList.add('visible');
+        });
+
+        // Убираем пузырь, когда фокус уходит (blur), но с задержкой
+        [emailInput, passInput].forEach(input => {
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (document.activeElement !== emailInput && document.activeElement !== passInput) {
+                        setCharPose('pose-idle');
+                        charBubble.classList.remove('visible');
+                    }
+                }, 500); // Небольшая задержка
+            });
+        });
     }
 
     function resetIdleTimer() {
@@ -2914,6 +2992,8 @@ window.finishTour = function() {
         if (!userData.token) {
              moveCharacterTo('auth-view');
         }
+
+        initLoginInteractions();
 
         backToMenuBtn.addEventListener('click', () => {
             if (typeof backButtonAction === 'function') backButtonAction();
