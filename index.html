@@ -196,6 +196,11 @@
     transition: all 0.3s ease;
 }
 
+/* Fix for stacking context in tour */
+.z-index-fix-header {
+    z-index: 10002 !important;
+}
+
 /* Анимация бега слева направо */
 @keyframes run-across {
     0% { left: -300px; transform: scale(0.7) scaleX(1); opacity: 1; } /* scaleX(1) если спрайт смотрит вправо */
@@ -1483,6 +1488,10 @@ function renderStep() {
     document.querySelectorAll('.highlight-element').forEach(el => {
         el.classList.remove('highlight-element');
     });
+    // Remove z-index fix from previous steps
+    document.querySelectorAll('.z-index-fix-header').forEach(el => {
+        el.classList.remove('z-index-fix-header');
+    });
 
     // Задержка перед шагом (если нужно подождать открытия окна)
     setTimeout(() => {
@@ -1492,6 +1501,12 @@ function renderStep() {
             if (target) {
                 target.classList.add('highlight-element');
                 target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Check if target is inside window-header and apply fix
+                const header = target.closest('.window-header');
+                if (header) {
+                    header.classList.add('z-index-fix-header');
+                }
             }
         }
 
@@ -1572,6 +1587,10 @@ window.finishTour = function() {
 
     document.querySelectorAll('.highlight-element').forEach(el => {
         el.classList.remove('highlight-element');
+    });
+    // Remove z-index fix
+    document.querySelectorAll('.z-index-fix-header').forEach(el => {
+        el.classList.remove('z-index-fix-header');
     });
 
     // Сброс позы

@@ -8,3 +8,7 @@
 [33m[nodemon] watching extensions: js,mjs,cjs,json[39m
 [32m[nodemon] starting `node server/index.js`[39m
 Server is running and listening on port 3002
+::1 - - [28/Nov/2025:04:46:10 +0000] "GET /index.html HTTP/1.1" 200 166561 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.7339.16 Safari/537.36"
+::1 - - [28/Nov/2025:04:46:11 +0000] "GET /by.png HTTP/1.1" 200 181698 "http://localhost:3002/index.html" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.7339.16 Safari/537.36"
+::1 - - [28/Nov/2025:04:46:13 +0000] "POST /api/get-leaderboard HTTP/1.1" 200 135 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.7339.16 Safari/537.36"
+::1 - - [28/Nov/2025:04:46:14 +0000] "POST /api/getCourses HTTP/1.1" 200 539501 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.7339.16 Safari/537.36"
