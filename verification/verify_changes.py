@@ -1,161 +1,171 @@
+
 import os
 import time
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import sync_playwright
 
-def run():
+def verify_frontend():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
 
-        print("Navigating to home page...")
+        # 1. Navigate to the page
         try:
-            page.goto("http://localhost:3002", timeout=60000)
+            page.goto("http://localhost:3002")
+            print("Navigated to http://localhost:3002")
         except Exception as e:
-            print(f"Failed to load page: {e}")
+            print(f"Failed to navigate: {e}")
+            browser.close()
             return
 
-        # Bypass Login
-        print("Bypassing login...")
-        # Wait for auth-view to be present
-        expect(page.locator("#auth-view")).to_be_visible()
+        # 2. Verify Auth View Character
+        try:
+            page.wait_for_selector("#auth-view", state="visible", timeout=10000)
 
-        page.evaluate("""
-            userData.token = 'dummy_token'; // Inject token
-            document.getElementById('auth-view').classList.add('hidden');
-            document.getElementById('app-view').classList.remove('hidden');
+            char_widget = page.locator("#auth-view .character-widget")
+            if char_widget.is_visible():
+                print("Character widget is visible on auth view")
 
-            // We need to mock fetchAuthenticated because showMainMenu calls it
-            window.fetchOriginal = window.fetch;
-            window.fetch = async (url, options) => {
-                if (url.includes('/api/getCourses')) {
-                    return {
-                        ok: true,
-                        json: async () => ([
-                             {
-                                id: 'g1',
-                                group_name: 'Test Group',
-                                courses: [{
-                                    id: 'c1',
-                                    title: 'Test Course',
-                                    description: 'Test Desc',
-                                    summary: [{html_content: '<p>Test Slide</p>'}],
-                                    questions: [],
-                                    materials: [],
-                                    is_locked: false,
-                                    user_status: 'assigned',
-                                    progress: { percentage: 0 }
-                                }]
-                            }
-                        ])
+                # Check position (heuristic: near bottom)
+                viewport_height = page.viewport_size['height']
+                bbox = char_widget.bounding_box()
+                if bbox['y'] + bbox['height'] > viewport_height * 0.8:
+                    print("Character is positioned near the bottom")
+                else:
+                    print(f"Character position Y: {bbox['y']}, Viewport H: {viewport_height}. Might not be at bottom.")
+
+            # Simulate Hover
+            char_container = page.locator(".character-container")
+            char_container.hover()
+
+            bubble = page.locator("#character-bubble")
+            bubble.wait_for(state="visible", timeout=3000)
+
+            if bubble.is_visible():
+                print("Hover bubble appeared.")
+
+            page.screenshot(path="verification/auth_hover.png")
+
+        except Exception as e:
+            print(f"Error during auth verification: {e}")
+            page.screenshot(path="verification/error_auth.png")
+
+        # 3. Switch to App View (Mocking Backend)
+        try:
+            print("Switching to App View (Bypassing Login)...")
+
+            # Mock API responses
+            page.route("**/api/getCourses", lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='[{"id": "group1", "group_name": "Test Group", "courses": [{"id": "c1", "title": "Test Course", "description": "Desc", "is_locked": false, "user_status": "not_assigned", "progress": {}}]}]'
+            ))
+            page.route("**/api/get-leaderboard", lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='[]'
+            ))
+            page.route("**/api/getNotifications", lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='[]'
+            ))
+
+            # Inject JS to bypass auth and load menu
+            page.evaluate("""
+                async () => {
+                    // Override fetchAuthenticated to bypass supabase session check
+                    window.fetchAuthenticated = async (url, options = {}) => {
+                        const response = await fetch(url, options);
+                        return response.json();
                     };
+
+                    // Manually switch views
+                    document.getElementById('auth-view').classList.add('hidden');
+                    document.getElementById('app-view').classList.remove('hidden');
+
+                    // Manually hide loader just in case
+                    document.getElementById('content-loader').classList.add('hidden');
+                    document.getElementById('content-area').classList.remove('hidden');
+
+                    // Call showMainMenu to load the content
+                    // We call moveCharacterTo('app-view') to test if it stays hidden
+                    moveCharacterTo('app-view');
+
+                    showMainMenu();
                 }
-                if (url.includes('/api/get-leaderboard')) return { ok: true, json: async () => [] };
-                if (url.includes('/api/getNotifications')) return { ok: true, json: async () => [] };
-                // Default mock
-                return { ok: true, json: async () => ({}) };
-            };
+            """)
 
-            showMainMenu();
-        """)
+            # Wait for content to load
+            page.wait_for_selector("#app-view", timeout=5000)
+            print("App View is active")
 
-        # --- Verify Simulator View ---
-        print("Verifying Simulator View...")
-        # Wait for main menu to load
-        expect(page.locator("#launch-simulator-btn")).to_be_visible()
+            # 4. Verify Character is HIDDEN in App View by default
+            char_widget = page.locator("#character-widget")
 
-        page.get_by_role("button", name="Диалоговый тренажер").click()
-        expect(page.locator("#simulator-view")).to_be_visible()
+            # Give it a moment to potentially appear if logic is wrong
+            time.sleep(1)
 
-        # Check Back Button
-        back_btn = page.locator("#simulator-back-btn")
-        expect(back_btn).to_be_visible()
+            if char_widget.is_visible():
+                print("ERROR: Character is visible in App View by default (Should be HIDDEN)")
+            else:
+                print("SUCCESS: Character is hidden in App View by default")
 
-        # Check it is at the top (before setup)
-        is_first = page.evaluate("""
-            () => {
-                const view = document.getElementById('simulator-view');
-                const btn = document.getElementById('simulator-back-btn');
-                return view.firstElementChild === btn;
-            }
-        """)
-        if not is_first:
-            print("Warning: Simulator back button is not the first element.")
-        else:
-            print("Simulator back button IS the first element.")
+            # 5. Start Tour
+            tour_btn = page.locator("#start-tour-btn")
+            tour_btn.wait_for(state="visible", timeout=5000)
+            print("Starting tour...")
+            tour_btn.click()
 
-        page.screenshot(path="verification/simulator_view.png")
-        print("Simulator View screenshot taken.")
+            # Wait for overlay
+            page.wait_for_selector("#onboarding-overlay", state="visible", timeout=3000)
+            if page.locator("#onboarding-overlay").is_visible():
+                print("Onboarding overlay is visible")
 
-        # Go back
-        back_btn.click()
-        expect(page.locator("#main-menu")).to_be_visible()
+            # Verify Character APPEARS
+            char_widget.wait_for(state="visible", timeout=3000)
+            if char_widget.is_visible():
+                print("SUCCESS: Character appeared when tour started")
 
-        # --- Verify Presentation View Sidebar ---
-        print("Verifying Presentation View Sidebar...")
+            bubble = page.locator("#character-bubble")
+            if bubble.is_visible():
+                 print(f"Tour bubble text: {bubble.inner_text()}")
 
-        # Inject dummy course and navigate
-        # Since we mocked getCourses, 'courses' variable in JS should be populated.
-        # But let's force it to be safe.
-        page.evaluate("""
-            courses = [{
-                id: 'g1',
-                group_name: 'Test Group',
-                courses: [{
-                    id: 'c1',
-                    title: 'Test Course',
-                    description: 'Desc',
-                    summary: [{html_content: '<p>Slide 1</p>'}],
-                    materials: [],
-                    questions: []
-                }]
-            }];
+            # 6. Verify .highlight-element properties (Z-Index fix)
+            # We need to find the highlighted element (should be none in step 1, but let's check)
+            # Step 1 is Greeting (info only, no highlight).
+            # Let's go to Step 2 (Click Next)
 
-            // Mock getCourseContent as well specifically
-             window.fetch = async (url, options) => {
-                if (url.includes('/api/getCourseContent')) {
-                     return {
-                        ok: true,
-                        json: async () => ({
-                            summary: [{html_content: '<h1>Slide 1</h1>'}],
-                            questions: [],
-                            materials: []
-                        })
-                    };
-                }
-                // Reuse previous logic if possible or just return default
-                if (url.includes('/api/update-time-spent')) return { ok: true, json: async () => ({}) };
-                return { ok: true, json: async () => ({}) };
-            };
+            print("Clicking 'Next' to go to Step 2 (Bell)...")
+            # Find 'Next' button in bubble
+            page.locator(".bubble-btn", has_text="Далее").click()
 
-            showPresentationView('c1');
-        """)
+            # Wait for Bell to be highlighted
+            bell = page.locator("#notifications-bell")
+            # Check if it has class .highlight-element
+            page.wait_for_function("document.getElementById('notifications-bell').classList.contains('highlight-element')")
+            print("Bell is highlighted")
 
-        expect(page.locator("#product-content")).to_be_visible()
-        expect(page.locator(".presentation-view-container")).to_be_visible()
+            # Verify Computed Style of highlighted element
+            z_index = bell.evaluate("el => getComputedStyle(el).zIndex")
+            print(f"Bell z-index: {z_index}")
 
-        # Check Sidebar Button
-        sidebar_back_btn = page.locator("#back-to-course-btn-sidebar")
-        expect(sidebar_back_btn).to_be_visible()
+            if z_index == "10005":
+                print("SUCCESS: z-index is correct")
+            else:
+                print(f"ERROR: z-index is {z_index}, expected 10005")
 
-        # Check it is at the top of sidebar
-        is_sidebar_first = page.evaluate("""
-            () => {
-                const sidebar = document.querySelector('.presentation-view-left-sidebar');
-                const btn = document.getElementById('back-to-course-btn-sidebar');
-                return sidebar.firstElementChild === btn;
-            }
-        """)
+            pointer_events = bell.evaluate("el => getComputedStyle(el).pointerEvents")
+            print(f"Bell pointer-events: {pointer_events}")
 
-        if is_sidebar_first:
-            print("Sidebar back button is correctly at the top.")
-        else:
-            print("FAIL: Sidebar back button is NOT at the top.")
+            page.screenshot(path="verification/tour_step2.png")
+            print("Screenshot saved to verification/tour_step2.png")
 
-        page.screenshot(path="verification/presentation_view.png")
-        print("Presentation View screenshot taken.")
+        except Exception as e:
+             print(f"Error during app verification: {e}")
+             page.screenshot(path="verification/error_app.png")
 
         browser.close()
 
 if __name__ == "__main__":
-    run()
+    verify_frontend()

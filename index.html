@@ -188,7 +188,7 @@
 .highlight-element {
     position: relative;
     z-index: 10005 !important;
-    background-color: white;
+    background-color: var(--surface-color);
     box-shadow: 0 0 0 4px var(--primary-color), 0 0 50px rgba(255,255,255,0.5);
     border-radius: 8px;
     pointer-events: auto !important; /* Разрешаем клик */
@@ -203,6 +203,53 @@
 .pose-peek { background-position: 0px 0px !important; }
 .pose-serious { background-position: -624px -624px !important; }
 @keyframes sway { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
+
+/* --- СПЕЦИФИЧНЫЕ СТИЛИ ДЛЯ СТРАНИЦЫ ВХОДА --- */
+#auth-view .character-widget {
+    position: absolute; /* Позиционируем относительно контейнера auth-view */
+    bottom: 5vh;       /* Отступ снизу */
+    left: 50%;         /* Центрирование */
+    right: auto;       /* Сброс right: 20px */
+    transform: translateX(-50%) scale(0.8); /* Центрируем и чуть уменьшаем */
+    z-index: 10;
+    transition: all 0.5s ease-out;
+}
+
+/* Делаем его "живым" (анимация дыхания) */
+#auth-view .character-sprite.pose-idle {
+    animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe {
+    0%, 100% { transform: scaleY(1) translateY(0); }
+    50% { transform: scaleY(1.03) translateY(-5px); }
+}
+
+/* Стиль пузыря для длинного имени */
+#auth-view .character-bubble {
+    bottom: 300px; /* Чуть выше над головой */
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%); /* Центрируем пузырь относительно персонажа */
+    width: 280px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+/* Хвостик пузыря по центру */
+#auth-view .character-bubble::after {
+    right: 50%;
+    transform: translateX(50%);
+    border-width: 12px 12px 0 12px;
+    border-color: var(--primary-color) transparent transparent transparent;
+}
+#auth-view .character-bubble::before {
+    right: 50%;
+    transform: translateX(50%);
+    border-width: 10px 10px 0 10px;
+    border-color: white transparent transparent transparent;
+}
     </style>
     <style>
         /* Card UI Overrides for .menu-item */
@@ -1140,6 +1187,7 @@
                         <div id="main-menu"></div>
                         <div id="extra-tools" style="padding-top: 20px; border-top: 1px solid #eee;">
                             <button id="launch-simulator-btn">Диалоговый тренажер</button>
+                            <button id="start-tour-btn" style="margin-top: 10px; background-color: var(--secondary-color);"><i class="fa-solid fa-circle-question"></i> Как это работает?</button>
                             <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
                                 <label for="toggle-character-checkbox" style="font-size: 0.9em; cursor: pointer;">
                                     <input type="checkbox" id="toggle-character-checkbox" onchange="toggleCharacter(this.checked)" checked>
@@ -1332,14 +1380,14 @@ let tourActive = false;
 // Данные тура: каждый шаг может ждать события 'waitClick'
 const tourSteps = [
     {
-        // Шаг 0: Приветствие
+        // Шаг 1: Приветствие
         text: "Привет! 👋 Я твой помощник. Давай я быстро покажу, как тут всё работает, чтобы ты не запутался.",
         targetId: null,
         pose: "pose-walk",
         type: "info" // Просто информация с кнопкой "Далее"
     },
     {
-        // Шаг 1: Уведомления
+        // Шаг 2: Уведомления (Интерактив)
         text: "Начнем с важного. <b>Нажми на колокольчик</b> 🔔, чтобы проверить уведомления.",
         targetId: "notifications-bell",
         pose: "pose-peek",
@@ -1347,33 +1395,10 @@ const tourSteps = [
         waitForEvent: "click"
     },
     {
-        // Шаг 1.5: Реакция на уведомления
-        text: "Отлично! Здесь будут новости о курсах и дедлайнах. Нажми на колокольчик еще раз, чтобы закрыть их, или просто продолжим.",
-        targetId: "notifications-panel",
-        pose: "pose-idle",
-        type: "info"
-    },
-    {
-        // Шаг 2: Профиль
+        // Шаг 3: Профиль (Интерактив)
         text: "Теперь заглянем в твой кабинет. <b>Нажми на кнопку 'Профиль'</b> 👤.",
         targetId: "profile-btn",
         pose: "pose-back",
-        type: "interaction",
-        waitForEvent: "click"
-    },
-    {
-        // Шаг 2.5: Реакция на профиль (когда открылся)
-        text: "Супер! Здесь твоя статистика, история курсов и результаты тестов. Всё под рукой.",
-        targetId: "profile-view", // Подсветим всю карточку профиля
-        pose: "pose-walk",
-        type: "info",
-        delay: 500 // Небольшая задержка, чтобы UI успел отрисоваться
-    },
-    {
-        // Шаг 3: Выход назад
-        text: "Чтобы вернуться к курсам, нажми кнопку <b>'Назад в меню'</b>.",
-        targetId: "back-to-menu-btn",
-        pose: "pose-peek",
         type: "interaction",
         waitForEvent: "click"
     },
@@ -1387,7 +1412,8 @@ const tourSteps = [
 ];
 
 function startInteractiveTour() {
-    if (localStorage.getItem('onboardingCompleted') === 'true') return;
+    // Убираем проверку localStorage, так как запуск теперь ручной
+    // if (localStorage.getItem('onboardingCompleted') === 'true') return;
 
     tourActive = true;
     currentStepIndex = 0;
@@ -1400,7 +1426,6 @@ function startInteractiveTour() {
     onboardingOverlay.style.display = 'block';
     setTimeout(() => onboardingOverlay.classList.add('visible'), 10);
 
-    // Если мы на экране входа, сначала пропустим (логика запускается в onLoginSuccess)
     renderStep();
 }
 
@@ -1606,50 +1631,36 @@ window.finishTour = function() {
 
     function handleAuthViewCharacter() {
         if (!characterEnabled) return;
-        charWidget.classList.remove('hidden');
-        // Animation to enter
-        setTimeout(() => {
-            charWidget.classList.add('entered');
-            setCharPose('pose-walk');
-            // Stop walking after 1 sec (css transition time)
-            setTimeout(() => {
+        const widget = document.getElementById('character-widget');
+        widget.classList.remove('hidden');
+        setCharPose('pose-idle');
+
+        const container = document.querySelector('.character-container');
+
+        // Удаляем старые обработчики (если были)
+        container.onmouseenter = null;
+        container.onmouseleave = null;
+
+        // Добавляем новые через свойства (перезаписывают старые)
+        container.onmouseenter = () => {
+            if (!document.getElementById('auth-view').classList.contains('hidden')) {
+                setCharPose('pose-walk');
+                charBubble.innerHTML = "Привет! 👋<br>Я Бейбит Абдиманапович<br><small style='color:var(--primary-color)'>Председатель Правления Centras Insurance</small>";
+                charBubble.classList.add('visible');
+            }
+        };
+
+        container.onmouseleave = () => {
+             if (!document.getElementById('auth-view').classList.contains('hidden')) {
                 setCharPose('pose-idle');
-                showBubble(getRandomPhrase('welcome'));
-            }, 1000);
-        }, 500);
-
-        // Password interactions
-        const pwdInput = document.getElementById('user-password');
-        pwdInput.addEventListener('focus', () => {
-            setCharPose('pose-back');
-            showBubble(getRandomPhrase('password'));
-
-            // Random peek logic
-            clearInterval(charActionTimer);
-            charActionTimer = setInterval(() => {
-                if(Math.random() > 0.7) {
-                    setCharPose('pose-peek');
-                    showBubble(getRandomPhrase('peek'), 1500);
-                    setTimeout(() => setCharPose('pose-back'), 1500);
-                }
-            }, 3000);
-        });
-
-        pwdInput.addEventListener('blur', () => {
-            clearInterval(charActionTimer);
-            setCharPose('pose-idle');
-        });
-
-        // Login button reaction
-        document.getElementById('auth-form').addEventListener('submit', () => {
-            setCharPose('pose-walk'); // Excited?
-            showBubble(getRandomPhrase('success'));
-        });
+                charBubble.classList.remove('visible');
+             }
+        };
     }
 
     function handleTestCharacter(start = true) {
         if (!characterEnabled) return;
-        charWidget.classList.remove('hidden');
+        charWidget.classList.remove('hidden'); // Explicitly show for test
 
         if (start) {
              setCharPose('pose-serious');
@@ -1661,11 +1672,25 @@ window.finishTour = function() {
         const container = document.getElementById(containerId);
         if (container) {
             container.appendChild(charWidget);
-            charWidget.classList.remove('hidden');
-            // Trigger reflow/class updates
+            // Don't auto-show in app-view unless explicitly requested (e.g. tour)
+            // But show in auth-view always
             if (containerId === 'auth-view') {
+                 charWidget.classList.remove('hidden');
                  handleAuthViewCharacter();
             } else {
+                 // For app-view, we keep it hidden by default, tour will unhide it.
+                 // Unless we are in test mode? Tests might use it.
+                 // Let's assume hidden by default for general app view as requested.
+                 if (!tourActive && document.getElementById('test-view').classList.contains('hidden')) {
+                     charWidget.classList.add('hidden');
+                 }
+
+                 // Сброс обработчиков наведения
+                 const charContainer = document.querySelector('.character-container');
+                 if(charContainer) {
+                    charContainer.onmouseenter = null;
+                    charContainer.onmouseleave = null;
+                 }
                  charWidget.classList.remove('entered'); // Reset specific auth anims
                  setCharPose('pose-idle');
             }
@@ -1775,10 +1800,6 @@ window.finishTour = function() {
         await showMainMenu();
         hideLoader();
 
-        // Запускаем тур
-        setTimeout(() => {
-             startInteractiveTour();
-        }, 1000);
     }
     async function handleLogout() {
         await supabaseClient.auth.signOut();
@@ -2922,6 +2943,12 @@ window.finishTour = function() {
         const charToggle = document.getElementById('toggle-character-checkbox');
         if (charToggle) {
             charToggle.checked = characterEnabled;
+        }
+
+        // Кнопка запуска тура
+        const startTourBtn = document.getElementById('start-tour-btn');
+        if (startTourBtn) {
+            startTourBtn.addEventListener('click', startInteractiveTour);
         }
     });
 
