@@ -13,7 +13,7 @@ COPY . .
 FROM node:20-bullseye-slim
 
 # Устанавливаем LibreOffice, Poppler (для работы с PDF) и шрифты
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --fix-missing \
     libreoffice \
     poppler-utils \
     fonts-liberation \
