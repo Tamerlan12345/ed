@@ -101,13 +101,14 @@
 .character-sprite.tatiana {
     background-image: url('ts.png');
     background-position: 0 0;
+    background-size: 400% 400%;
 }
 
 /* Облачко диалога */
 .character-bubble {
     position: absolute;
-    bottom: 260px;
-    right: 160px; /* Привязка к голове персонажа */
+    bottom: 280px;
+    right: 220px; /* Сдвиг в сторону от персонажа */
     background: white;
     border: 2px solid var(--primary-color);
     border-radius: 15px;
@@ -239,10 +240,10 @@
 .character-sprite.bayan.pose-serious { background-position: -624px -624px !important; }
 
 /* Для Татьяны (ts.png) - СКОРРЕКТИРОВАННЫЕ КООРДИНАТЫ */
-.character-sprite.tatiana.pose-idle { background-position: 0 0 !important; animation: sway 3s ease-in-out infinite; }
-.character-sprite.tatiana.pose-explain { background-position: -208px 0 !important; }
-.character-sprite.tatiana.pose-point { background-position: -416px 0 !important; }
-.character-sprite.tatiana.pose-wink { background-position: -624px 0 !important; }
+.character-sprite.tatiana.pose-idle { background-position: 0% 0% !important; animation: sway 3s ease-in-out infinite; }
+.character-sprite.tatiana.pose-explain { background-position: 33.3333% 0% !important; }
+.character-sprite.tatiana.pose-point { background-position: 66.6667% 0% !important; }
+.character-sprite.tatiana.pose-wink { background-position: 100% 0% !important; }
 
 @keyframes sway { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
 @keyframes breathe {
@@ -321,6 +322,7 @@
             gap: 8px;
             margin-bottom: 20px;
             border-bottom: none !important;
+            overflow-x: auto;
         }
         .tab-btn {
             padding: 8px 20px;
@@ -333,6 +335,11 @@
             transition: all 0.2s ease-in-out;
             font-weight: 600;
             margin: 0;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
         .tab-btn.active {
             color: white;
