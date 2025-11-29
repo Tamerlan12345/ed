@@ -88,6 +88,7 @@
     background-repeat: no-repeat;
     pointer-events: auto;
     transition: background-image 0.3s ease;
+    background-size: 832px 1248px; /* Strict frame size fix for all characters */
 }
 
 /* --- ПЕРСОНАЖ 1: БЕЙБИТ (Баян/Baybay) --- */
@@ -99,9 +100,7 @@
 /* --- ПЕРСОНАЖ 2: ТАТЬЯНА (Tatiana) --- */
 .character-sprite.tatiana {
     background-image: url('ts.png');
-    background-size: 832px 1248px; /* Fixed size for 4x4 grid calibration */
     background-position: 0 0;
-    background-repeat: no-repeat;
 }
 
 /* Облачко диалога */
@@ -837,8 +836,8 @@
         @media (max-width: 768px) {
             /* 2.1. Адаптация основного контейнера */
             .window {
-                width: 100%;
-                height: 100%;
+                width: 100vw;
+                min-height: 100dvh;
                 max-width: none;
                 border: none;
                 border-radius: 0;
@@ -851,14 +850,55 @@
                 padding: 0; /* Remove container padding */
             }
             .window-header {
-                padding: 15px;
+                padding: 10px 15px;
                 margin-bottom: 10px;
+                flex-wrap: wrap; /* Prevent overlap */
             }
+            .window-header h2 {
+                font-size: 1.4em; /* Smaller font */
+                margin-right: 10px;
+            }
+            .window-header .logo {
+                height: 35px; /* Smaller logo */
+            }
+            .header-icon-btn {
+                min-width: 50px; /* Smaller buttons */
+            }
+            .header-icon-btn span {
+                display: none; /* Hide text on mobile to save space */
+            }
+
             .content-area {
                 padding: 0 15px;
             }
             .window-footer {
                 padding: 15px;
+            }
+
+            /* 3. Адаптация Меню */
+            #main-menu, .main-menu {
+                grid-template-columns: 1fr !important; /* 1 column forced */
+                gap: 15px;
+            }
+            .main-menu-columns {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .menu-item {
+                padding: 12px; /* Reduced padding */
+            }
+
+            /* Горизонтальный скролл табов */
+            #main-menu-tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+                scrollbar-width: none; /* Hide scrollbar Firefox */
+                padding-bottom: 5px; /* Space for touch */
+            }
+            #main-menu-tabs::-webkit-scrollbar {
+                display: none; /* Hide scrollbar Chrome/Safari */
             }
 
             /* 2.2. Адаптация виджета помощника (Mobile UX) */
@@ -880,8 +920,8 @@
 
             .character-sprite {
                 position: fixed;
-                bottom: 10px;
-                right: -20px;
+                bottom: 0;
+                right: -10px; /* Slight offset */
                 transform: scale(0.6);
                 transform-origin: bottom right;
             }
@@ -889,15 +929,16 @@
             /* Диалоговое облако (Bubble) - отвязано от головы */
             .character-bubble {
                 position: fixed !important;
-                bottom: 120px;
-                left: 5%;
-                width: 90%;
+                bottom: 10px; /* As requested: very bottom */
+                left: 2.5%;
+                width: 95%;
                 max-width: none;
                 min-width: 0;
                 transform: none !important; /* Сброс скейла и перемещений */
                 border-radius: 12px;
                 z-index: 10020;
                 right: auto; /* Сброс */
+                padding: 15px;
             }
 
             /* Скрываем хвостик, так как облако внизу */
@@ -907,12 +948,13 @@
 
             /* Увеличенные кнопки */
             .bubble-btn {
-                padding: 12px 20px;
-                min-height: 44px; /* Touch target size */
-                font-size: 1rem;
+                padding: 16px 24px; /* Increased padding */
+                min-height: 52px; /* Increased touch target size */
+                font-size: 1.1rem; /* Slightly larger text */
             }
             .bubble-actions {
                 justify-content: space-between; /* Чтобы кнопки были шире */
+                gap: 10px;
             }
             .bubble-actions button {
                 flex: 1; /* Растягиваем кнопки */
@@ -1742,9 +1784,11 @@ window.finishTour = function() {
             targetCharacter = character;
         } else {
             // Если персонаж не передан, пытаемся сохранить текущего
-            // Проверяем наличие класса ДО очистки
+            // Fix: Check explicitly for both characters to be robust
             if (charSprite.classList.contains('tatiana')) {
                 targetCharacter = 'tatiana';
+            } else if (charSprite.classList.contains('bayan')) {
+                targetCharacter = 'bayan';
             }
         }
 
@@ -3206,20 +3250,24 @@ window.finishTour = function() {
 
         /* --- Mobile Input Overlap Logic (Updated) --- */
         // Используем делегирование событий для поддержки динамических элементов
+        // Fix: Hide character on mobile when input is focused to avoid keyboard overlap
         document.body.addEventListener('focusin', (e) => {
-            if (e.target.matches('input, textarea') && window.innerWidth < 768) {
-                document.getElementById('character-widget').classList.add('mobile-hidden');
+            if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && window.innerWidth < 768) {
+                const widget = document.getElementById('character-widget');
+                if (widget) widget.classList.add('mobile-hidden');
             }
         });
 
         document.body.addEventListener('focusout', (e) => {
-             if (e.target.matches('input, textarea')) {
+             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
                 // Small delay to allow button clicks if focus was lost due to click
                 setTimeout(() => {
                     // Проверяем, не перешел ли фокус на другой инпут
                     const active = document.activeElement;
-                    if (!active || (!active.matches('input') && !active.matches('textarea'))) {
-                         document.getElementById('character-widget').classList.remove('mobile-hidden');
+                    const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+                    if (!isInput && window.innerWidth < 768) {
+                         const widget = document.getElementById('character-widget');
+                         if (widget) widget.classList.remove('mobile-hidden');
                     }
                 }, 200);
              }
