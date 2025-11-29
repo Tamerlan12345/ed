@@ -209,8 +209,8 @@
 .highlight-element {
     position: relative; /* для корректного наложения z-index */
     z-index: 10005 !important; /* поверх оверлея */
-    background-color: #ffffff !important; /* явно задать белый/контрастный фон */
-    box-shadow: 0 0 0 4px var(--primary-color), 0 0 20px rgba(255,255,255,0.8); /* яркая обводка + свечение */
+    /* background-color removed */
+    /* box-shadow removed */
     border-radius: 8px;
     pointer-events: none !important;
     transition: all 0.3s ease;
@@ -338,7 +338,9 @@
             overflow-x: auto;
         }
         .tab-btn {
-            flex: 1; /* делят ширину поровну */
+            flex: 1 1 0px; /* делят ширину поровну и фиксированно */
+            width: 0;
+            min-width: 0;
             padding: 12px 0; /* увеличена высота клика */
             border: none;
             background-color: transparent;
@@ -349,12 +351,11 @@
             transition: all 0.2s ease-in-out;
             font-weight: 600;
             margin: 0;
-            white-space: nowrap;
+            white-space: normal;
             display: flex;
             align-items: center;
             justify-content: center; /* центрирование текста */
             text-align: center;
-            flex-shrink: 0;
         }
         .tab-btn.active {
             color: white;
@@ -828,17 +829,17 @@
 
             /* Горизонтальный скролл табов */
             #main-menu-tabs {
-                overflow-x: auto;
-                white-space: nowrap;
-                -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
-                scrollbar-width: none; /* Hide scrollbar Firefox */
                 padding-bottom: 5px; /* Space for touch */
                 display: flex;
                 gap: 10px;
             }
             .tab-btn {
-                white-space: nowrap;
-                flex-shrink: 0;
+                white-space: normal;
+                flex-shrink: 1;
+                flex-basis: 0;
+                flex-grow: 1;
+                font-size: 0.9em;
+                line-height: 1.1;
             }
             #main-menu-tabs::-webkit-scrollbar {
                 display: none; /* Hide scrollbar Chrome/Safari */
