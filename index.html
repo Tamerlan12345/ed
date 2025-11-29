@@ -99,9 +99,7 @@
 /* --- ПЕРСОНАЖ 2: ТАТЬЯНА (Tatiana) --- */
 .character-sprite.tatiana {
     background-image: url('ts.png');
-    /* Предполагаем, что ts.png имеет похожую сетку или один кадр.
-       Если это спрайт-лист, нужно настроить координаты ниже.
-       Пока ставим 0 0 как базу. */
+    background-size: 832px 1248px; /* Fixed size for 4x4 grid calibration */
     background-position: 0 0;
 }
 
@@ -240,12 +238,11 @@
 .character-sprite.bayan.pose-peek { background-position: 0px 0px !important; }
 .character-sprite.bayan.pose-serious { background-position: -624px -624px !important; }
 
-/* Для Татьяны (ts.png) - ПЛЕЙСХОЛДЕРЫ КООРДИНАТ */
-/* Вам нужно будет подправить px значения в зависимости от реального файла ts.png */
+/* Для Татьяны (ts.png) - СКОРРЕКТИРОВАННЫЕ КООРДИНАТЫ */
 .character-sprite.tatiana.pose-idle { background-position: 0 0 !important; animation: sway 3s ease-in-out infinite; }
-.character-sprite.tatiana.pose-explain { background-position: -208px 0 !important; } /* Пример: 2-й кадр */
-.character-sprite.tatiana.pose-point { background-position: -416px 0 !important; }   /* Пример: 3-й кадр */
-.character-sprite.tatiana.pose-wink { background-position: -624px 0 !important; }    /* Пример: 4-й кадр */
+.character-sprite.tatiana.pose-explain { background-position: -208px 0 !important; }
+.character-sprite.tatiana.pose-point { background-position: -416px 0 !important; }
+.character-sprite.tatiana.pose-wink { background-position: -624px 0 !important; }
 
 @keyframes sway { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
 @keyframes breathe {
@@ -833,6 +830,69 @@
         }
         #logout-btn {
             order: 3;
+        }
+    </style>
+    <style id="mobile-optimization">
+        @media (max-width: 768px) {
+            /* 2.1. Адаптация основного контейнера */
+            .window {
+                width: 100vw;
+                height: 100dvh;
+                max-width: none;
+                border: none;
+                border-radius: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            .window-header {
+                padding: 15px;
+                margin-bottom: 10px;
+            }
+            .content-area {
+                padding: 0 15px;
+            }
+            .window-footer {
+                padding: 15px;
+            }
+
+            /* 2.2. Адаптация виджета помощника */
+            .character-container {
+                transform: scale(0.5);
+                transform-origin: bottom right;
+                margin-right: -40px; /* Compensate for visual gap after scaling */
+                margin-bottom: -60px;
+            }
+            .character-widget {
+                right: 10px;
+                bottom: 10px;
+            }
+
+            /* Резиновое облачко */
+            .character-bubble {
+                max-width: 90vw;
+                width: auto;
+                min-width: 200px;
+                left: 5vw;
+                right: auto;
+                bottom: 160px; /* Position above the scaled character */
+                transform-origin: bottom center;
+            }
+            /* Adjust arrow for bubble */
+            .character-bubble::after, .character-bubble::before {
+                right: 20px; /* Move arrow to the right side where character is */
+            }
+
+            /* Увеличенные кнопки */
+            .bubble-btn {
+                padding: 12px 20px;
+                min-height: 44px; /* Touch target size */
+            }
+
+            /* Скрытие при фокусе (класс добавляется через JS) */
+            .character-widget.mobile-hidden {
+                display: none !important;
+            }
         }
     </style>
     <style id="header-buttons-styles">
@@ -3105,6 +3165,22 @@ window.finishTour = function() {
         if (startTourBtn) {
             startTourBtn.addEventListener('click', startInteractiveTour);
         }
+
+        /* --- Mobile Input Overlap Logic --- */
+        const mobileInputs = document.querySelectorAll('input, textarea');
+        mobileInputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                if (window.innerWidth < 768) {
+                    document.getElementById('character-widget').classList.add('mobile-hidden');
+                }
+            });
+            input.addEventListener('blur', () => {
+                // Small delay to allow button clicks if focus was lost due to click
+                setTimeout(() => {
+                    document.getElementById('character-widget').classList.remove('mobile-hidden');
+                }, 200);
+            });
+        });
     });
 
     // Profile Functions
