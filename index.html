@@ -100,9 +100,16 @@
 /* --- ПЕРСОНАЖ 2: ТАТЬЯНА (Tatiana) --- */
 .character-sprite.tatiana {
     background-image: url('ts.png');
-    background-position: 0 0;
-    background-size: 832px 1248px; /* Strict pixel size to prevent bleeding */
-    height: 306px; /* Crop bottom to prevent bleeding from next row */
+    /*
+       Оптимизация спрайта:
+       Уменьшаем ширину области видимости до 200px (было 208px),
+       чтобы обрезать края и убрать артефакты соседних кадров.
+    */
+    width: 200px;
+    height: 312px;
+    background-size: 832px 1248px;
+    /* Сдвигаем позицию на -4px, чтобы центрировать обрезанный кадр */
+    background-position: -4px 0;
 }
 
 /* Облачко диалога */
@@ -200,10 +207,10 @@
 
 /* Подсветка активного элемента */
 .highlight-element {
-    position: relative;
-    z-index: 10005 !important;
-    background-color: white;
-    box-shadow: 0 0 0 5px var(--primary-color), 0 0 15px rgba(255,255,255,0.8);
+    position: relative; /* для корректного наложения z-index */
+    z-index: 10005 !important; /* поверх оверлея */
+    background-color: #ffffff !important; /* явно задать белый/контрастный фон */
+    box-shadow: 0 0 0 4px var(--primary-color), 0 0 20px rgba(255,255,255,0.8); /* яркая обводка + свечение */
     border-radius: 8px;
     pointer-events: none !important;
     transition: all 0.3s ease;
@@ -239,11 +246,16 @@
 .character-sprite.bayan.pose-peek { background-position: 0px 0px !important; }
 .character-sprite.bayan.pose-serious { background-position: -624px -624px !important; }
 
-/* Для Татьяны (ts.png) - СКОРРЕКТИРОВАННЫЕ КООРДИНАТЫ (Pixel-perfect) */
-.character-sprite.tatiana.pose-idle { background-position: 0px 0px !important; animation: sway 3s ease-in-out infinite; }
-.character-sprite.tatiana.pose-explain { background-position: -208px 0px !important; }
-.character-sprite.tatiana.pose-point { background-position: -416px 0px !important; }
-.character-sprite.tatiana.pose-wink { background-position: -624px 0px !important; }
+/* Для Татьяны (ts.png) - СКОРРЕКТИРОВАННЫЕ КООРДИНАТЫ С УЧЕТОМ CROPPING (200px width) */
+/* Исходный шаг сетки 208px. Мы показываем 200px. Сдвиг центра -4px. */
+/* Idle (col 1): 0px. Shifted: -4px */
+.character-sprite.tatiana.pose-idle { background-position: -4px 0px !important; animation: sway 3s ease-in-out infinite; }
+/* Explain (col 2): -208px. Shifted: -212px */
+.character-sprite.tatiana.pose-explain { background-position: -212px 0px !important; }
+/* Point (col 3): -416px. Shifted: -420px */
+.character-sprite.tatiana.pose-point { background-position: -420px 0px !important; }
+/* Wink (col 4): -624px. Shifted: -628px */
+.character-sprite.tatiana.pose-wink { background-position: -628px 0px !important; }
 
 @keyframes sway { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
 @keyframes breathe {
@@ -326,23 +338,23 @@
             overflow-x: auto;
         }
         .tab-btn {
-            flex: 1;
-            padding: 8px 20px;
+            flex: 1; /* делят ширину поровну */
+            padding: 12px 0; /* увеличена высота клика */
             border: none;
             background-color: transparent;
             cursor: pointer;
             font-size: 1em;
             color: var(--text-light-color);
-            border-radius: 20px; /* pill shape */
+            border-radius: 20px;
             transition: all 0.2s ease-in-out;
             font-weight: 600;
             margin: 0;
             white-space: nowrap;
             display: flex;
             align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
+            justify-content: center; /* центрирование текста */
             text-align: center;
+            flex-shrink: 0;
         }
         .tab-btn.active {
             color: white;
@@ -1598,10 +1610,10 @@ let tourActive = false;
             pose: "pose-point",
             type: "info"
         },
-        // STEP 5: Татьяна - Меню общее
+        // STEP 5: Татьяна - Меню общее (Вводное слово)
         {
              character: 'tatiana',
-             text: "Теперь о главном меню. Оно разделено на три удобные вкладки.",
+             text: "Теперь о главном меню. Оно разделено на три удобные вкладки. Давайте посмотрим каждую.",
              targetId: "main-menu-tabs",
              pose: "pose-explain",
              type: "info"
@@ -1609,7 +1621,7 @@ let tourActive = false;
         // STEP 6: Татьяна - Назначенные
         {
             character: 'tatiana',
-            text: "Первая — <b>«Назначенные»</b>.<br>Сюда попадают обязательные курсы от руководителя. Это ваш приоритет №1.",
+            text: "<b>«Назначенные»</b>. Сюда попадают обязательные курсы от руководителя. Это ваш приоритет №1.",
             targetId: "tab-assigned",
             pose: "pose-point",
             type: "info"
@@ -1617,7 +1629,7 @@ let tourActive = false;
         // STEP 7: Татьяна - Пройденные
         {
             character: 'tatiana',
-            text: "Вторая — <b>«Пройденные»</b>.<br>Здесь хранится архив завершенных курсов. Вы всегда можете вернуться к материалам, чтобы освежить знания.",
+            text: "<b>«Пройденные»</b>. Здесь хранится архив завершенных курсов. Вы всегда можете вернуться к материалам, чтобы освежить знания.",
             targetId: "tab-completed",
             pose: "pose-explain",
             type: "info"
@@ -1625,7 +1637,7 @@ let tourActive = false;
         // STEP 8: Татьяна - Каталог
         {
             character: 'tatiana',
-            text: "Третья — <b>«Каталог»</b>.<br>Это наша база знаний. Выбирайте дополнительные курсы для развития навыков самостоятельно.",
+            text: "<b>«Каталог»</b>. Это наша база знаний. Выбирайте дополнительные курсы для развития навыков самостоятельно.",
             targetId: "tab-catalog",
             pose: "pose-point",
             type: "info"
