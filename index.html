@@ -101,7 +101,7 @@
 .character-sprite.tatiana {
     background-image: url('ts.png');
     background-position: 0 0;
-    background-size: 400% 400%;
+    background-size: 832px 1248px; /* Strict pixel size to prevent bleeding */
 }
 
 /* Облачко диалога */
@@ -239,11 +239,11 @@
 .character-sprite.bayan.pose-peek { background-position: 0px 0px !important; }
 .character-sprite.bayan.pose-serious { background-position: -624px -624px !important; }
 
-/* Для Татьяны (ts.png) - СКОРРЕКТИРОВАННЫЕ КООРДИНАТЫ */
-.character-sprite.tatiana.pose-idle { background-position: 0% 0% !important; animation: sway 3s ease-in-out infinite; }
-.character-sprite.tatiana.pose-explain { background-position: 33.3333% 0% !important; }
-.character-sprite.tatiana.pose-point { background-position: 66.6667% 0% !important; }
-.character-sprite.tatiana.pose-wink { background-position: 100% 0% !important; }
+/* Для Татьяны (ts.png) - СКОРРЕКТИРОВАННЫЕ КООРДИНАТЫ (Pixel-perfect) */
+.character-sprite.tatiana.pose-idle { background-position: 0px 0px !important; animation: sway 3s ease-in-out infinite; }
+.character-sprite.tatiana.pose-explain { background-position: -208px 0px !important; }
+.character-sprite.tatiana.pose-point { background-position: -416px 0px !important; }
+.character-sprite.tatiana.pose-wink { background-position: -624px 0px !important; }
 
 @keyframes sway { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
 @keyframes breathe {
@@ -754,6 +754,148 @@
             z-index: 10;
         }
     </style>
+    <style id="mobile-optimization">
+        @media (max-width: 768px) {
+            /* 2.1. Адаптация основного контейнера */
+            .window {
+                width: 100vw;
+                min-height: 100dvh;
+                max-width: none;
+                border: none;
+                border-radius: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                box-shadow: none;
+            }
+            .container {
+                padding: 0; /* Remove container padding */
+            }
+            .window-header {
+                padding: 10px 15px;
+                margin-bottom: 10px;
+                flex-wrap: wrap; /* Prevent overlap */
+            }
+            .window-header h2 {
+                font-size: 1.4em; /* Smaller font */
+                margin-right: 10px;
+            }
+            .window-header .logo {
+                height: 35px; /* Smaller logo */
+            }
+            .header-icon-btn {
+                min-width: 50px; /* Smaller buttons */
+            }
+            .header-icon-btn span {
+                display: none; /* Hide text on mobile to save space */
+            }
+
+            .content-area {
+                padding: 0 15px;
+            }
+            .window-footer {
+                padding: 15px;
+            }
+
+            /* 3. Адаптация Меню */
+            #main-menu, .main-menu {
+                grid-template-columns: 1fr !important; /* 1 column forced */
+                gap: 15px;
+            }
+            .main-menu-columns {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .menu-item {
+                padding: 12px; /* Reduced padding */
+            }
+
+            /* Горизонтальный скролл табов */
+            #main-menu-tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+                scrollbar-width: none; /* Hide scrollbar Firefox */
+                padding-bottom: 5px; /* Space for touch */
+                display: flex;
+                gap: 10px;
+            }
+            .tab-btn {
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            #main-menu-tabs::-webkit-scrollbar {
+                display: none; /* Hide scrollbar Chrome/Safari */
+            }
+
+            /* 2.2. Адаптация виджета помощника (Mobile UX) */
+            /* Отключаем масштаб контейнера, чтобы использовать position: fixed для детей */
+            .character-container {
+                transform: none !important;
+                width: auto;
+                height: auto;
+            }
+
+            .character-widget {
+                right: 0;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 0; /* Чтобы не перекрывал клики */
+                overflow: visible;
+                z-index: 10010;
+            }
+
+            .character-sprite {
+                position: fixed;
+                bottom: 0;
+                right: -5px;
+                transform: scale(0.55); /* Scale down as requested */
+                transform-origin: bottom right;
+            }
+
+            /* Диалоговое облако (Bubble) - отвязано от головы */
+            .character-bubble {
+                position: fixed !important;
+                bottom: 10px !important; /* Very bottom */
+                left: 2% !important;
+                width: 96% !important;
+                max-width: none;
+                min-width: 0;
+                transform: none !important;
+                border-radius: 12px;
+                z-index: 20000 !important; /* Highest Z-Index (above character) */
+                right: auto;
+                padding: 10px 15px; /* Reduced padding */
+                font-size: 0.95rem; /* Smaller font */
+            }
+
+            /* Скрываем хвостик, так как облако внизу */
+            .character-bubble::after, .character-bubble::before {
+                display: none;
+            }
+
+            /* Увеличенные кнопки */
+            .bubble-btn {
+                padding: 16px 24px; /* Increased padding */
+                min-height: 52px; /* Increased touch target size */
+                font-size: 1.1rem; /* Slightly larger text */
+            }
+            .bubble-actions {
+                justify-content: space-between; /* Чтобы кнопки были шире */
+                gap: 10px;
+            }
+            .bubble-actions button {
+                flex: 1; /* Растягиваем кнопки */
+            }
+
+            /* Скрытие при фокусе (класс добавляется через JS) */
+            .character-widget.mobile-hidden {
+                display: none !important;
+            }
+        }
+    </style>
     <style id="course-materials-style">
         .course-materials-container h3 {
             font-size: 1.1em;
@@ -837,140 +979,6 @@
         }
         #logout-btn {
             order: 3;
-        }
-    </style>
-    <style id="mobile-optimization">
-        @media (max-width: 768px) {
-            /* 2.1. Адаптация основного контейнера */
-            .window {
-                width: 100vw;
-                min-height: 100dvh;
-                max-width: none;
-                border: none;
-                border-radius: 0;
-                padding: 0;
-                display: flex;
-                flex-direction: column;
-                box-shadow: none;
-            }
-            .container {
-                padding: 0; /* Remove container padding */
-            }
-            .window-header {
-                padding: 10px 15px;
-                margin-bottom: 10px;
-                flex-wrap: wrap; /* Prevent overlap */
-            }
-            .window-header h2 {
-                font-size: 1.4em; /* Smaller font */
-                margin-right: 10px;
-            }
-            .window-header .logo {
-                height: 35px; /* Smaller logo */
-            }
-            .header-icon-btn {
-                min-width: 50px; /* Smaller buttons */
-            }
-            .header-icon-btn span {
-                display: none; /* Hide text on mobile to save space */
-            }
-
-            .content-area {
-                padding: 0 15px;
-            }
-            .window-footer {
-                padding: 15px;
-            }
-
-            /* 3. Адаптация Меню */
-            #main-menu, .main-menu {
-                grid-template-columns: 1fr !important; /* 1 column forced */
-                gap: 15px;
-            }
-            .main-menu-columns {
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-            }
-            .menu-item {
-                padding: 12px; /* Reduced padding */
-            }
-
-            /* Горизонтальный скролл табов */
-            #main-menu-tabs {
-                overflow-x: auto;
-                white-space: nowrap;
-                -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
-                scrollbar-width: none; /* Hide scrollbar Firefox */
-                padding-bottom: 5px; /* Space for touch */
-            }
-            #main-menu-tabs::-webkit-scrollbar {
-                display: none; /* Hide scrollbar Chrome/Safari */
-            }
-
-            /* 2.2. Адаптация виджета помощника (Mobile UX) */
-            /* Отключаем масштаб контейнера, чтобы использовать position: fixed для детей */
-            .character-container {
-                transform: none !important;
-                width: auto;
-                height: auto;
-            }
-
-            .character-widget {
-                right: 0;
-                bottom: 0;
-                left: 0;
-                width: 100%;
-                height: 0; /* Чтобы не перекрывал клики */
-                overflow: visible;
-            }
-
-            .character-sprite {
-                position: fixed;
-                bottom: 0;
-                right: -10px; /* Slight offset */
-                transform: scale(0.6);
-                transform-origin: bottom right;
-            }
-
-            /* Диалоговое облако (Bubble) - отвязано от головы */
-            .character-bubble {
-                position: fixed !important;
-                bottom: 10px; /* As requested: very bottom */
-                left: 2.5%;
-                width: 95%;
-                max-width: none;
-                min-width: 0;
-                transform: none !important; /* Сброс скейла и перемещений */
-                border-radius: 12px;
-                z-index: 10020;
-                right: auto; /* Сброс */
-                padding: 15px;
-            }
-
-            /* Скрываем хвостик, так как облако внизу */
-            .character-bubble::after, .character-bubble::before {
-                display: none;
-            }
-
-            /* Увеличенные кнопки */
-            .bubble-btn {
-                padding: 16px 24px; /* Increased padding */
-                min-height: 52px; /* Increased touch target size */
-                font-size: 1.1rem; /* Slightly larger text */
-            }
-            .bubble-actions {
-                justify-content: space-between; /* Чтобы кнопки были шире */
-                gap: 10px;
-            }
-            .bubble-actions button {
-                flex: 1; /* Растягиваем кнопки */
-            }
-
-            /* Скрытие при фокусе (класс добавляется через JS) */
-            .character-widget.mobile-hidden {
-                display: none !important;
-            }
         }
     </style>
     <style id="header-buttons-styles">
@@ -3258,8 +3266,10 @@ window.finishTour = function() {
         /* --- Mobile Input Overlap Logic (Updated) --- */
         // Используем делегирование событий для поддержки динамических элементов
         // Fix: Hide character on mobile when input is focused to avoid keyboard overlap
+        // Verified: .mobile-hidden class has display: none !important;
         document.body.addEventListener('focusin', (e) => {
             if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && window.innerWidth < 768) {
+                console.log('Mobile keyboard logic active: hiding character');
                 const widget = document.getElementById('character-widget');
                 if (widget) widget.classList.add('mobile-hidden');
             }
