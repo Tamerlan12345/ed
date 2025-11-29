@@ -1,87 +1,117 @@
-
+from playwright.sync_api import sync_playwright
 import os
-import time
-import re
-from playwright.sync_api import sync_playwright, expect
 
-def verify_tour_interaction():
+def verify_tour():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
+        # Устанавливаем размер окна, достаточный для десктопа
+        context = browser.new_context(viewport={'width': 1280, 'height': 800})
         page = context.new_page()
 
-        try:
-            # 1. Login
-            page.goto("http://localhost:3002/index.html")
-            page.wait_for_selector("#auth-view", state="visible")
+        # 1. Открываем index.html
+        print("Opening index.html...")
+        # Get absolute path to index.html
+        cwd = os.getcwd()
+        page.goto(f"file://{cwd}/index.html")
 
-            page.fill("#user-email", "test1@cic.kz")
-            page.fill("#user-password", "123456")
-            page.click("#auth-button")
+        # 2. Инжектируем мок API и сессии, чтобы пропустить логин
+        print("Injecting mocks...")
+        page.evaluate("""
+            () => {
+                // Мокаем сессию
+                window.userData = { email: 'test1@cic.kz', token: 'mock-token' };
+                // Мокаем функцию fetchAuthenticated
+                window.fetchAuthenticated = async (url, options) => {
+                    console.log('Mock fetch called for:', url);
 
-            page.wait_for_selector("#app-view", state="visible", timeout=10000)
-            page.wait_for_selector("#main-menu", state="visible", timeout=10000)
+                    if (url.includes('getCourses')) {
+                        return [{
+                            id: 'group1',
+                            group_name: 'Обязательные курсы',
+                            courses: [{
+                                id: 'course1',
+                                title: 'Введение в страхование',
+                                description: 'Базовый курс',
+                                is_locked: false,
+                                progress: { percentage: 0 },
+                                user_status: 'assigned'
+                            }]
+                        }];
+                    }
+                    if (url.includes('getCourseContent')) {
+                         return {
+                             summary: [
+                                 { html_content: '<p>Слайд 1</p>', slide_title: 'Intro' },
+                                 { html_content: '<p>Слайд 2</p>', slide_title: 'Content' }
+                             ],
+                             questions: [],
+                             materials: []
+                         };
+                    }
+                    return {};
+                };
 
-            print("Logged in successfully.")
+                // Переключаем вью на app-view
+                document.getElementById('auth-view').classList.add('hidden');
+                document.getElementById('app-view').classList.remove('hidden');
 
-            # 2. Start tour
-            page.click("#start-tour-btn")
-            print("Started tour.")
+                // Скрываем лоадер
+                document.getElementById('content-loader').classList.add('hidden');
 
-            # 3. Wait for overlay
-            page.wait_for_selector("#onboarding-overlay", state="visible", timeout=5000)
+                // Инициализируем меню
+                if (window.showMainMenu) window.showMainMenu();
+            }
+        """)
 
-            # 4. Step 1 (Info) -> Click Next
-            page.wait_for_selector(".character-bubble.visible", timeout=5000)
-            page.get_by_role("button", name="Далее ➔").click()
-            print("Clicked Next on Step 1.")
+        # 3. Ждем появления кнопки "Как это работает?"
+        print("Waiting for tour button...")
+        page.wait_for_selector("#start-tour-btn")
 
-            # 5. Step 2 (Bell Interaction)
-            time.sleep(1)
-            page.wait_for_selector(".character-bubble.visible", timeout=5000)
+        # 4. Нажимаем на кнопку "Как это работает?"
+        print("Starting tour...")
+        page.click("#start-tour-btn")
 
-            bell = page.locator("#notifications-bell")
-            expect(bell).to_have_class(re.compile(r"highlight-element"))
+        # 5. Ждем появления персонажа и оверлея
+        print("Waiting for character...")
+        page.wait_for_selector("#character-widget")
+        page.wait_for_selector("#onboarding-overlay")
 
-            # Correctly target the app-view header
-            header = page.locator("#app-view .window-header")
-            expect(header).to_have_class(re.compile(r"z-index-fix-header"))
-            print("Header has z-index-fix-header class.")
+        # Ждем, пока анимация бега закончится (2 секунды) и появится пузырь
+        print("Waiting for running animation to finish...")
+        page.wait_for_timeout(2500)
 
-            # Take screenshot of the fixed state
-            page.screenshot(path="verification/tour_step_2_fixed.png")
+        page.wait_for_selector(".character-bubble.visible")
 
-            # 6. Verify Clickability
-            # This is the real test. If z-index is wrong, overlay intercepts click.
-            # We must ensure the click triggers the notification panel.
+        # Скриншот 1: Приветствие (Бейбит)
+        page.screenshot(path="verification/step1_welcome.png")
+        print("Screenshot 1 taken: Welcome")
 
-            # Force a click (simulate user action)
-            bell.click()
-            print("Clicked the bell.")
+        # 6. Кликаем "Далее", чтобы перейти к меню
+        print("Clicking Next...")
+        # Ищем кнопку "Далее" внутри пузыря
+        page.click(".bubble-actions button:has-text('Далее')")
 
-            # Verify that the notification panel opened OR the tour proceeded.
-            # The tour logic says: wait for click, then after 300ms nextStep().
-            # Next step is Profile button highlight.
+        page.wait_for_timeout(1000)
+        page.screenshot(path="verification/step2_menu.png")
+        print("Screenshot 2 taken: Menu Explanation")
 
-            time.sleep(1)
+        # 7. Переход к следующему шагу (Клик по карте)
+        # В сценарии Бейбит говорит "Давайте откроем первый курс" и сам кликает
+        print("Waiting for auto-click logic...")
+        page.click(".bubble-actions button:has-text('Далее')") # Переход к шагу 3 (авто-клик)
 
-            # Check if tour proceeded to Step 3 (Profile button highlighted)
-            profile_btn = page.locator("#profile-btn")
-            expect(profile_btn).to_have_class(re.compile(r"highlight-element"))
-            print("Tour proceeded to Step 3 (Profile). Interaction successful!")
+        # Ждем пока откроется курс (Presentation View)
+        page.wait_for_selector(".presentation-view-container")
 
-            # Check if header STILL has the fix class (Profile is also in header)
-            expect(header).to_have_class(re.compile(r"z-index-fix-header"))
-            print("Header still has z-index fix for Step 3.")
+        # Ждем пока появится Татьяна
+        print("Waiting for character switch...")
+        page.wait_for_timeout(2000) # Задержка из JS (waitFor + delay)
 
-            page.screenshot(path="verification/tour_success.png")
+        # Скриншот 3: Внутри курса (Татьяна)
+        page.screenshot(path="verification/step3_course_tatiana.png")
+        print("Screenshot 3 taken: Course View with Tatiana")
 
-        except Exception as e:
-            print(f"Error: {e}")
-            page.screenshot(path="verification/error_state_retry.png")
-            raise e
-        finally:
-            browser.close()
+        browser.close()
 
 if __name__ == "__main__":
-    verify_tour_interaction()
+    verify_tour()
