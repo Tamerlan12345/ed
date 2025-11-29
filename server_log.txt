@@ -8,3 +8,5 @@
 [33m[nodemon] watching extensions: js,mjs,cjs,json[39m
 [32m[nodemon] starting `node server/index.js`[39m
 Server is running and listening on port 3002
+::1 - - [29/Nov/2025:12:07:16 +0000] "GET /index.html HTTP/1.1" 200 174905 "-" "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
+::1 - - [29/Nov/2025:12:07:16 +0000] "GET /by.png HTTP/1.1" 200 181698 "http://localhost:3002/index.html" "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
