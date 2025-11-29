@@ -101,6 +101,7 @@
     background-image: url('ts.png');
     background-size: 832px 1248px; /* Fixed size for 4x4 grid calibration */
     background-position: 0 0;
+    background-repeat: no-repeat;
 }
 
 /* Облачко диалога */
@@ -836,14 +837,18 @@
         @media (max-width: 768px) {
             /* 2.1. Адаптация основного контейнера */
             .window {
-                width: 100vw;
-                height: 100dvh;
+                width: 100%;
+                height: 100%;
                 max-width: none;
                 border: none;
                 border-radius: 0;
                 padding: 0;
                 display: flex;
                 flex-direction: column;
+                box-shadow: none;
+            }
+            .container {
+                padding: 0; /* Remove container padding */
             }
             .window-header {
                 padding: 15px;
@@ -856,37 +861,61 @@
                 padding: 15px;
             }
 
-            /* 2.2. Адаптация виджета помощника */
+            /* 2.2. Адаптация виджета помощника (Mobile UX) */
+            /* Отключаем масштаб контейнера, чтобы использовать position: fixed для детей */
             .character-container {
-                transform: scale(0.5);
-                transform-origin: bottom right;
-                margin-right: -40px; /* Compensate for visual gap after scaling */
-                margin-bottom: -60px;
-            }
-            .character-widget {
-                right: 10px;
-                bottom: 10px;
+                transform: none !important;
+                width: auto;
+                height: auto;
             }
 
-            /* Резиновое облачко */
-            .character-bubble {
-                max-width: 90vw;
-                width: auto;
-                min-width: 200px;
-                left: 5vw;
-                right: auto;
-                bottom: 160px; /* Position above the scaled character */
-                transform-origin: bottom center;
+            .character-widget {
+                right: 0;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 0; /* Чтобы не перекрывал клики */
+                overflow: visible;
             }
-            /* Adjust arrow for bubble */
+
+            .character-sprite {
+                position: fixed;
+                bottom: 10px;
+                right: -20px;
+                transform: scale(0.6);
+                transform-origin: bottom right;
+            }
+
+            /* Диалоговое облако (Bubble) - отвязано от головы */
+            .character-bubble {
+                position: fixed !important;
+                bottom: 120px;
+                left: 5%;
+                width: 90%;
+                max-width: none;
+                min-width: 0;
+                transform: none !important; /* Сброс скейла и перемещений */
+                border-radius: 12px;
+                z-index: 10020;
+                right: auto; /* Сброс */
+            }
+
+            /* Скрываем хвостик, так как облако внизу */
             .character-bubble::after, .character-bubble::before {
-                right: 20px; /* Move arrow to the right side where character is */
+                display: none;
             }
 
             /* Увеличенные кнопки */
             .bubble-btn {
                 padding: 12px 20px;
                 min-height: 44px; /* Touch target size */
+                font-size: 1rem;
+            }
+            .bubble-actions {
+                justify-content: space-between; /* Чтобы кнопки были шире */
+            }
+            .bubble-actions button {
+                flex: 1; /* Растягиваем кнопки */
             }
 
             /* Скрытие при фокусе (класс добавляется через JS) */
@@ -1706,16 +1735,25 @@ window.finishTour = function() {
     };
 
     function setCharPose(poseClass, character = null) {
-        // Сброс всех классов
-        charSprite.className = 'character-sprite';
-        // Добавление класса персонажа (bayan по умолчанию)
+        // Сначала определяем текущего персонажа ДО сброса классов
+        let targetCharacter = 'bayan'; // По умолчанию
+
         if (character) {
-            charSprite.classList.add(character);
+            targetCharacter = character;
         } else {
             // Если персонаж не передан, пытаемся сохранить текущего
-            const isTatiana = charSprite.classList.contains('tatiana');
-            charSprite.classList.add(isTatiana ? 'tatiana' : 'bayan');
+            // Проверяем наличие класса ДО очистки
+            if (charSprite.classList.contains('tatiana')) {
+                targetCharacter = 'tatiana';
+            }
         }
+
+        // Сброс всех классов
+        charSprite.className = 'character-sprite';
+
+        // Применяем персонажа
+        charSprite.classList.add(targetCharacter);
+
         // Добавление позы
         charSprite.classList.add(poseClass);
     }
@@ -3166,20 +3204,25 @@ window.finishTour = function() {
             startTourBtn.addEventListener('click', startInteractiveTour);
         }
 
-        /* --- Mobile Input Overlap Logic --- */
-        const mobileInputs = document.querySelectorAll('input, textarea');
-        mobileInputs.forEach(input => {
-            input.addEventListener('focus', () => {
-                if (window.innerWidth < 768) {
-                    document.getElementById('character-widget').classList.add('mobile-hidden');
-                }
-            });
-            input.addEventListener('blur', () => {
+        /* --- Mobile Input Overlap Logic (Updated) --- */
+        // Используем делегирование событий для поддержки динамических элементов
+        document.body.addEventListener('focusin', (e) => {
+            if (e.target.matches('input, textarea') && window.innerWidth < 768) {
+                document.getElementById('character-widget').classList.add('mobile-hidden');
+            }
+        });
+
+        document.body.addEventListener('focusout', (e) => {
+             if (e.target.matches('input, textarea')) {
                 // Small delay to allow button clicks if focus was lost due to click
                 setTimeout(() => {
-                    document.getElementById('character-widget').classList.remove('mobile-hidden');
+                    // Проверяем, не перешел ли фокус на другой инпут
+                    const active = document.activeElement;
+                    if (!active || (!active.matches('input') && !active.matches('textarea'))) {
+                         document.getElementById('character-widget').classList.remove('mobile-hidden');
+                    }
                 }, 200);
-            });
+             }
         });
     });
 
