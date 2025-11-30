@@ -338,8 +338,8 @@
             overflow-x: auto;
         }
         .tab-btn {
-            flex: 1 1 0px; /* делят ширину поровну и фиксированно */
-            width: 0;
+            flex: 1 1 0px !important; /* делят ширину поровну и фиксированно */
+            width: 0 !important;
             min-width: 0;
             padding: 12px 0; /* увеличена высота клика */
             border: none;
@@ -1662,6 +1662,14 @@ let tourActive = false;
             waitFor: "btn-test-start",
             delay: 1000
         },
+        // STEP 10.5: Татьяна - Инструменты
+        {
+             character: 'tatiana',
+             text: "Слева находится <b>Панель Инструментов</b>.<br>Здесь вы найдете дополнительные функции для работы с курсом.",
+             targetId: "instruments-panel",
+             pose: "pose-point",
+             type: "info"
+        },
         // STEP 11: Татьяна - Кнопка Теста
         {
             character: 'tatiana',
@@ -2637,10 +2645,18 @@ window.finishTour = function() {
             productContent.innerHTML = '';
             const container = document.createElement('div');
             container.className = 'presentation-view-container';
+            // Fix stacking context issue for tour highlighting by removing transform/animation after load
+            container.addEventListener('animationend', () => {
+                container.style.animation = 'none';
+                container.style.opacity = '1';
+                container.style.transform = 'none';
+            });
+
             const leftSidebar = document.createElement('div');
             leftSidebar.className = 'presentation-view-left-sidebar';
             const instrumentsPanel = document.createElement('div');
             instrumentsPanel.className = 'sidebar-panel instruments-panel';
+            instrumentsPanel.id = 'instruments-panel'; // Added ID for Tour
             instrumentsPanel.innerHTML = '<h3>Инструменты</h3>';
             const testBtn = document.createElement('button');
             testBtn.innerHTML = '<i class="fa-solid fa-bullseye"></i> Начать тестирование';
