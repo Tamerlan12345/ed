@@ -335,21 +335,21 @@
             gap: 8px;
             margin-bottom: 20px;
             border-bottom: none !important;
-            overflow-x: auto;
+            overflow-x: hidden; /* Prevent scrolling scrollbar */
         }
         .tab-btn {
             flex: 1 1 0px !important; /* делят ширину поровну и фиксированно */
             width: 0 !important;
-            min-width: 0;
+            min-width: 0 !important;
             padding: 12px 0; /* увеличена высота клика */
-            border: none;
+            border: none !important;
             background-color: transparent;
             cursor: pointer;
             font-size: 1em;
             color: var(--text-light-color);
             border-radius: 20px;
             transition: all 0.2s ease-in-out;
-            font-weight: 600;
+            font-weight: 600 !important; /* Fix font-weight */
             margin: 0;
             white-space: normal;
             display: flex;
@@ -361,6 +361,7 @@
             color: white;
             background-color: var(--primary-color);
             box-shadow: 0 2px 8px rgba(0, 90, 166, 0.2);
+            font-weight: 600 !important; /* Ensure no change */
         }
         .tab-btn:not(.active):hover {
            background-color: #e9ecef;
