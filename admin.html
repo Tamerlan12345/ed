@@ -1092,6 +1092,8 @@
         if (autosaveTimer) clearTimeout(autosaveTimer);
         document.getElementById('course-form-wrapper').innerHTML = '';
         currentEditingCourseId = null;
+        // Scroll back to top of the courses view
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function handleAutosave() {

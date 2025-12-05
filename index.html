@@ -722,6 +722,32 @@
         });
     </script>
     <style id="layout-override">
+        /* Выделяющиеся кнопки Назад */
+        #back-to-course-btn-sidebar,
+        #simulator-back-btn,
+        #back-to-presentation-from-test {
+            background-color: #f8f9fa;
+            color: var(--primary-color);
+            border: 2px solid var(--border-color);
+            font-weight: bold;
+            transition: all 0.2s;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #back-to-course-btn-sidebar:hover,
+        #simulator-back-btn:hover,
+        #back-to-presentation-from-test:hover {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            transform: translateX(-3px); /* Анимация движения влево */
+        }
+
         /* --- Jules's Card & Layout Styles --- */
         .search-container {
             position: relative;
@@ -2335,8 +2361,24 @@ window.finishTour = function() {
     }
 
     async function showMainMenu() {
+        // 1. Сброс режимов
         appView.classList.remove('presentation-mode-active');
         stopTimeTracking();
+
+        // 2. Скрытие ВСЕХ возможных экранов (Heavy cleanup)
+        const viewsToHide = [
+            productContent,
+            testView,
+            testResultsView,
+            simulatorView,
+            profileView,
+            document.getElementById('admin-controls')
+        ];
+        viewsToHide.forEach(el => {
+            if(el) el.classList.add('hidden');
+        });
+
+        // 3. Показ элементов меню
         windowTitle.textContent = 'Главное Меню';
         backButtonAction = null;
 
@@ -2347,11 +2389,6 @@ window.finishTour = function() {
             windowEl.insertBefore(tabsEl, contentAreaEl);
         }
 
-        if (productContent) productContent.classList.add('hidden');
-        if (testView) testView.classList.add('hidden');
-        if (testResultsView) testResultsView.classList.add('hidden');
-        if (simulatorView) simulatorView.classList.add('hidden');
-        if (profileView) profileView.classList.add('hidden'); // Hide profile view
         if (backToMenuBtn) backToMenuBtn.classList.add('hidden');
 
         const leaderboardContainer = document.getElementById('leaderboard-container');
@@ -2671,6 +2708,21 @@ window.finishTour = function() {
     async function showPresentationView(courseId, forceRegenerate = false) {
         stopTimeTracking(); // Stop any previous timer
 
+        // Cleanup views immediately
+        if (mainMenu) mainMenu.classList.add('hidden');
+        if (profileView) profileView.classList.add('hidden');
+        if (testView) testView.classList.add('hidden');
+        if (testResultsView) testResultsView.classList.add('hidden');
+        if (simulatorView) simulatorView.classList.add('hidden');
+        const tabs = document.getElementById('main-menu-tabs');
+        if (tabs) tabs.classList.add('hidden');
+        const lb = document.getElementById('leaderboard-container');
+        if (lb) lb.classList.add('hidden');
+        const tools = document.getElementById('extra-tools');
+        if (tools) tools.classList.add('hidden');
+        if (backToMenuBtn) backToMenuBtn.classList.remove('hidden');
+        backButtonAction = showMainMenu;
+
         // Ensure courses are loaded before finding currentCourse
         if (!courses || courses.length === 0) {
              try {
@@ -2777,11 +2829,15 @@ window.finishTour = function() {
             // Кнопка "Назад" перенесена наверх
             const backBtnSidebar = document.createElement('button');
             backBtnSidebar.id = 'back-to-course-btn-sidebar';
-            backBtnSidebar.textContent = '‹ Назад в меню';
+            backBtnSidebar.innerHTML = '<i class="fa-solid fa-chevron-left"></i> Меню'; // Добавил иконку
+            backBtnSidebar.className = 'btn-secondary'; // Лучше добавить класс для стиля
             backBtnSidebar.style.marginBottom = '15px';
             backBtnSidebar.style.marginTop = '0'; // Сброс авто-отступа
-            backBtnSidebar.onclick = showMainMenu;
-            leftSidebar.appendChild(backBtnSidebar);
+            backBtnSidebar.onclick = () => {
+                stopTimeTracking(); // Важно остановить счетчик времени
+                showMainMenu();
+            };
+            leftSidebar.appendChild(backBtnSidebar); // Убедись, что это добавляется первым в leftSidebar
 
             instrumentsPanel.appendChild(testBtn);
             instrumentsPanel.appendChild(simBtn);
@@ -3448,15 +3504,22 @@ window.finishTour = function() {
         // Кнопка "Назад" внутри теста
         document.getElementById('back-to-presentation-from-test').addEventListener('click', async () => {
             if (confirm("Вы уверены, что хотите прервать тест? Текущий прогресс будет потерян.")) {
-                stopTimeTracking(); // Остановить таймеры если есть
+                // 1. Останавливаем таймеры
+                stopTimeTracking();
                 if (questionTimerInterval) clearInterval(questionTimerInterval);
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-                // Принудительная зачистка UI
+                // 2. Скрываем тест
                 testView.classList.add('hidden');
 
-                // Return to main menu as requested
-                showMainMenu();
+                // 3. Логика возврата
+                if (currentCourse && currentCourse.id) {
+                    // Если есть активный курс, возвращаемся в него
+                    showPresentationView(currentCourse.id);
+                } else {
+                    // Иначе в главное меню
+                    showMainMenu();
+                }
             }
         });
 
@@ -3725,46 +3788,53 @@ window.finishTour = function() {
     }
 
     let currentScenario = '';
-    // Замените старую функцию showSimulatorView на эту:
-    function showSimulatorView(fromCourseId = null) {
+    // Глобальная переменная для хранения, откуда пришли
+    let returnLocation = 'menu'; // 'menu' или 'course'
+
+    // Обновленная функция открытия
+    function showSimulatorView(courseId = null) {
         stopTimeTracking();
         windowTitle.textContent = 'Диалоговый тренажер';
 
-        // Скрываем все лишнее
+        // Определяем, откуда пришли
+        if (courseId && typeof courseId === 'string') {
+            returnLocation = 'course';
+            // Если currentCourse не установлен (например, прямая ссылка), ищем его
+            if (!currentCourse || currentCourse.id !== courseId) {
+                const group = courses.find(g => g.courses.some(c => c.id === courseId));
+                if (group) currentCourse = group.courses.find(c => c.id === courseId);
+            }
+        } else {
+            returnLocation = 'menu';
+        }
+
+        // Скрытие остальных view
         document.getElementById('main-content-wrapper').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
         productContent.classList.add('hidden');
         if (profileView) profileView.classList.add('hidden');
-        if (testView) testView.classList.add('hidden'); // Важно скрыть тест, если он был открыт
+        if (testView) testView.classList.add('hidden');
 
+        // Показ симулятора
         simulatorView.classList.remove('hidden');
 
-        // ЗАДАЧА 2: Скрываем глобальную кнопку "Назад"
-        if (backToMenuBtn) backToMenuBtn.classList.add('hidden');
-
-        // Настройка локальной кнопки "Назад"
+        // Настройка кнопки НАЗАД внутри симулятора
         const simBackBtn = document.getElementById('simulator-back-btn');
         if (simBackBtn) {
-            // Remove old listener to prevent duplicates or stale closures
+            // Удаляем старые слушатели (клон ноды - самый быстрый способ сбросить event listeners)
             const newBtn = simBackBtn.cloneNode(true);
             simBackBtn.parentNode.replaceChild(newBtn, simBackBtn);
 
             newBtn.onclick = () => {
-                // Если пришли из курса (передан ID) - возвращаемся в курс
-                if (fromCourseId && typeof fromCourseId === 'string') {
-                     // Восстанавливаем currentCourse если он потерялся
-                    if (!currentCourse || currentCourse.id !== fromCourseId) {
-                        const group = courses.find(g => g.courses.some(c => c.id === fromCourseId));
-                        if (group) currentCourse = group.courses.find(c => c.id === fromCourseId);
-                    }
-                    showPresentationView(fromCourseId);
+                if (returnLocation === 'course' && currentCourse) {
+                    showPresentationView(currentCourse.id);
                 } else {
-                    // Если пришли из главного меню
                     showMainMenu();
                 }
             };
         }
 
+        // Сброс состояния чата
         simulatorSetup.classList.remove('hidden');
         simulatorChatArea.classList.add('hidden');
         simulatorEvaluationArea.classList.add('hidden');
@@ -3772,8 +3842,9 @@ window.finishTour = function() {
         simulationHistory = [];
         currentScenario = '';
     }
-    launchSimulatorBtn.addEventListener('click', showSimulatorView);
-    restartSimulationBtn.addEventListener('click', showSimulatorView);
+
+    launchSimulatorBtn.addEventListener('click', () => showSimulatorView(null));
+    restartSimulationBtn.addEventListener('click', () => showSimulatorView(currentCourse ? currentCourse.id : null));
     function appendSimulatorMessage(text, role, isThinking = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `chat-message ${role}-message`;
