@@ -26,6 +26,30 @@ const shuffleArray = (array) => {
     return array;
 };
 
+// Helper: Shuffle Options within a Question
+// FIX: Добавлена функция для перемешивания вариантов ответа
+const shuffleQuestionOptions = (question) => {
+    if (!question.options || !Array.isArray(question.options) || question.options.length < 2) {
+        return question;
+    }
+
+    // 1. Запоминаем правильный ответ
+    const correctAnswerText = question.options[question.correct_option_index];
+
+    // 2. Создаем копию вариантов и перемешиваем их
+    const shuffledOptions = shuffleArray([...question.options]);
+
+    // 3. Находим новый индекс правильного ответа
+    const newCorrectIndex = shuffledOptions.indexOf(correctAnswerText);
+
+    // 4. Возвращаем обновленный объект вопроса
+    return {
+        ...question,
+        options: shuffledOptions,
+        correct_option_index: newCorrectIndex
+    };
+};
+
 // POST /api/getUserProfileData
 const getUserProfileData = async (req, res) => {
     const supabase = req.supabase;
@@ -176,8 +200,14 @@ const getCourseContent = async (req, res) => {
         }
 
         const originalQuestions = parsedContent.questions || [];
+
+        // FIX: Сначала перемешиваем сами вопросы
         const shuffledQuestions = shuffleArray([...originalQuestions]);
-        const finalQuestions = shuffledQuestions.slice(0, 15);
+
+        // FIX: Затем берем срез (например, 15 вопросов) и перемешиваем ВАРИАНТЫ ответов внутри каждого
+        const finalQuestions = shuffledQuestions
+            .slice(0, 15)
+            .map(q => shuffleQuestionOptions(q));
 
         res.status(200).json({
             summary: (parsedContent.summary && parsedContent.summary.slides) ? parsedContent.summary.slides : [],

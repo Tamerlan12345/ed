@@ -233,5 +233,36 @@ describe('API Endpoints', () => {
             expect(response.body.questions).to.be.an('array');
             expect(response.body.questions).to.have.lengthOf(0);
         });
+
+        it('should shuffle options and update correct_option_index', async () => {
+            const mockQuestions = [{
+                question: 'Question 1',
+                options: ['A', 'B', 'C', 'D'],
+                correct_option_index: 0
+            }];
+            const fakeCourse = {
+                id: 'course-test-shuffle',
+                content: {
+                    summary: { slides: [] },
+                    questions: mockQuestions,
+                },
+                course_materials: [],
+            };
+            supabaseStub.single.resolves({ data: fakeCourse, error: null });
+
+            // Run multiple times to ensure randomness affects the output
+            // (Note: With small arrays, it's possible random shuffle returns original order, so we can't assert strict inequality every time, but we can check correctness)
+            const response = await request(app)
+                .post('/api/getCourseContent')
+                .set('Authorization', 'Bearer mock-user-token')
+                .send({ course_id: 'course-test-shuffle' });
+
+            expect(response.status).to.equal(200);
+            const q = response.body.questions[0];
+            const correctText = q.options[q.correct_option_index];
+            expect(correctText).to.equal('A');
+            // Check that we have the same options, just maybe different order
+            expect(q.options).to.have.members(['A', 'B', 'C', 'D']);
+        });
     });
 });
