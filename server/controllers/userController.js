@@ -4,7 +4,7 @@ const axios = require('axios');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemma-2-27b-it' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // --- Simulation Scenarios ---
 const simulationScenarios = [
