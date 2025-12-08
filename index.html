@@ -1255,6 +1255,16 @@
             color: #777;
         }
     </style>
+    <style>
+        #app-view .window-header .logo {
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        #app-view .window-header .logo:hover {
+            opacity: 0.9;
+            transform: scale(0.98);
+        }
+    </style>
 </head>
 <body>
     <div id="onboarding-overlay"></div>
@@ -3306,6 +3316,26 @@ window.finishTour = function() {
             if (typeof backButtonAction === 'function') backButtonAction();
         });
         backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
+
+        // Клик по логотипу для возврата в меню
+        const appLogo = document.querySelector('#app-view .window-header .logo');
+        if (appLogo) {
+            appLogo.addEventListener('click', () => {
+                // Если мы в тесте - требуем подтверждения
+                if (!testView.classList.contains('hidden')) {
+                    if (confirm("Вы уверены, что хотите прервать тест? Текущий прогресс будет потерян.")) {
+                        stopTimeTracking();
+                        if (questionTimerInterval) clearInterval(questionTimerInterval);
+                        document.removeEventListener('visibilitychange', handleVisibilityChange);
+                        testView.classList.add('hidden');
+                        showMainMenu();
+                    }
+                } else {
+                    // Обычная навигация
+                    showMainMenu();
+                }
+            });
+        }
 
         // Кнопка "Назад" внутри теста
         document.getElementById('back-to-presentation-from-test').addEventListener('click', async () => {
