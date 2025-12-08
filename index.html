@@ -1432,7 +1432,7 @@
                     <div id="answers" class="answers"></div>
                     <button id="next-question-btn" class="hidden">Следующий вопрос</button>
                 </div>
-                <div id="test-results" class="hidden" style="text-align: center;">
+                <div id="test-results" class="hidden" style="text-align: center; position: relative; z-index: 10020;">
                     <div style="font-size: 4em; color: var(--success-color);"><i class="fa-solid fa-trophy"></i></div>
                     <h2>Результаты тестирования</h2>
                     <p>Курс: <b id="results-product-name"></b></p>
@@ -1448,8 +1448,9 @@
                         </div>
                     </div>
                     <p id="results-feedback" style="font-style: italic;"></p>
-                    <div id="results-buttons" style="margin-top: 25px; display: flex; justify-content: center; gap: 15px;">
+                    <div id="results-buttons" style="margin-top: 25px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; position: relative; z-index: 20000;">
                         <button id="back-to-menu-from-results" class="btn">Вернуться в меню</button>
+                        <button id="exit-test-final-btn" class="btn" style="background-color: var(--primary-color); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">Завершить и выйти</button>
                         <button id="retry-test-btn" class="btn hidden" style="background-color: transparent; border: 1px solid var(--primary-color); color: var(--primary-color);">Пройти заново</button>
                     </div>
                 </div>
@@ -1709,6 +1710,26 @@ let tourActive = false;
         }
     ];
 
+    function resetCharacterState() {
+        // Удаляем классы анимаций
+        charWidget.classList.remove('running-start', 'entered');
+
+        // Сбрасываем инлайн-стили
+        charWidget.style.left = '';
+        charWidget.style.right = '';
+        charWidget.style.transform = '';
+        charWidget.style.opacity = '';
+
+        // Устанавливаем дефолтную позицию (через удаление инлайнов вернется к CSS)
+        // CSS: bottom: 20px, right: 20px
+
+        // Сбрасываем позу
+        setCharPose('pose-idle');
+
+        // Сбрасываем pointer-events (если нужно, но CSS управляет этим)
+        // charWidget.style.pointerEvents = '';
+    }
+
     function startInteractiveTour() {
         tourActive = true;
         currentStepIndex = 0;
@@ -1720,15 +1741,33 @@ let tourActive = false;
         setCharPose('pose-walk', 'bayan');
         charWidget.classList.add('running-start');
 
-        setTimeout(() => {
+        // Надежный механизм завершения анимации
+        let animationFinished = false;
+
+        const onAnimationEnd = () => {
+            if (animationFinished) return;
+            animationFinished = true;
+
             charWidget.classList.remove('running-start');
             charWidget.style.left = 'auto';
             charWidget.style.right = '20px';
             setCharPose('pose-idle', 'bayan');
+
             onboardingOverlay.style.display = 'block';
             setTimeout(() => onboardingOverlay.classList.add('visible'), 10);
             renderStep();
-        }, 2000);
+        };
+
+        // Слушатель события
+        charWidget.addEventListener('animationend', onAnimationEnd, { once: true });
+
+        // Страховочный таймер (Failsafe)
+        setTimeout(() => {
+            if (!animationFinished) {
+                console.warn('Animation end event missed, forcing tour start.');
+                onAnimationEnd();
+            }
+        }, 2500); // 2000ms duration + 500ms buffer
     }
 
     async function renderStep() {
@@ -1852,8 +1891,7 @@ window.finishTour = function() {
         el.classList.remove('z-index-fix-header');
     });
 
-    // Сброс позы
-    setCharPose('pose-idle');
+    resetCharacterState(); // Полный сброс состояния персонажа
     resetIdleTimer(); // Запускаем обычный таймер бездействия (если персонаж вернется)
 };
 
@@ -2995,22 +3033,51 @@ window.finishTour = function() {
     let currentQuestions = [], currentQuestionIndex = 0, score = 0, tabSwitchCount = 0;
     let questionTimerInterval = null;
     let timeLeft = 60;
+    let isTestActive = false;
     const MAX_ATTEMPTS = 3;
     const MAX_TAB_SWITCHES = 2;
 
-    const handleVisibilityChange = () => {
-        if (document.hidden) {
-            tabSwitchCount++;
-            if (tabSwitchCount === 1) {
-                showToast('Внимание! Вы переключились на другую вкладку. При повторном переключении тест будет завершен с результатом 0.', 'info');
-            } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
-                showToast('Вы превысили лимит переключений. Тест завершен с нулевым результатом.', 'error');
-                score = 0;
-                if (questionTimerInterval) clearInterval(questionTimerInterval);
-                showTestResultsView();
-            }
+    const handleCheatAttempt = () => {
+        if (!isTestActive) return;
+
+        // Если это blur (потеря фокуса окна), то считаем нарушением.
+        // Чтобы избежать ложных срабатываний (например, клики внутри документа),
+        // полагаемся на то, что blur на window срабатывает при переключении на другое окно/приложение.
+        // А document.hidden - при переключении вкладки/сворачивании.
+
+        // Важно: клик внутри iframe (если таковой появится в тесте) может вызвать blur.
+        // Но сейчас тест на чистом HTML.
+
+        tabSwitchCount++;
+
+        let reason = "Фокус потерян";
+        if (document.hidden) reason = "Переключение вкладки";
+        else reason = "Переключение окна (или клик вне браузера)";
+
+        if (tabSwitchCount === 1) {
+            showToast(`Внимание! ${reason}. При повторном нарушении тест будет завершен.`, 'info');
+        } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
+            showToast('Вы превысили лимит переключений/потери фокуса. Тест завершен с нулевым результатом.', 'error');
+            score = 0;
+            if (questionTimerInterval) clearInterval(questionTimerInterval);
+            showTestResultsView();
         }
     };
+
+    function closeTestSession() {
+        isTestActive = false;
+        if (questionTimerInterval) clearInterval(questionTimerInterval);
+        stopTimeTracking();
+
+        window.removeEventListener('blur', handleCheatAttempt);
+        document.removeEventListener('visibilitychange', handleCheatAttempt);
+
+        currentQuestions = [];
+        score = 0;
+        tabSwitchCount = 0;
+
+        showMainMenu();
+    }
 
     async function startTest(courseId) {
         stopTimeTracking();
@@ -3021,7 +3088,7 @@ window.finishTour = function() {
             "Правила:\n" +
             "1. На каждый вопрос дается ровно 60 секунд.\n" +
             "2. Если время выйдет, вопрос будет засчитан как неверный.\n" +
-            "3. Переключаться между вкладками нельзя (лимит: 2 раза).\n" +
+            "3. Запрещено переключаться на другие вкладки или окна (лимит: 2 раза).\n" +
             "4. У вас ограниченное количество попыток.\n\n" +
             "Нажмите 'ОК', чтобы начать."
         );
@@ -3081,8 +3148,11 @@ window.finishTour = function() {
         currentQuestionIndex = 0;
         score = 0;
         tabSwitchCount = 0;
+        isTestActive = true;
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
+        document.addEventListener('visibilitychange', handleCheatAttempt);
+        window.addEventListener('blur', handleCheatAttempt);
+
         document.getElementById('main-content-wrapper').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
         productContent.classList.add('hidden');
@@ -3191,7 +3261,10 @@ window.finishTour = function() {
         nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); };
     }
     async function showTestResultsView() {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        isTestActive = false;
+        window.removeEventListener('blur', handleCheatAttempt);
+        document.removeEventListener('visibilitychange', handleCheatAttempt);
+
         testView.classList.add('hidden');
 
         const resultsView = document.getElementById('test-results');
@@ -3315,7 +3388,11 @@ window.finishTour = function() {
         backToMenuBtn.addEventListener('click', () => {
             if (typeof backButtonAction === 'function') backButtonAction();
         });
-        backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
+        backToMenuFromResultsBtn.addEventListener('click', closeTestSession);
+        const exitTestFinalBtn = document.getElementById('exit-test-final-btn');
+        if (exitTestFinalBtn) {
+            exitTestFinalBtn.addEventListener('click', closeTestSession);
+        }
 
         // Клик по логотипу для возврата в меню
         const appLogo = document.querySelector('#app-view .window-header .logo');
@@ -3324,11 +3401,7 @@ window.finishTour = function() {
                 // Если мы в тесте - требуем подтверждения
                 if (!testView.classList.contains('hidden')) {
                     if (confirm("Вы уверены, что хотите прервать тест? Текущий прогресс будет потерян.")) {
-                        stopTimeTracking();
-                        if (questionTimerInterval) clearInterval(questionTimerInterval);
-                        document.removeEventListener('visibilitychange', handleVisibilityChange);
-                        testView.classList.add('hidden');
-                        showMainMenu();
+                        closeTestSession();
                     }
                 } else {
                     // Обычная навигация
@@ -3340,14 +3413,7 @@ window.finishTour = function() {
         // Кнопка "Назад" внутри теста
         document.getElementById('back-to-presentation-from-test').addEventListener('click', async () => {
             if (confirm("Вы уверены, что хотите прервать тест? Текущий прогресс будет потерян.")) {
-                stopTimeTracking(); // Остановить таймеры если есть
-                if (questionTimerInterval) clearInterval(questionTimerInterval);
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-
-                // Принудительная зачистка UI
-                testView.classList.add('hidden');
-
-                showMainMenu();
+                closeTestSession();
             }
         });
 
