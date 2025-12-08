@@ -344,8 +344,8 @@
             overflow-x: hidden; /* Prevent scrolling scrollbar */
         }
         .tab-btn {
-            flex: 1;      /* Строгое деление */
-            width: auto;
+            flex: 1 1 0px; /* Было flex: 1, лучше уточнить */
+            width: 0;      /* Это заставляет flex игнорировать ширину текста и делить контейнер строго математически */
             min-width: 0 !important;
             padding: 12px 0; /* увеличена высота клика */
             border: none !important;
@@ -983,44 +983,15 @@
         }
         #leaderboard-content {
             font-size: 0.8em;
-            max-height: 100px; /* Increased height for table */
+            max-height: 50px; /* Adjust as needed */
             overflow-y: auto;
         }
-        /* Leaderboard Table Styles */
-        .leaderboard-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9em;
+        #leaderboard-content ol {
+            padding-left: 20px;
+            margin: 0;
         }
-        .leaderboard-table th {
-            border-bottom: 1px solid #eee;
-            text-align: left;
-            color: var(--text-light-color);
-            padding: 4px;
-            position: sticky;
-            top: 0;
-            background: var(--surface-color);
-        }
-        .leaderboard-table td {
-            padding: 4px;
-            vertical-align: middle;
-        }
-        .leaderboard-table tr {
-            border-bottom: 1px solid #f9f9f9;
-        }
-        .leaderboard-rank-1 {
-            background-color: rgba(255, 215, 0, 0.1);
-            font-weight: bold;
-        }
-        .leaderboard-user-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 120px;
-        }
-        .leaderboard-user-dept {
-            font-size: 0.85em;
-            color: #999;
+        #leaderboard-content li {
+            margin-bottom: 2px;
         }
         .header-controls {
             margin-left: auto; /* Push to the far right */
@@ -1334,7 +1305,7 @@
                         <div id="notifications-list" style="max-height: 300px; overflow-y: auto;"></div>
                     </div>
                 </div>
-                 <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo" onclick="showMainMenu()" style="cursor: pointer;">
+                 <img src="https://centras.kz/wp-content/uploads/2023/12/centras-insurance-col.png" alt="Logo" class="logo">
                 <div id="leaderboard-container">
                     <h3><i class="fa-solid fa-trophy"></i> Топ Учеников Недели</h3>
                     <div id="leaderboard-content"></div>
@@ -1526,7 +1497,6 @@
     }
     const userData = { email: '', token: null };
     let courses = [];
-    let catalogCourses = null; // Cache for catalog
     let currentCourse = null;
     let userProgress = {};
     let simulationHistory = [];
@@ -1811,19 +1781,11 @@ let tourActive = false;
         // Логика ожидания элемента (waitFor)
         if (step.waitFor) {
             let attempts = 0;
-            const maxAttempts = 10; // 5 секунд (10 * 500ms)
             const checkInterval = setInterval(() => {
                 attempts++;
                 const el = document.getElementById(step.waitFor);
-
-                if (el) {
+                if (el || attempts > 20) { // Ждем максимум 10 секунд
                     clearInterval(checkInterval);
-                    setTimeout(showBubbleContent, step.delay || 0);
-                } else if (attempts >= maxAttempts) {
-                    // Timeout
-                    console.warn(`Tour wait timeout for element: ${step.waitFor}`);
-                    clearInterval(checkInterval);
-                    // Пропускаем ожидание и показываем шаг (или можно пропускать весь шаг)
                     setTimeout(showBubbleContent, step.delay || 0);
                 }
             }, 500);
@@ -1908,6 +1870,7 @@ window.finishTour = function() {
             targetCharacter = character;
         } else {
             // Если персонаж не передан, пытаемся сохранить текущего
+            // Fix: Check explicitly for both characters to be robust
             if (charSprite.classList.contains('tatiana')) {
                 targetCharacter = 'tatiana';
             } else if (charSprite.classList.contains('bayan')) {
@@ -1915,11 +1878,8 @@ window.finishTour = function() {
             }
         }
 
-        // Очищаем классы, но сохраняем базовый
+        // Сброс всех классов
         charSprite.className = 'character-sprite';
-
-        // Удаляем все модификаторы персонажей и поз (на всякий случай)
-        charSprite.classList.remove('bayan', 'tatiana', 'pose-idle', 'pose-explain', 'pose-point', 'pose-wink', 'pose-serious', 'pose-walk', 'pose-back', 'pose-peek');
 
         // Применяем персонажа
         charSprite.classList.add(targetCharacter);
@@ -2016,8 +1976,6 @@ window.finishTour = function() {
 
     function resetIdleTimer() {
         if (!characterEnabled) return;
-        if (tourActive) return; // Disable idle timer during tour
-
         clearTimeout(charIdleTimer);
 
         // Don't reset if hidden
@@ -2036,7 +1994,7 @@ window.finishTour = function() {
         }
 
         charIdleTimer = setTimeout(() => {
-            if (charWidget.classList.contains('hidden') || !characterEnabled || tourActive) return;
+            if (charWidget.classList.contains('hidden') || !characterEnabled) return;
             // Trigger "Worry" state
             setCharPose('pose-peek'); // Use peek/side view for worry
             showBubble(getRandomPhrase('worry'));
@@ -2278,52 +2236,14 @@ window.finishTour = function() {
         try {
             const leaderboardData = await fetchAuthenticated('/api/get-leaderboard', { method: 'POST' });
             if (!leaderboardData || leaderboardData.length === 0) {
-                leaderboardContent.innerHTML = '<p style="font-size:0.8em; text-align:center;">На этой неделе пока нет лидеров.</p>';
+                leaderboardContent.innerHTML = '<p>На этой неделе пока нет лидеров. Станьте первым!</p>';
                 return;
             }
-
-            let html = `
-                <table class="leaderboard-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 30px; text-align: center;">#</th>
-                            <th>Имя</th>
-                            <th style="text-align:center;">Курсы</th>
-                            <th style="text-align:right;">Баллы</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            leaderboardData.slice(0, 5).forEach((user, index) => {
-                let rankDisplay = index + 1;
-                let rowClass = '';
-
-                if (index === 0) {
-                    rankDisplay = '<i class="fa-solid fa-medal" style="color: gold;"></i>';
-                    rowClass = 'leaderboard-rank-1';
-                } else if (index === 1) {
-                    rankDisplay = '<i class="fa-solid fa-medal" style="color: silver;"></i>';
-                } else if (index === 2) {
-                    rankDisplay = '<i class="fa-solid fa-medal" style="color: #cd7f32;"></i>'; // bronze
-                }
-
-                html += `
-                    <tr class="${rowClass}">
-                        <td style="text-align: center;">${rankDisplay}</td>
-                        <td>
-                            <div class="leaderboard-user-name" title="${user.full_name || 'Аноним'}">
-                                ${user.full_name || 'Аноним'}
-                            </div>
-                            ${user.department ? `<div class="leaderboard-user-dept">${truncateText(user.department, 15)}</div>` : ''}
-                        </td>
-                        <td style="text-align: center;">${user.courses_completed || 0}</td>
-                        <td style="text-align: right;">${user.total_score || 0}</td>
-                    </tr>
-                `;
+            let html = '<ol>';
+            leaderboardData.forEach(user => {
+                html += `<li><strong>${user.full_name || 'Аноним'}</strong>: Завершено курсов: ${user.courses_completed || 0}, Время обучения: ${user.total_time_spent_minutes || 0} мин.</li>`;
             });
-
-            html += '</tbody></table>';
+            html += '</ol>';
             leaderboardContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load leaderboard:', error);
@@ -2588,96 +2508,84 @@ window.finishTour = function() {
     async function renderCatalog(searchTerm = '') {
         mainMenu.innerHTML = '';
         mainMenu.style.display = 'block';
+        mainMenu.innerHTML = '<div class="loader"></div>';
+        try {
+            let catalogGroups = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
 
-        // Load data if not cached
-        if (!catalogCourses) {
-            mainMenu.innerHTML = '<div class="loader"></div>';
-            try {
-                catalogCourses = await fetchAuthenticated('/api/getCourseCatalog', { method: 'POST' });
-            } catch (error) {
-                console.error('Failed to load course catalog:', error);
-                mainMenu.innerHTML = `<p class="message" style="color: var(--error-color);">Не удалось загрузить каталог курсов.</p>`;
+            const term = searchTerm.toLowerCase();
+            if (term) {
+                catalogGroups = catalogGroups.map(group => ({
+                    ...group,
+                    courses: group.courses.filter(course =>
+                        (course.title && course.title.toLowerCase().includes(term)) ||
+                        (course.description && course.description.toLowerCase().includes(term))
+                    )
+                })).filter(group => group.courses.length > 0);
+            }
+            mainMenu.innerHTML = '';
+            if (!catalogGroups || catalogGroups.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
                 return;
             }
-        }
 
-        mainMenu.innerHTML = ''; // Clear loader if it was there
+            const filteredGroups = catalogGroups.filter(group => group.courses && group.courses.length > 0);
 
-        let filteredGroups = catalogCourses;
-        const term = searchTerm.toLowerCase();
+            if (filteredGroups.length === 0) {
+                mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
+                return;
+            }
 
-        if (term) {
-            filteredGroups = catalogCourses.map(group => ({
-                ...group,
-                courses: group.courses.filter(course =>
-                    (course.title && course.title.toLowerCase().includes(term)) ||
-                    (course.description && course.description.toLowerCase().includes(term))
-                )
-            })).filter(group => group.courses.length > 0);
-        } else {
-            // If no search, filter out empty groups just in case
-            filteredGroups = catalogCourses.filter(group => group.courses && group.courses.length > 0);
-        }
+            mainMenu.innerHTML = `
+                <div class="main-menu-columns">
+                    <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
+                    <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
+                </div>
+            `;
 
-        if (!filteredGroups || filteredGroups.length === 0) {
-            mainMenu.innerHTML = '<p class="message">Нет доступных курсов в каталоге.</p>';
-            return;
-        }
+            const groupedContainer = document.getElementById('grouped-courses-container-catalog');
+            const individualContainer = document.getElementById('individual-courses-container-catalog');
 
-        mainMenu.innerHTML = `
-            <div class="main-menu-columns">
-                <div class="courses-column grouped-courses-column"><h3>Группы курсов</h3><div id="grouped-courses-container-catalog"></div></div>
-                <div class="courses-column individual-courses-column"><h3>Индивидуальные курсы</h3><div id="individual-courses-container-catalog"></div></div>
-            </div>
-        `;
+            const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
+            const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
 
-        const groupedContainer = document.getElementById('grouped-courses-container-catalog');
-        const individualContainer = document.getElementById('individual-courses-container-catalog');
+            if (actualGroups.length > 0) {
+                actualGroups.forEach(group => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = 'course-group-container';
+                    const groupHeader = document.createElement('h3');
+                    groupHeader.textContent = group.group_name;
+                    groupContainer.appendChild(groupHeader);
 
-        const individualCoursesGroup = filteredGroups.find(g => g.id === 'individual');
-        const actualGroups = filteredGroups.filter(g => g.id !== 'individual');
+                    const coursesGrid = document.createElement('div');
+                    coursesGrid.className = 'main-menu';
+                    group.courses.forEach(course => {
+                        coursesGrid.appendChild(createCatalogMenuItem(course));
+                    });
+                    groupContainer.appendChild(coursesGrid);
+                    groupedContainer.appendChild(groupContainer);
+                });
+            } else {
+                groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
+            }
 
-        if (actualGroups.length > 0) {
-            actualGroups.forEach(group => {
-                const groupContainer = document.createElement('div');
-                groupContainer.className = 'course-group-container';
-                const groupHeader = document.createElement('h3');
-                groupHeader.textContent = group.group_name;
-                groupContainer.appendChild(groupHeader);
-
+            if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
                 const coursesGrid = document.createElement('div');
                 coursesGrid.className = 'main-menu';
-                group.courses.forEach(course => {
+                individualCoursesGroup.courses.forEach(course => {
                     coursesGrid.appendChild(createCatalogMenuItem(course));
                 });
-                groupContainer.appendChild(coursesGrid);
-                groupedContainer.appendChild(groupContainer);
-            });
-        } else {
-            groupedContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет курсов, сгруппированных по категориям.</p>';
-        }
+                individualContainer.appendChild(coursesGrid);
+            } else {
+                individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
+            }
 
-        if (individualCoursesGroup && individualCoursesGroup.courses.length > 0) {
-            const coursesGrid = document.createElement('div');
-            coursesGrid.className = 'main-menu';
-            individualCoursesGroup.courses.forEach(course => {
-                coursesGrid.appendChild(createCatalogMenuItem(course));
-            });
-            individualContainer.appendChild(coursesGrid);
-        } else {
-            individualContainer.innerHTML = '<p class="message" style="font-size: 0.9em;">Нет индивидуальных курсов.</p>';
+        } catch (error) {
+            console.error('Failed to load course catalog:', error);
+            mainMenu.innerHTML = `<p class="message" style="color: var(--error-color);">Не удалось загрузить каталог курсов.</p>`;
         }
     }
     async function showPresentationView(courseId, forceRegenerate = false) {
         stopTimeTracking(); // Stop any previous timer
-
-        // Ensure courses are loaded before finding currentCourse
-        if (!courses || courses.length === 0) {
-             try {
-                courses = await fetchAuthenticated(`/api/getCourses`, { method: 'POST' });
-             } catch(e) { console.error("Auto-fetch courses failed", e); }
-        }
-
         currentCourse = courses.flatMap(group => group.courses).find(c => c.id === courseId);
         if (!currentCourse) {
              // Try to find it from any source if not in current filtered list?
@@ -2727,7 +2635,7 @@ window.finishTour = function() {
         document.getElementById('main-menu-tabs').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
         document.getElementById('extra-tools').classList.add('hidden');
-        backToMenuBtn.classList.remove('hidden'); // Ensure back button is visible
+        backToMenuBtn.classList.remove('hidden');
         backButtonAction = showMainMenu;
         try {
             if (!currentCourse.summary || (Array.isArray(currentCourse.summary) && currentCourse.summary.length === 0) || forceRegenerate) {
@@ -3024,37 +2932,6 @@ window.finishTour = function() {
                 sendTimeUpdate(currentCourse.id, 30);
             }, 30000);
 
-            // Time Tracking beacon logic
-            const flushTimeTracking = () => {
-                if (secondsSinceLastUpdate > 0 && currentCourse) {
-                    const courseId = currentCourse.id;
-                    const seconds = secondsSinceLastUpdate;
-                    secondsSinceLastUpdate = 0; // Reset immediately to prevent double send
-
-                    // Use fetch with keepalive: true instead of sendBeacon to support Authorization header
-                    fetchAuthenticated('/api/update-time-spent', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ course_id: courseId, time_spent_seconds: seconds }),
-                        keepalive: true
-                    }).catch(e => console.error("Failed to flush time tracking", e));
-                }
-            };
-
-            // Remove previous listeners if any (to avoid duplicates if re-rendering)
-            if (window._flushTimeHandler) {
-                 document.removeEventListener('visibilitychange', window._flushTimeHandler);
-                 window.removeEventListener('beforeunload', window._flushTimeHandler);
-            }
-            window._flushTimeHandler = () => {
-                if (document.hidden) {
-                    flushTimeTracking();
-                }
-            };
-
-            document.addEventListener('visibilitychange', window._flushTimeHandler);
-            window.addEventListener('beforeunload', flushTimeTracking);
-
             container.style.opacity = '1';
         } catch (error) {
             console.error('Не удалось загрузить или отобразить контент курса:', error);
@@ -3233,22 +3110,11 @@ window.finishTour = function() {
             document.getElementById('question').textContent = q.question;
             const answersDiv = document.getElementById('answers');
             answersDiv.innerHTML = '';
-
-            // 1. Создаем массив объектов с оригинальными индексами
-            let indexedOptions = q.options.map((opt, i) => ({ text: opt, originalIndex: i }));
-
-            // 2. Перемешиваем массив (Алгоритм Фишера-Йетса)
-            for (let i = indexedOptions.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [indexedOptions[i], indexedOptions[j]] = [indexedOptions[j], indexedOptions[i]];
-            }
-
-            // 3. Отрисовываем перемешанные опции
-            indexedOptions.forEach((optionObj) => {
+            q.options.forEach((option, index) => {
                 const answerEl = document.createElement('div');
                 answerEl.className = 'answer';
-                answerEl.textContent = optionObj.text;
-                answerEl.dataset.index = optionObj.originalIndex; // Сохраняем оригинальный индекс для проверки
+                answerEl.textContent = option;
+                answerEl.dataset.index = index;
                 answerEl.addEventListener('click', selectAnswer);
                 answersDiv.appendChild(answerEl);
             });
@@ -3455,7 +3321,6 @@ window.finishTour = function() {
                 // Принудительная зачистка UI
                 testView.classList.add('hidden');
 
-                // Return to main menu as requested
                 showMainMenu();
             }
         });
@@ -3745,11 +3610,7 @@ window.finishTour = function() {
         // Настройка локальной кнопки "Назад"
         const simBackBtn = document.getElementById('simulator-back-btn');
         if (simBackBtn) {
-            // Remove old listener to prevent duplicates or stale closures
-            const newBtn = simBackBtn.cloneNode(true);
-            simBackBtn.parentNode.replaceChild(newBtn, simBackBtn);
-
-            newBtn.onclick = () => {
+            simBackBtn.onclick = () => {
                 // Если пришли из курса (передан ID) - возвращаемся в курс
                 if (fromCourseId && typeof fromCourseId === 'string') {
                      // Восстанавливаем currentCourse если он потерялся
