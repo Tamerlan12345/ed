@@ -766,20 +766,36 @@
         }
         #main-menu, .main-menu {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
+            grid-auto-rows: 1fr; /* Ensure all rows have equal height */
+            align-items: stretch;
         }
         .menu-item {
-            padding: 16px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: space-between; /* Distribute content vertically */
+            align-items: center;     /* Center content horizontally */
+
+            width: 100%;
+            height: 100%;            /* Fill the grid cell */
+            min-height: 150px;       /* Guaranteed minimum height */
+            padding: 16px;
+
+            box-sizing: border-box;
+            overflow: hidden;
+            text-align: center;      /* Center text */
+        }
+        .menu-item > div {
+            width: 100%; /* Ensure inner containers take full width */
         }
         .menu-item h3 {
             font-size: 1.05em;
             margin-bottom: 4px;
             display: flex;
             align-items: center;
+            justify-content: center; /* Center title flex content */
+            width: 100%;
         }
         .menu-item-icon {
             font-size: 1.2em;
@@ -793,6 +809,9 @@
             color: var(--text-light-color);
             margin: 5px 0 10px 0;
             line-height: 1.4;
+        }
+        .menu-item span {
+            word-break: break-word;
         }
         /* --- End of Jules's Fixes --- */
 
