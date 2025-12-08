@@ -344,12 +344,12 @@
             overflow-x: hidden; /* Prevent scrolling scrollbar */
         }
         .tab-btn {
-            flex: 1;      /* Строгое деление */
-            width: auto;
+            flex: 1 1 0;      /* Strict equal width */
+            width: 100%;
             min-width: 0 !important;
             padding: 12px 0; /* увеличена высота клика */
             border: none !important;
-            background-color: transparent;
+            background-color: var(--bg-color); /* Visible background */
             cursor: pointer;
             font-size: 1em;
             color: var(--text-light-color);
