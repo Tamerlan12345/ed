@@ -14,7 +14,7 @@
     </style>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
-        :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:1300px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"],input[type="password"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:12px;transition:border-color .3s,box-shadow .3s}input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,166,0.2)}button,.btn{background:var(--primary-color);border:none;color:#fff;padding:12px 25px;cursor:pointer;transition:all .3s ease;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:12px;font-weight:700;font-family:'Lato',sans-serif;letter-spacing:.2px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,90,166,0.2);background:var(--secondary-color)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}.menu-item{padding:16px;border:1px solid var(--border-color);border-radius:12px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:12px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:12px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
+        :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:1300px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"],input[type="password"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:12px;transition:border-color .3s,box-shadow .3s}input:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,166,0.2)}button,.btn{background:var(--primary-color);border:none;color:#fff;padding:12px 25px;cursor:pointer;transition:all .3s ease;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:12px;font-weight:700;font-family:'Lato',sans-serif;letter-spacing:.2px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,90,166,0.2);background:var(--secondary-color)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;justify-content:center}.menu-item{padding:16px;border:1px solid var(--border-color);border-radius:12px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:12px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}#assistant-container{margin-top:30px;padding-top:20px;border-top:1px dashed var(--border-color)}#assistant-container h3{color:var(--primary-color);margin-top:0}#chat-box{height:150px;overflow-y:auto;border:1px solid var(--border-color);border-radius:12px;padding:10px;margin-bottom:10px;background-color:var(--bg-color)}.chat-message{margin-bottom:10px}.user-message{text-align:right}.assistant-message span{background-color:#e9f7fe;padding:5px 10px;border-radius:10px;display:inline-block}.thinking{color:var(--text-light-color);font-style:italic}#chat-form{display:flex;gap:10px}#chat-input{flex-grow:1;margin:0}#chat-form button{margin:0}#admin-controls{text-align:right;margin-bottom:15px}
         /* Anti-cheating and Protection Styles */
         .protected-content {
             -webkit-user-select: none;
@@ -580,6 +580,8 @@
             flex-grow: 1;
             overflow-y: auto;
             padding-right: 10px;
+            position: relative; /* Ensure z-index works */
+            z-index: 10; /* Above click zones (z-index: 9) */
         }
         @keyframes fadeInSlide {
             from { opacity: 0.3; transform: translateY(10px); }
@@ -1220,7 +1222,7 @@
         .modal {
             display: none;
             position: fixed;
-            z-index: 2000;
+            z-index: 30000;
             left: 0;
             top: 0;
             width: 100%;
@@ -3174,7 +3176,7 @@ window.finishTour = function() {
             showToast(`Внимание! ${reason}. Осталось предупреждений: 1.`, 'info');
         } else if (tabSwitchCount === 2) {
             showToast(`Внимание! ${reason}. Это последнее предупреждение!`, 'warning');
-        } else if (tabSwitchCount >= MAX_TAB_SWITCHES) {
+        } else if (tabSwitchCount > 2) { // 3rd attempt is fail
             if (overlay) overlay.classList.remove('visible'); // Remove overlay to show results
             showToast('Вы превысили лимит переключений. Тест завершен с нулевым результатом.', 'error');
             score = 0;
@@ -3185,6 +3187,12 @@ window.finishTour = function() {
 
     // Block Copy/Paste/Context Menu
     const preventCopy = (e) => {
+        // Global prevention per requirements, or scoped to test/presentation
+        // User requested: "JS: Запретить контекстное меню (ПКМ) на странице"
+        if (e.type === 'contextmenu') {
+             e.preventDefault();
+             return false;
+        }
         if (isTestActive || document.getElementById('app-view').classList.contains('presentation-mode-active')) {
             e.preventDefault();
             return false;
@@ -3303,10 +3311,14 @@ window.finishTour = function() {
         window.addEventListener('focus', handleFocusRegained);
 
         // Add protection listeners
-        document.addEventListener('contextmenu', preventCopy);
+        document.addEventListener('contextmenu', (e) => e.preventDefault()); // Global Context Menu Block
         document.addEventListener('copy', preventCopy);
         document.addEventListener('cut', preventCopy);
         document.addEventListener('keydown', preventCopyKeys);
+        // Add no-copy class to containers
+        if(testView) testView.classList.add('no-copy');
+        const presContainer = document.querySelector('.presentation-view-container');
+        if(presContainer) presContainer.classList.add('no-copy');
 
         document.getElementById('main-content-wrapper').classList.add('hidden');
         document.getElementById('leaderboard-container').classList.add('hidden');
@@ -3418,33 +3430,52 @@ window.finishTour = function() {
         nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); };
     }
     function showReviewModal() {
-        let reviewHtml = '<div style="max-height: 70vh; overflow-y: auto;">';
+        let reviewHtml = `
+            <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 20px; color: var(--primary-color); text-align: left;">
+                Разбор ошибок
+            </h3>
+            <div style="max-height: 60vh; overflow-y: auto; padding-right: 10px; padding-bottom: 50px; text-align: left;">
+        `;
+
         currentQuestions.forEach((q, i) => {
             const userAns = userAnswers[i];
             const correctAns = q.correct_option_index;
-            const isCorrect = userAns === correctAns;
 
-            reviewHtml += `<div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
-                <p style="font-weight: bold; margin-bottom: 10px;">
-                    ${i + 1}. ${q.question}
-                    <span style="float: right;">${isCorrect ? '✅' : '❌'}</span>
-                </p>`;
+            // Define styles for answers
+            const correctStyle = "padding: 8px; border-radius: 5px; background: #e8f5e9; border: 1px solid var(--success-color); color: #2e7d32; margin-top: 5px;";
+            const incorrectStyle = "padding: 8px; border-radius: 5px; background: #ffebee; border: 1px solid var(--error-color); color: #c62828; margin-top: 5px;";
 
-            q.options.forEach((opt, optIdx) => {
-                let style = 'padding: 8px; border-radius: 5px; margin-bottom: 5px; border: 1px solid transparent;';
-                if (optIdx === correctAns) {
-                    style += 'background-color: #d4edda; color: #155724; border-color: #c3e6cb; font-weight: bold;';
-                } else if (optIdx === userAns && !isCorrect) {
-                    style += 'background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;';
-                } else {
-                    style += 'background-color: #f8f9fa; border-color: #eee;';
-                }
-                reviewHtml += `<div style="${style}">${opt}</div>`;
-            });
+            reviewHtml += `
+                <div class="review-item" style="margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+                    <p style="font-weight: bold; margin-bottom: 10px; color: #333;">${i + 1}. ${q.question}</p>
+                    <div style="${correctStyle}">
+                        ✓ Правильный ответ: ${q.options[correctAns]}
+                    </div>
+            `;
+
+            if (userAns !== undefined && userAns !== null && userAns !== correctAns) {
+                 reviewHtml += `
+                    <div style="${incorrectStyle}">
+                        ✕ Ваш ответ: ${q.options[userAns]}
+                    </div>
+                 `;
+            } else if (userAns === undefined || userAns === null) {
+                 reviewHtml += `
+                    <div style="${incorrectStyle}">
+                        ✕ Вы не дали ответ
+                    </div>
+                 `;
+            }
 
             reviewHtml += `</div>`;
         });
-        reviewHtml += '</div><div style="text-align: center; margin-top: 20px;"><button class="btn" onclick="document.getElementById(\'generic-modal\').style.display=\'none\'">Закрыть</button></div>';
+
+        reviewHtml += `
+            </div>
+            <div style="text-align: right; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+                <button class="btn" onclick="document.getElementById('generic-modal').style.display='none'">Закрыть</button>
+            </div>
+        `;
         openModal(reviewHtml);
     }
 
@@ -3497,17 +3528,25 @@ window.finishTour = function() {
         document.getElementById('results-product-name').textContent = currentCourse.title;
         document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`;
 
-        // Add "Review Mistakes" button if not exists
-        let reviewBtn = document.getElementById('review-mistakes-btn');
-        if (!reviewBtn) {
-            reviewBtn = document.createElement('button');
-            reviewBtn.id = 'review-mistakes-btn';
-            reviewBtn.textContent = 'Работа над ошибками';
-            reviewBtn.className = 'btn';
-            reviewBtn.style.backgroundColor = 'var(--secondary-color)';
-            reviewBtn.onclick = showReviewModal;
-            document.getElementById('results-buttons').prepend(reviewBtn);
-        }
+        // Add "Review Mistakes" button
+        // Always remove old button to prevent duplicates or wrong order/style
+        let oldReviewBtn = document.getElementById('review-mistakes-btn');
+        if (oldReviewBtn) oldReviewBtn.remove();
+
+        // Create new button
+        let reviewBtn = document.createElement('button');
+        reviewBtn.id = 'review-mistakes-btn';
+        reviewBtn.textContent = 'Работа над ошибками';
+        reviewBtn.className = 'btn';
+        // Style: background transparent, color primary, border primary
+        reviewBtn.style.background = 'transparent';
+        reviewBtn.style.color = 'var(--primary-color)';
+        reviewBtn.style.border = '1px solid var(--primary-color)';
+        reviewBtn.onclick = showReviewModal;
+
+        // Insert into results-buttons
+        const resultsButtons = document.getElementById('results-buttons');
+        if(resultsButtons) resultsButtons.prepend(reviewBtn);
 
         try {
             const resultData = await fetchAuthenticated('/api/saveTestResult', {
