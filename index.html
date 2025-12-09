@@ -3711,6 +3711,62 @@ window.finishTour = function() {
         });
     });
 
+    /**
+     * Функция для безопасного скачивания сертификата с авторизацией
+     * @param {string} courseId - ID курса
+     */
+    async function downloadCertificate(courseId) {
+        if (!userData.token) {
+            showToast('Вы не авторизованы', 'error');
+            return;
+        }
+
+        const btn = document.querySelector(`.download-cert-btn[onclick="downloadCertificate('${courseId}')"]`);
+        const originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Загрузка...';
+        }
+
+        try {
+            console.log('Начинаю скачивание...');
+
+            const response = await fetch(`/api/certificate/${courseId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${userData.token}`
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Ошибка при скачивании сертификата');
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `Certificate_${courseId}.pdf`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            window.URL.revokeObjectURL(downloadUrl);
+            showToast('Сертификат скачан', 'success');
+
+        } catch (error) {
+            console.error('Download failed:', error);
+            showToast(`Не удалось скачать сертификат: ${error.message}`, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    }
+
     // Profile Functions
     async function loadUserProfile() {
         stopTimeTracking();
@@ -3793,7 +3849,7 @@ window.finishTour = function() {
                             statusClass = 'status-overdue'; // Use overdue color for late completion warning
                         }
                         actionBtn = `<button class="btn view-results-btn" style="padding: 5px 10px; font-size: 0.8em; background-color: var(--success-color);" data-course-id="${course.id}">Результат</button>
-                                     <button class="btn download-cert-btn" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px; background-color: var(--primary-color);" onclick="window.open('/api/certificate/${course.id}', '_blank')">Скачать сертификат</button>`;
+                                     <button class="btn download-cert-btn" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px; background-color: var(--primary-color);" onclick="downloadCertificate('${course.id}')">Скачать сертификат</button>`;
                     } else if (course.status === 'overdue') {
                         statusClass = 'status-overdue';
                         statusText = 'Просрочен';

@@ -1,7 +1,7 @@
 const { createSupabaseClient, createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
-const { PDFDocument, rgb } = require('pdf-lib');
+const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs');
 const path = require('path');
@@ -860,26 +860,43 @@ const generateCertificate = async (req, res) => {
         const score = progressData.percentage || 100; // Fallback if 100% complete but no score (e.g. non-test course)
         const date = new Date(progressData.completed_at).toLocaleDateString('ru-RU');
 
-        // 2. Load Assets
-        const fontPath = path.join(__dirname, '../assets/fonts/Rubik-Regular.ttf');
-        const templatePath = path.join(__dirname, '../../ser.png'); // root dir
-
-        const fontBytes = fs.readFileSync(fontPath);
-        const imageBytes = fs.readFileSync(templatePath);
-
-        // 3. Create PDF
+        // 2. Load Assets & Create PDF
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
-        const customFont = await pdfDoc.embedFont(fontBytes);
-        const pngImage = await pdfDoc.embedPng(imageBytes);
 
-        const page = pdfDoc.addPage([pngImage.width, pngImage.height]);
-        page.drawImage(pngImage, {
-            x: 0,
-            y: 0,
-            width: pngImage.width,
-            height: pngImage.height,
-        });
+        let customFont;
+        try {
+            const fontPath = path.join(__dirname, '../assets/fonts/Rubik-Regular.ttf');
+            if (fs.existsSync(fontPath)) {
+                const fontBytes = fs.readFileSync(fontPath);
+                customFont = await pdfDoc.embedFont(fontBytes);
+            }
+        } catch (e) {
+            console.warn('Custom font load failed, falling back to Standard:', e.message);
+        }
+
+        let isFallbackFont = false;
+        if (!customFont) {
+            customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            isFallbackFont = true;
+        }
+
+        let page;
+        const templatePath = path.join(__dirname, '../../ser.png'); // root dir
+
+        if (fs.existsSync(templatePath)) {
+            const imageBytes = fs.readFileSync(templatePath);
+            const pngImage = await pdfDoc.embedPng(imageBytes);
+            page = pdfDoc.addPage([pngImage.width, pngImage.height]);
+            page.drawImage(pngImage, {
+                x: 0,
+                y: 0,
+                width: pngImage.width,
+                height: pngImage.height,
+            });
+        } else {
+            page = pdfDoc.addPage([800, 600]); // Default A4-ish landscape
+        }
 
         // 4. Draw Text
         const { width, height } = page.getSize();
@@ -887,10 +904,30 @@ const generateCertificate = async (req, res) => {
         const fontSizeCourse = 30;
         const fontSizeText = 24;
 
+        // Helper to sanitize text for standard font (remove non-latin if needed or transliterate)
+        const sanitize = (str) => {
+            if (!isFallbackFont) return str;
+            // Simple transliteration or replacement for common Cyrillic
+            const map = {
+                'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
+                'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+                'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts',
+                'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu',
+                'я': 'ya',
+                'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh',
+                'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O',
+                'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts',
+                'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu',
+                'Я': 'Ya'
+            };
+            return str.split('').map(c => map[c] || c).join('').replace(/[^\x00-\x7F]/g, "?");
+        };
+
         // Helper to center text
         const drawCenteredText = (text, y, size, color = rgb(0, 0, 0)) => {
-            const textWidth = customFont.widthOfTextAtSize(text, size);
-            page.drawText(text, {
+            const cleanText = sanitize(text);
+            const textWidth = customFont.widthOfTextAtSize(cleanText, size);
+            page.drawText(cleanText, {
                 x: (width - textWidth) / 2,
                 y: y,
                 size: size,
@@ -899,18 +936,14 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        // Coordinates based on standard "Certificate" layout assumptions
-        // Name centered around Y=something high (upper middle)
-        // Course title below
-        // Score somewhere
-        // Date somewhere
-
         drawCenteredText(userName, height / 2 + 50, fontSizeName, rgb(0, 0, 0));
         drawCenteredText(courseTitle, height / 2 - 20, fontSizeCourse, rgb(0.2, 0.2, 0.2));
 
         // Result & Date
-        // Assume date is bottom left or right. Let's put it bottom right.
-        page.drawText(`Результат: ${score}%`, {
+        const resultLabel = isFallbackFont ? "Score" : "Результат";
+        const dateLabel = isFallbackFont ? "Date" : "Дата";
+
+        page.drawText(`${resultLabel}: ${score}%`, {
             x: 100,
             y: 100,
             size: fontSizeText,
@@ -918,7 +951,7 @@ const generateCertificate = async (req, res) => {
             color: rgb(0, 0, 0),
         });
 
-        page.drawText(`Дата: ${date}`, {
+        page.drawText(`${dateLabel}: ${date}`, {
             x: width - 300,
             y: 100,
             size: fontSizeText,
