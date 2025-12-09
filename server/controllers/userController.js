@@ -902,13 +902,13 @@ const generateCertificate = async (req, res) => {
             page = pdfDoc.addPage([800, 600]); // Default A4-ish landscape
         }
 
-        // 4. Draw Text (Координаты: Разделяем верхний и нижний блоки)
+        // 4. Draw Text (Финальная калибровка v3: Равномерное распределение)
         const { width, height } = page.getSize();
 
-        // Настройки шрифтов
+        // --- НАСТРОЙКИ ШРИФТОВ ---
         const fontSizeName = 40;
-        const fontSizeCourse = 28; // Чуть крупнее для названия
-        const fontSizeScore = 50;
+        const fontSizeCourse = 24; // Оптимальный размер, чтобы длинное название влезло
+        const fontSizeScore = 50;  // Крупный результат
         const fontSizeDate = 18;
         const blackColor = rgb(0, 0, 0);
         const darkGrayColor = rgb(0.2, 0.2, 0.2);
@@ -945,37 +945,36 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        // --- БЛОК 1: ВЕРХНЯЯ ЧАСТЬ (Имя и Курс) ---
+        // --- 1. ИМЯ ПОЛЬЗОВАТЕЛЯ ---
+        // Позиция: Чуть выше центра
+        // Y: +10 от центра (Оставляем как есть, это хорошая позиция)
+        drawCenteredText(userName, height / 2 + 10, fontSizeName, blackColor);
 
-        // 1. ИМЯ (Оставляем как было, чуть выше центра)
-        // Y = height / 2 + 15
-        drawCenteredText(userName, height / 2 + 15, fontSizeName, blackColor);
+        // --- 2. НАЗВАНИЕ КУРСА ---
+        // Позиция: Должно быть ПОД строкой "За успешное прохождение курса..."
+        // Было: -60 (Высоко, налезло на текст)
+        // Стало: -110 (Опускаем значительно ниже)
+        drawCenteredText(courseTitle, height / 2 - 110, fontSizeCourse, darkGrayColor);
 
-        // 2. НАЗВАНИЕ КУРСА (Поднимаем ВВЕРХ)
-        // Было: -140 (слишком низко)
-        // Стало: -60 (сразу под надписью "За успешное прохождение...")
-        drawCenteredText(courseTitle, height / 2 - 60, fontSizeCourse, darkGrayColor);
-
-
-        // --- БЛОК 2: НИЖНЯЯ ЧАСТЬ (Результат и Дата) ---
-
-        // 3. РЕЗУЛЬТАТ (Опускаем ВНИЗ)
-        // Было: -230
-        // Стало: -260 (еще ниже, в зону подвала)
-        // X: 150 (Сдвигаем чуть правее от края, чтобы не прилипал)
+        // --- 3. РЕЗУЛЬТАТ (SCORE) ---
+        // Позиция: В зоне "Результаты тестирования"
+        // Было: -260 (Слишком низко, улетело в подвал)
+        // Стало: -200 (Поднимаем выше, в "тело" сертификата)
+        // X: 120 (Отступ слева, подбираем под макет)
         page.drawText(`${score}%`, {
-            x: 150,
-            y: height / 2 - 260,
+            x: 120,
+            y: height / 2 - 200,
             size: fontSizeScore,
             font: customFont,
             color: blackColor,
         });
 
-        // 4. ДАТА (Самый низ)
-        // Y: 45 (оставляем, это хорошая высота для подвала)
+        // --- 4. ДАТА ---
+        // Позиция: Подвал, справа
+        // Y: 55 (Чуть приподняли от самого края, чтобы было ровно на строке)
         page.drawText(date, {
             x: width - 250,
-            y: 45,
+            y: 55,
             size: fontSizeDate,
             font: customFont,
             color: blackColor,
