@@ -902,14 +902,18 @@ const generateCertificate = async (req, res) => {
             page = pdfDoc.addPage([800, 600]); // Default A4-ish landscape
         }
 
-        // 4. Draw Text (Откалиброванные координаты)
+        // 4. Draw Text (Координаты откалиброваны: Опускаем текст вниз)
         const { width, height } = page.getSize();
 
-        // Шрифты
-        const fontSizeName = 40;   // ФИО
-        const fontSizeCourse = 24; // Название курса
-        const fontSizeScore = 50;  // Крупный процент
-        const fontSizeDate = 20;   // Дата
+        // Настройки шрифтов
+        const fontSizeName = 40;
+        const fontSizeCourse = 24;
+        const fontSizeScore = 40; // Сделали крупнее для кружка
+        const fontSizeDate = 18;
+
+        // Цвета
+        const blackColor = rgb(0, 0, 0);
+        const darkGrayColor = rgb(0.2, 0.2, 0.2);
 
         // Helper to sanitize text for standard font (remove non-latin if needed or transliterate)
         const sanitize = (str) => {
@@ -943,33 +947,40 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        // 1. ФИО (Поднимаем наверх, в зону "Кому выдан")
-        // Y = height / 2 + 90 (примерно середина верхней половины)
-        drawCenteredText(userName, height / 2 + 90, fontSizeName, rgb(0, 0, 0));
+        // --- БЛОК 1: ИМЯ ПОЛЬЗОВАТЕЛЯ ---
+        // Было: height / 2 + 50 (Слишком высоко, налезло на заголовок)
+        // Стало: height / 2 - 10 (Опускаем ближе к центру листа)
+        // Это должно попасть в поле под "Настоящий сертификат вручается"
+        drawCenteredText(userName, height / 2 - 10, fontSizeName, blackColor);
 
-        // 2. Название курса (Под ФИО, но выше середины)
-        drawCenteredText(courseTitle, height / 2 - 10, fontSizeCourse, rgb(0.2, 0.2, 0.2));
+        // --- БЛОК 2: НАЗВАНИЕ КУРСА ---
+        // Было: height / 2 - 20
+        // Стало: height / 2 - 70 (Опускаем еще ниже)
+        // Это должно попасть в поле под "За успешное прохождение курса..."
+        drawCenteredText(courseTitle, height / 2 - 80, fontSizeCourse, darkGrayColor);
 
-        // 3. Результат (Проценты)
-        // Ставим по центру под названием курса
-        const scoreText = `${score}%`;
-        const scoreWidth = customFont.widthOfTextAtSize(scoreText, fontSizeScore);
-        page.drawText(scoreText, {
-            x: (width - scoreWidth) / 2,
-            y: height / 2 - 100, // В зону "Результаты"
+        // --- БЛОК 3: РЕЗУЛЬТАТ (SCORE) ---
+        // Нужно попасть в кружок или поле результата.
+        // Смещаем влево от центра и опускаем вниз.
+        // X: width / 2 - 200 (примерно левая часть низа)
+        // Y: height / 2 - 160 (нижняя треть листа)
+        page.drawText(`${score}%`, {
+            x: width / 2 - 200, // Подберите X, если у вас кружок слева
+            y: height / 2 - 160,
             size: fontSizeScore,
             font: customFont,
-            color: rgb(0, 0, 0), // Можно выделить цветом, если нужно
+            color: blackColor,
         });
 
-        // 4. Дата (Внизу слева, рядом с надписью "Дата:")
-        // Координаты взяты "на глаз" по макету, возможно потребуется подвинуть +/- 10px
-        page.drawText(`${date}`, {
-            x: 210, // Сдвиг вправо от левого края
-            y: 165, // Высота от нижнего края (подобрана под строчку даты)
+        // --- БЛОК 4: ДАТА ---
+        // Должна быть в самом низу, справа или слева у слова "Дата:"
+        // Y = 50 (близко к нижнему краю листа)
+        page.drawText(date, {
+            x: width - 250, // Справа (отступ от правого края)
+            y: 50,          // Самый низ
             size: fontSizeDate,
             font: customFont,
-            color: rgb(0, 0, 0),
+            color: blackColor,
         });
 
         // 5. Serialize and Send
