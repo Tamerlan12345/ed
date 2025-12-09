@@ -1,6 +1,10 @@
 const { createSupabaseClient, createSupabaseAdminClient } = require('../lib/supabaseClient');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
+const { PDFDocument, rgb } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
+const fs = require('fs');
+const path = require('path');
 
 // --- AI/External Service Clients ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -242,7 +246,7 @@ const getJobStatus = async (req, res) => {
     }
 };
 
-// POST /api/get-leaderboard
+// POST /api/getLeaderboard
 const getLeaderboard = async (req, res) => {
     try {
         const supabase = req.supabase;
@@ -823,6 +827,118 @@ const textToSpeechUser = async (req, res) => {
     }
 };
 
+// GET /api/certificate/:courseId
+const generateCertificate = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const user = req.user;
+        const supabase = req.supabase;
+
+        // 1. Fetch Data
+        // User Name
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('full_name, email')
+            .eq('id', user.id)
+            .single();
+        if (userError || !userData) throw new Error('User not found');
+
+        const userName = userData.full_name || userData.email;
+
+        // Course Progress
+        const { data: progressData, error: progressError } = await supabase
+            .from('user_progress')
+            .select('completed_at, percentage, courses(title)')
+            .eq('user_id', user.id)
+            .eq('course_id', courseId)
+            .single();
+
+        if (progressError || !progressData) return res.status(404).send('Course progress not found');
+        if (!progressData.completed_at) return res.status(403).send('Course not completed');
+
+        const courseTitle = progressData.courses.title;
+        const score = progressData.percentage || 100; // Fallback if 100% complete but no score (e.g. non-test course)
+        const date = new Date(progressData.completed_at).toLocaleDateString('ru-RU');
+
+        // 2. Load Assets
+        const fontPath = path.join(__dirname, '../assets/fonts/Rubik-Regular.ttf');
+        const templatePath = path.join(__dirname, '../../ser.png'); // root dir
+
+        const fontBytes = fs.readFileSync(fontPath);
+        const imageBytes = fs.readFileSync(templatePath);
+
+        // 3. Create PDF
+        const pdfDoc = await PDFDocument.create();
+        pdfDoc.registerFontkit(fontkit);
+        const customFont = await pdfDoc.embedFont(fontBytes);
+        const pngImage = await pdfDoc.embedPng(imageBytes);
+
+        const page = pdfDoc.addPage([pngImage.width, pngImage.height]);
+        page.drawImage(pngImage, {
+            x: 0,
+            y: 0,
+            width: pngImage.width,
+            height: pngImage.height,
+        });
+
+        // 4. Draw Text
+        const { width, height } = page.getSize();
+        const fontSizeName = 40;
+        const fontSizeCourse = 30;
+        const fontSizeText = 24;
+
+        // Helper to center text
+        const drawCenteredText = (text, y, size, color = rgb(0, 0, 0)) => {
+            const textWidth = customFont.widthOfTextAtSize(text, size);
+            page.drawText(text, {
+                x: (width - textWidth) / 2,
+                y: y,
+                size: size,
+                font: customFont,
+                color: color,
+            });
+        };
+
+        // Coordinates based on standard "Certificate" layout assumptions
+        // Name centered around Y=something high (upper middle)
+        // Course title below
+        // Score somewhere
+        // Date somewhere
+
+        drawCenteredText(userName, height / 2 + 50, fontSizeName, rgb(0, 0, 0));
+        drawCenteredText(courseTitle, height / 2 - 20, fontSizeCourse, rgb(0.2, 0.2, 0.2));
+
+        // Result & Date
+        // Assume date is bottom left or right. Let's put it bottom right.
+        page.drawText(`Результат: ${score}%`, {
+            x: 100,
+            y: 100,
+            size: fontSizeText,
+            font: customFont,
+            color: rgb(0, 0, 0),
+        });
+
+        page.drawText(`Дата: ${date}`, {
+            x: width - 300,
+            y: 100,
+            size: fontSizeText,
+            font: customFont,
+            color: rgb(0, 0, 0),
+        });
+
+        // 5. Serialize and Send
+        const pdfBytes = await pdfDoc.save();
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="certificate_${courseId}.pdf"`);
+        res.send(Buffer.from(pdfBytes));
+
+    } catch (error) {
+        console.error('Certificate generation error:', error);
+        res.status(500).send('Error generating certificate');
+    }
+};
+
 
 module.exports = {
     getUserProfileData,
@@ -839,4 +955,5 @@ module.exports = {
     updateTimeSpent,
     markNotificationsAsRead,
     textToSpeechUser,
+    generateCertificate
 };
