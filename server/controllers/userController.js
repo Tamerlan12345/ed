@@ -838,12 +838,16 @@ const generateCertificate = async (req, res) => {
         // User Name
         const { data: userData, error: userError } = await supabase
             .from('users')
-            .select('full_name, email')
+            .select('full_name')
             .eq('id', user.id)
             .single();
-        if (userError || !userData) throw new Error('User not found');
 
-        const userName = userData.full_name || userData.email;
+        // Warn but proceed if user profile missing in public schema
+        if (userError) {
+             console.warn(`Profile for user ${user.id} not found in public.users. Using email as name.`);
+        }
+
+        const userName = userData?.full_name || user.email;
 
         // Course Progress
         const { data: progressData, error: progressError } = await supabase
