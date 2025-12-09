@@ -1,0 +1,12 @@
+
+> ai-platform-final@1.0.0 dev
+> nodemon server/index.js
+
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node server/index.js`[39m
+Server is running and listening on port 3002
+::1 - - [09/Dec/2025:03:49:59 +0000] "GET / HTTP/1.1" 200 193029 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.7339.16 Safari/537.36"
+::1 - - [09/Dec/2025:03:50:00 +0000] "GET /by.png HTTP/1.1" 200 181698 "http://localhost:3002/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.7339.16 Safari/537.36"
