@@ -902,11 +902,14 @@ const generateCertificate = async (req, res) => {
             page = pdfDoc.addPage([800, 600]); // Default A4-ish landscape
         }
 
-        // 4. Draw Text
+        // 4. Draw Text (Откалиброванные координаты)
         const { width, height } = page.getSize();
-        const fontSizeName = 40;
-        const fontSizeCourse = 30;
-        const fontSizeText = 24;
+
+        // Шрифты
+        const fontSizeName = 40;   // ФИО
+        const fontSizeCourse = 24; // Название курса
+        const fontSizeScore = 50;  // Крупный процент
+        const fontSizeDate = 20;   // Дата
 
         // Helper to sanitize text for standard font (remove non-latin if needed or transliterate)
         const sanitize = (str) => {
@@ -940,25 +943,31 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        drawCenteredText(userName, height / 2 + 50, fontSizeName, rgb(0, 0, 0));
-        drawCenteredText(courseTitle, height / 2 - 20, fontSizeCourse, rgb(0.2, 0.2, 0.2));
+        // 1. ФИО (Поднимаем наверх, в зону "Кому выдан")
+        // Y = height / 2 + 90 (примерно середина верхней половины)
+        drawCenteredText(userName, height / 2 + 90, fontSizeName, rgb(0, 0, 0));
 
-        // Result & Date
-        const resultLabel = isFallbackFont ? "Score" : "Результат";
-        const dateLabel = isFallbackFont ? "Date" : "Дата";
+        // 2. Название курса (Под ФИО, но выше середины)
+        drawCenteredText(courseTitle, height / 2 - 10, fontSizeCourse, rgb(0.2, 0.2, 0.2));
 
-        page.drawText(`${resultLabel}: ${score}%`, {
-            x: 100,
-            y: 100,
-            size: fontSizeText,
+        // 3. Результат (Проценты)
+        // Ставим по центру под названием курса
+        const scoreText = `${score}%`;
+        const scoreWidth = customFont.widthOfTextAtSize(scoreText, fontSizeScore);
+        page.drawText(scoreText, {
+            x: (width - scoreWidth) / 2,
+            y: height / 2 - 100, // В зону "Результаты"
+            size: fontSizeScore,
             font: customFont,
-            color: rgb(0, 0, 0),
+            color: rgb(0, 0, 0), // Можно выделить цветом, если нужно
         });
 
-        page.drawText(`${dateLabel}: ${date}`, {
-            x: width - 300,
-            y: 100,
-            size: fontSizeText,
+        // 4. Дата (Внизу слева, рядом с надписью "Дата:")
+        // Координаты взяты "на глаз" по макету, возможно потребуется подвинуть +/- 10px
+        page.drawText(`${date}`, {
+            x: 210, // Сдвиг вправо от левого края
+            y: 165, // Высота от нижнего края (подобрана под строчку даты)
+            size: fontSizeDate,
             font: customFont,
             color: rgb(0, 0, 0),
         });
