@@ -3792,7 +3792,8 @@ window.finishTour = function() {
                             statusText += ' (С опозданием)';
                             statusClass = 'status-overdue'; // Use overdue color for late completion warning
                         }
-                        actionBtn = `<button class="btn view-results-btn" style="padding: 5px 10px; font-size: 0.8em; background-color: var(--success-color);" data-course-id="${course.id}">Результат</button>`;
+                        actionBtn = `<button class="btn view-results-btn" style="padding: 5px 10px; font-size: 0.8em; background-color: var(--success-color);" data-course-id="${course.id}">Результат</button>
+                                     <button class="btn download-cert-btn" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px; background-color: var(--primary-color);" onclick="window.open('/api/certificate/${course.id}', '_blank')">Скачать сертификат</button>`;
                     } else if (course.status === 'overdue') {
                         statusClass = 'status-overdue';
                         statusText = 'Просрочен';
