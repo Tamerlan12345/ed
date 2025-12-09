@@ -35,6 +35,7 @@ apiRouter.post('/dialogueSimulator', userController.dialogueSimulator);
 apiRouter.post('/update-time-spent', userController.updateTimeSpent);
 apiRouter.post('/markNotificationsAsRead', userController.markNotificationsAsRead);
 apiRouter.post('/text-to-speech-user', userController.textToSpeechUser);
+apiRouter.get('/certificate/:courseId', userController.generateCertificate);
 
 
 module.exports = apiRouter;
