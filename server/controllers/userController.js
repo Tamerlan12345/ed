@@ -944,29 +944,27 @@ const generateCertificate = async (req, res) => {
                 color: color,
             });
         };
-
-// --- 1. ИМЯ ПОЛЬЗОВАТЕЛЯ ---
-        // Ваши замеры: 200 на 301 пикселей
-        page.drawText(userName, {
-            x: 200,                  // Отступ слева
-            y: height - 301,         // Отступ снизу (Высота страницы минус ваш замер сверху)
-            size: fontSizeName,
-            font: customFont,
-            color: blackColor,
-        });
+        
+        // --- 1. ИМЯ ПОЛЬЗОВАТЕЛЯ ---
+        // Используем sanitize() на случай проблем со шрифтом
+        const safeUserName = sanitize(userName);
+        // Если хотите центрировать имя по ширине сертификата (рекомендуется):
+        drawCenteredText(userName, height - 301, fontSizeName, blackColor);
+        
+        // ИЛИ если нужно строго по вашей координате X=200:
+        // page.drawText(safeUserName, {
+        //    x: 200,
+        //    y: height - 301,
+        //    size: fontSizeName,
+        //    font: customFont,
+        //    color: blackColor,
+        // });
 
         // --- 2. НАЗВАНИЕ КУРСА ---
-        // Ваши замеры: 234 на 371 пикселей
-        page.drawText(courseTitle, {
-            x: 234,
-            y: height - 371,
-            size: fontSizeCourse,
-            font: customFont,
-            color: darkGrayColor,
-        });
+        // Название курса лучше центрировать, так как его длина может быть разной
+        drawCenteredText(courseTitle, height - 371, fontSizeCourse, darkGrayColor);
 
         // --- 3. РЕЗУЛЬТАТ (SCORE) ---
-        // Ваши замеры: 563 на 435 пикселей
         page.drawText(`${score}%`, {
             x: 563,
             y: height - 435,
@@ -976,18 +974,15 @@ const generateCertificate = async (req, res) => {
         });
 
         // --- 4. ДАТА ---
-        // Ваши замеры: 134 на 530 пикселей
-        // ВНИМАНИЕ: X=134 — это левая сторона (где "Подпись").
-        // Если дата нужна СЛЕВА, оставьте 134. 
-        // Если дата нужна СПРАВА (как обычно), используйте x: width - 200 (или около 650-700).
-        page.drawText(date, {
-            x: 134,                 
+        // Исправляем координату X, чтобы дата была СПРАВА
+        const dateX = width - 250; // Примерно правый край
+        page.drawText(sanitize(date), { // Тоже используем sanitize на всякий случай
+            x: dateX, 
             y: height - 530,
             size: fontSizeDate,
             font: customFont,
             color: blackColor,
         });
-
         // 5. Serialize and Send
         const pdfBytes = await pdfDoc.save();
 
