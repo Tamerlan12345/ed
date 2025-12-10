@@ -834,17 +834,14 @@ const generateCertificate = async (req, res) => {
         const user = req.user;
         const supabase = req.supabase;
 
-        // 1. Получение данных (Data Fetching)
+        // 1. Получение данных
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('full_name')
             .eq('id', user.id)
             .single();
 
-        if (userError) {
-             console.warn(`Profile for user ${user.id} not found. Using email.`);
-        }
-
+        if (userError) console.warn(`Profile not found for ${user.id}`);
         const userName = userData?.full_name || user.email;
 
         const { data: progressData, error: progressError } = await supabase
@@ -858,14 +855,14 @@ const generateCertificate = async (req, res) => {
         if (!progressData.completed_at) return res.status(403).send('Course not completed');
 
         const courseTitle = progressData.courses.title;
-        const score = progressData.percentage || 100;
+        const score = progressData.percentage !== null ? progressData.percentage : 100;
         const date = new Date(progressData.completed_at).toLocaleDateString('ru-RU');
 
         // 2. Создание PDF
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
-        // Загрузка шрифта (Rubik)
+        // Шрифты
         let customFont;
         try {
             const fontPath = path.join(__dirname, '../assets/fonts/Rubik-Regular.ttf');
@@ -877,61 +874,73 @@ const generateCertificate = async (req, res) => {
             console.warn('Custom font load failed:', e.message);
         }
 
-        // Фолбэк шрифт (если Rubik не найден)
         let isFallbackFont = false;
         if (!customFont) {
             customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
             isFallbackFont = true;
         }
 
-        // Загрузка шаблона изображения
+        // Загрузка фона
         let page;
-        const templatePath = path.join(__dirname, '../../ser.png'); // Путь к файлу
+        const templatePath = path.join(__dirname, '../../ser.png');
 
         if (fs.existsSync(templatePath)) {
             const imageBytes = fs.readFileSync(templatePath);
             const pngImage = await pdfDoc.embedPng(imageBytes);
-            // Создаем страницу точно по размеру картинки (1683 x 1246)
             page = pdfDoc.addPage([pngImage.width, pngImage.height]);
-            page.drawImage(pngImage, {
-                x: 0,
-                y: 0,
-                width: pngImage.width,
-                height: pngImage.height,
-            });
+            page.drawImage(pngImage, { x: 0, y: 0, width: pngImage.width, height: pngImage.height });
         } else {
-            page = pdfDoc.addPage([1683, 1246]); // Фолбэк размер, если картинки нет
+            page = pdfDoc.addPage([1683, 1246]); // Фолбэк размер
         }
 
-        const { width, height } = page.getSize(); // width=1683, height=1246
+        const { width, height } = page.getSize(); // 1683 x 1246
 
-        // --- НАСТРОЙКИ (КООРДИНАТЫ И РАЗМЕРЫ) ---
-        // Y отсчитывается СНИЗУ. Чем больше число, тем выше текст.
+        // --- НАСТРОЙКИ КООРДИНАТ (V3 - Снижаем высоту) ---
+        // Y=0 это НИЗ страницы. Y=1246 это ВЕРХ.
+        // Чтобы опустить текст, УМЕНЬШАЕМ Y.
 
-        // 1. Имя пользователя (Центр, чуть выше середины)
-        const nameY = 720;
-        const nameSize = 60; // Увеличили шрифт под размер 1683px
+        const nameY = 580;     // Было 720. Опустили ниже середины.
+        const courseY = 430;   // Было 550.
+        const footerY = 220;   // Было 320. Общая высота для низа (дата/результат)
 
-        // 2. Название курса (Центр, под именем)
-        const courseY = 550;
-        const courseSize = 40;
+        // Размеры шрифтов
+        const fontSizeName = 60;
+        const fontSizeCourse = 40;
+        const fontSizeScore = 60;
+        const fontSizeDate = 30;
 
-        // 3. Результат/Проценты (Слева внизу)
-        // Примерно 1/4 ширины слева
-        const scoreX = 400;
-        const scoreY = 320;
-        const scoreSize = 80;
-
-        // 4. Дата (Справа внизу)
-        // Примерно отступ 400px от правого края
-        const dateX = width - 400;
-        const dateY = 320;
-        const dateSize = 30;
+        // Координаты по X (ширине)
+        const scoreX = 400;         // Слева
+        const dateX = width - 400;  // Справа
 
         const blackColor = rgb(0, 0, 0);
         const darkGrayColor = rgb(0.2, 0.2, 0.2);
 
-        // Функция очистки текста (для стандартного шрифта)
+        // --- РЕЖИМ ОТЛАДКИ (СЕТКА) ---
+        // Поставьте true, чтобы напечатать линейку на сертификате
+        const DRAW_DEBUG_GRID = false;
+
+        if (DRAW_DEBUG_GRID) {
+            const gridFontSize = 12;
+            // Рисуем линии каждые 50 пикселей
+            for (let y = 0; y < height; y += 50) {
+                page.drawLine({
+                    start: { x: 0, y: y },
+                    end: { x: 100, y: y }, // Короткая черточка слева
+                    thickness: 1,
+                    color: rgb(1, 0, 0), // Красный
+                });
+                page.drawText(`Y=${y}`, {
+                    x: 5,
+                    y: y + 2,
+                    size: gridFontSize,
+                    font: customFont,
+                    color: rgb(1, 0, 0),
+                });
+            }
+        }
+
+        // Helpers
         const sanitize = (str) => {
             if (!isFallbackFont) return str;
             const map = {
@@ -949,7 +958,6 @@ const generateCertificate = async (req, res) => {
             return str.split('').map(c => map[c] || c).join('').replace(/[^\x00-\x7F]/g, "?");
         };
 
-        // Функция центрирования текста
         const drawCenteredText = (text, y, size, color = rgb(0, 0, 0)) => {
             const cleanText = sanitize(text);
             const textWidth = customFont.widthOfTextAtSize(cleanText, size);
@@ -962,33 +970,32 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        // --- ОТРИСОВКА ---
+        // --- ОТРИСОВКА ДАННЫХ ---
 
-        // 1. ИМЯ
-        drawCenteredText(userName, nameY, nameSize, blackColor);
+        // 1. Имя
+        drawCenteredText(userName, nameY, fontSizeName, blackColor);
 
-        // 2. КУРС
-        drawCenteredText(courseTitle, courseY, courseSize, darkGrayColor);
+        // 2. Курс
+        drawCenteredText(courseTitle, courseY, fontSizeCourse, darkGrayColor);
 
-        // 3. РЕЗУЛЬТАТ
+        // 3. Результат (Score)
         page.drawText(`${score}%`, {
             x: scoreX,
-            y: scoreY,
-            size: scoreSize,
+            y: footerY,
+            size: fontSizeScore,
             font: customFont,
             color: blackColor,
         });
 
-        // 4. ДАТА
+        // 4. Дата
         page.drawText(sanitize(date), {
             x: dateX,
-            y: dateY,
-            size: dateSize,
+            y: footerY,
+            size: fontSizeDate,
             font: customFont,
             color: blackColor,
         });
 
-        // 5. Отправка PDF
         const pdfBytes = await pdfDoc.save();
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="certificate_${courseId}.pdf"`);
