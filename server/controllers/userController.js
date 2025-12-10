@@ -834,22 +834,19 @@ const generateCertificate = async (req, res) => {
         const user = req.user;
         const supabase = req.supabase;
 
-        // 1. Fetch Data
-        // User Name
+        // 1. Получение данных (Data Fetching)
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('full_name')
             .eq('id', user.id)
             .single();
 
-        // Warn but proceed if user profile missing in public schema
         if (userError) {
-             console.warn(`Profile for user ${user.id} not found in public.users. Using email as name.`);
+             console.warn(`Profile for user ${user.id} not found. Using email.`);
         }
 
         const userName = userData?.full_name || user.email;
 
-        // Course Progress
         const { data: progressData, error: progressError } = await supabase
             .from('user_progress')
             .select('completed_at, percentage, courses(title)')
@@ -861,13 +858,14 @@ const generateCertificate = async (req, res) => {
         if (!progressData.completed_at) return res.status(403).send('Course not completed');
 
         const courseTitle = progressData.courses.title;
-        const score = progressData.percentage || 100; // Fallback if 100% complete but no score (e.g. non-test course)
+        const score = progressData.percentage || 100;
         const date = new Date(progressData.completed_at).toLocaleDateString('ru-RU');
 
-        // 2. Load Assets & Create PDF
+        // 2. Создание PDF
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
+        // Загрузка шрифта (Rubik)
         let customFont;
         try {
             const fontPath = path.join(__dirname, '../assets/fonts/Rubik-Regular.ttf');
@@ -876,21 +874,24 @@ const generateCertificate = async (req, res) => {
                 customFont = await pdfDoc.embedFont(fontBytes);
             }
         } catch (e) {
-            console.warn('Custom font load failed, falling back to Standard:', e.message);
+            console.warn('Custom font load failed:', e.message);
         }
 
+        // Фолбэк шрифт (если Rubik не найден)
         let isFallbackFont = false;
         if (!customFont) {
             customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
             isFallbackFont = true;
         }
 
+        // Загрузка шаблона изображения
         let page;
-        const templatePath = path.join(__dirname, '../../ser.png'); // root dir
+        const templatePath = path.join(__dirname, '../../ser.png'); // Путь к файлу
 
         if (fs.existsSync(templatePath)) {
             const imageBytes = fs.readFileSync(templatePath);
             const pngImage = await pdfDoc.embedPng(imageBytes);
+            // Создаем страницу точно по размеру картинки (1683 x 1246)
             page = pdfDoc.addPage([pngImage.width, pngImage.height]);
             page.drawImage(pngImage, {
                 x: 0,
@@ -899,24 +900,40 @@ const generateCertificate = async (req, res) => {
                 height: pngImage.height,
             });
         } else {
-            page = pdfDoc.addPage([800, 600]); // Default A4-ish landscape
+            page = pdfDoc.addPage([1683, 1246]); // Фолбэк размер, если картинки нет
         }
 
-        // 4. Draw Text (Финальная калибровка v3: Равномерное распределение)
-        const { width, height } = page.getSize();
+        const { width, height } = page.getSize(); // width=1683, height=1246
 
-        // --- НАСТРОЙКИ ШРИФТОВ ---
-        const fontSizeName = 40;
-        const fontSizeCourse = 24; // Оптимальный размер, чтобы длинное название влезло
-        const fontSizeScore = 50;  // Крупный результат
-        const fontSizeDate = 18;
+        // --- НАСТРОЙКИ (КООРДИНАТЫ И РАЗМЕРЫ) ---
+        // Y отсчитывается СНИЗУ. Чем больше число, тем выше текст.
+
+        // 1. Имя пользователя (Центр, чуть выше середины)
+        const nameY = 720;
+        const nameSize = 60; // Увеличили шрифт под размер 1683px
+
+        // 2. Название курса (Центр, под именем)
+        const courseY = 550;
+        const courseSize = 40;
+
+        // 3. Результат/Проценты (Слева внизу)
+        // Примерно 1/4 ширины слева
+        const scoreX = 400;
+        const scoreY = 320;
+        const scoreSize = 80;
+
+        // 4. Дата (Справа внизу)
+        // Примерно отступ 400px от правого края
+        const dateX = width - 400;
+        const dateY = 320;
+        const dateSize = 30;
+
         const blackColor = rgb(0, 0, 0);
         const darkGrayColor = rgb(0.2, 0.2, 0.2);
 
-        // Helper to sanitize text for standard font (remove non-latin if needed or transliterate)
+        // Функция очистки текста (для стандартного шрифта)
         const sanitize = (str) => {
             if (!isFallbackFont) return str;
-            // Simple transliteration or replacement for common Cyrillic
             const map = {
                 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
                 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
@@ -932,7 +949,7 @@ const generateCertificate = async (req, res) => {
             return str.split('').map(c => map[c] || c).join('').replace(/[^\x00-\x7F]/g, "?");
         };
 
-        // Helper to center text
+        // Функция центрирования текста
         const drawCenteredText = (text, y, size, color = rgb(0, 0, 0)) => {
             const cleanText = sanitize(text);
             const textWidth = customFont.widthOfTextAtSize(cleanText, size);
@@ -944,48 +961,35 @@ const generateCertificate = async (req, res) => {
                 color: color,
             });
         };
-        
-        // --- 1. ИМЯ ПОЛЬЗОВАТЕЛЯ ---
-        // Используем sanitize() на случай проблем со шрифтом
-        const safeUserName = sanitize(userName);
-        // Если хотите центрировать имя по ширине сертификата (рекомендуется):
-        drawCenteredText(userName, height - 301, fontSizeName, blackColor);
-        
-        // ИЛИ если нужно строго по вашей координате X=200:
-        // page.drawText(safeUserName, {
-        //    x: 200,
-        //    y: height - 301,
-        //    size: fontSizeName,
-        //    font: customFont,
-        //    color: blackColor,
-        // });
 
-        // --- 2. НАЗВАНИЕ КУРСА ---
-        // Название курса лучше центрировать, так как его длина может быть разной
-        drawCenteredText(courseTitle, height - 371, fontSizeCourse, darkGrayColor);
+        // --- ОТРИСОВКА ---
 
-        // --- 3. РЕЗУЛЬТАТ (SCORE) ---
+        // 1. ИМЯ
+        drawCenteredText(userName, nameY, nameSize, blackColor);
+
+        // 2. КУРС
+        drawCenteredText(courseTitle, courseY, courseSize, darkGrayColor);
+
+        // 3. РЕЗУЛЬТАТ
         page.drawText(`${score}%`, {
-            x: 563,
-            y: height - 435,
-            size: fontSizeScore,
+            x: scoreX,
+            y: scoreY,
+            size: scoreSize,
             font: customFont,
             color: blackColor,
         });
 
-        // --- 4. ДАТА ---
-        // Исправляем координату X, чтобы дата была СПРАВА
-        const dateX = width - 250; // Примерно правый край
-        page.drawText(sanitize(date), { // Тоже используем sanitize на всякий случай
-            x: dateX, 
-            y: height - 530,
-            size: fontSizeDate,
+        // 4. ДАТА
+        page.drawText(sanitize(date), {
+            x: dateX,
+            y: dateY,
+            size: dateSize,
             font: customFont,
             color: blackColor,
         });
-        // 5. Serialize and Send
+
+        // 5. Отправка PDF
         const pdfBytes = await pdfDoc.save();
-
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="certificate_${courseId}.pdf"`);
         res.send(Buffer.from(pdfBytes));
