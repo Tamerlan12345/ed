@@ -856,7 +856,8 @@ const generateCertificate = async (req, res) => {
 
         const courseTitle = progressData.courses.title;
         const score = progressData.percentage !== null ? progressData.percentage : 100;
-        const date = new Date(progressData.completed_at).toLocaleDateString('ru-RU');
+        // Дата нам больше не нужна для отрисовки, но переменную можно оставить, если пригодится логика
+        // const date = new Date(progressData.completed_at).toLocaleDateString('ru-RU');
 
         // 2. Создание PDF
         const pdfDoc = await PDFDocument.create();
@@ -905,29 +906,21 @@ const generateCertificate = async (req, res) => {
 
         const { width, height } = page.getSize();
 
-        // --- ФИНАЛЬНЫЕ КООРДИНАТЫ V7 ---
+        // --- ФИНАЛЬНЫЕ КООРДИНАТЫ (V8) ---
 
-        // 1. ИМЯ и КУРС (Оставляем как было, они стоят верно)
+        // 1. ИМЯ и КУРС (Оставляем как было)
         const nameY = 620;
         const courseY = 450;
 
         // 2. ОЦЕНКА (%)
-        // Подняли до уровня "Результаты тестирования" (было 300)
-        const scoreY = 390;
-
-        // 3. ДАТА
-        // Подняли до уровня, где был знак % (было 220, стало 300)
-        const dateY = 300;
+        // Ставим на место, где раньше была ДАТА (справа, Y=300)
+        const scoreY = 300;
+        const scoreX = width - 400; // Справа
 
         // Размеры шрифтов
         const fontSizeName = 55;
         const fontSizeCourse = 35;
         const fontSizeScore = 55;
-        const fontSizeDate = 30;
-
-        // Координаты X (Ширина)
-        const scoreX = 400;
-        const dateX = width - 400;
 
         // --- СЕТКА ОТКЛЮЧЕНА ---
         const DRAW_DEBUG_GRID = false;
@@ -996,7 +989,7 @@ const generateCertificate = async (req, res) => {
         // 2. Курс
         drawCenteredText(courseTitle, courseY, fontSizeCourse, darkGrayColor);
 
-        // 3. Результат (Score) -> Y=300
+        // 3. Результат (Score) -> Теперь справа на месте даты
         page.drawText(`${score}%`, {
             x: scoreX,
             y: scoreY,
@@ -1005,14 +998,7 @@ const generateCertificate = async (req, res) => {
             color: blackColor,
         });
 
-        // 4. Дата -> Y=220
-        page.drawText(sanitize(date), {
-            x: dateX,
-            y: dateY,
-            size: fontSizeDate,
-            font: customFont,
-            color: blackColor,
-        });
+        // ДАТУ БОЛЬШЕ НЕ РИСУЕМ
 
         const pdfBytes = await pdfDoc.save();
         res.setHeader('Content-Type', 'application/pdf');
