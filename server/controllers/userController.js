@@ -906,15 +906,17 @@ const generateCertificate = async (req, res) => {
 
         const { width, height } = page.getSize();
 
-        // --- НАСТРОЙКИ КООРДИНАТ (V5 - Fix Footer) ---
+        // --- ФИНАЛЬНЫЕ КООРДИНАТЫ ---
 
-        // 1. ИМЯ и КУРС (Оставляем как было - User approved)
+        // 1. ИМЯ и КУРС (Оставляем как было, они стоят верно)
         const nameY = 620;
         const courseY = 450;
 
-        // 2. ДАТА и ОЦЕНКА (Опускаем значительно ниже)
-        // Было 220 -> Стало 135
-        const footerY = 135;
+        // 2. ОЦЕНКА (Подняли к надписи "Результаты тестирования" Y=300)
+        const scoreY = 300;
+
+        // 3. ДАТА (Поставили на место знака "%" Y=220)
+        const dateY = 220;
 
         // Размеры шрифтов
         const fontSizeName = 55;
@@ -922,14 +924,16 @@ const generateCertificate = async (req, res) => {
         const fontSizeScore = 55;
         const fontSizeDate = 30;
 
-        // Координаты X
-        const scoreX = 400;          // Слева
-        const dateX = width - 400;   // Справа
+        // Координаты X (Ширина)
+        // Score (Результат) обычно слева или по центру левого блока
+        const scoreX = 400;
 
-        // --- СЕТКА ДЛЯ ОТЛАДКИ (ВКЛЮЧЕНА) ---
-        // Посмотрите на PDF. Если линии встали идеально, поставьте false.
-        // Если нет — скажите мне цифру Y, на которой должна быть дата.
-        const DRAW_DEBUG_GRID = true;
+        // Date (Дата) обычно справа. Если нужно "где стоит %", возможно нужно подвинуть?
+        // Пока оставляем справа (стандарт для даты), но высоту выставили по вашему требованию.
+        const dateX = width - 400;
+
+        // --- СЕТКА ОТКЛЮЧЕНА ---
+        const DRAW_DEBUG_GRID = false;
 
         if (DRAW_DEBUG_GRID) {
             const gridFontSize = 20;
@@ -989,22 +993,25 @@ const generateCertificate = async (req, res) => {
         const blackColor = rgb(0, 0, 0);
         const darkGrayColor = rgb(0.2, 0.2, 0.2);
 
+        // 1. Имя
         drawCenteredText(userName, nameY, fontSizeName, blackColor);
+
+        // 2. Курс
         drawCenteredText(courseTitle, courseY, fontSizeCourse, darkGrayColor);
 
-        // Результат
+        // 3. Результат (Score) -> Y=300
         page.drawText(`${score}%`, {
             x: scoreX,
-            y: footerY,
+            y: scoreY,
             size: fontSizeScore,
             font: customFont,
             color: blackColor,
         });
 
-        // Дата
+        // 4. Дата -> Y=220
         page.drawText(sanitize(date), {
             x: dateX,
-            y: footerY,
+            y: dateY,
             size: fontSizeDate,
             font: customFont,
             color: blackColor,
