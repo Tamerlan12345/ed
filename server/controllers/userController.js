@@ -661,11 +661,11 @@ You are a dialogue evaluation expert. Your task is to analyze the following conv
 **Instructions:**
 1.  **Analyze the Dialogue:** Carefully read the dialogue provided below.
 2.  **Evaluate Based on Criteria:** Rate the Manager's performance on a scale of 1 to 10 for each of the following criteria:
-    *   Установление контакта (Building Rapport)
-    *   Выявление потребностей (Identifying Needs)
-    *   Презентация решения (Presenting the Solution)
-    *   Работа с возражениями (Handling Objections)
-    *   Завершение сделки (Closing the Deal)
+    * Установление контакта (Building Rapport)
+    * Выявление потребностей (Identifying Needs)
+    * Презентация решения (Presenting the Solution)
+    * Работа с возражениями (Handling Objections)
+    * Завершение сделки (Closing the Deal)
 3.  **Provide Comments:** For each criterion, provide a brief, constructive comment in Russian explaining the score.
 4.  **Calculate Average Score:** Calculate the average of the five scores.
 5.  **Write a General Comment:** Provide an overall summary and feedback in Russian.
@@ -908,13 +908,13 @@ const generateCertificate = async (req, res) => {
 
         // --- ФИНАЛЬНЫЕ КООРДИНАТЫ (V8) ---
 
-        // 1. ИМЯ и КУРС (Оставляем как было)
-        const nameY = 620;
-        const courseY = 450;
+        // 1. ИМЯ и КУРС
+        const nameY = 580; // Было 620
+        const courseY = 410; // Было 450
 
         // 2. ОЦЕНКА (%)
         // Ставим на место, где раньше была ДАТА (справа, Y=300)
-        const scoreY = 300;
+        const scoreY = 260; // Было 300
         const scoreX = width - 400; // Справа
 
         // Размеры шрифтов
