@@ -945,36 +945,44 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        // --- 1. ИМЯ ПОЛЬЗОВАТЕЛЯ ---
-        // Позиция: Чуть выше центра
-        // Y: +10 от центра (Оставляем как есть, это хорошая позиция)
-        drawCenteredText(userName, height / 2 + 10, fontSizeName, blackColor);
+// --- 1. ИМЯ ПОЛЬЗОВАТЕЛЯ ---
+        // Ваши замеры: 200 на 301 пикселей
+        page.drawText(userName, {
+            x: 200,                  // Отступ слева
+            y: height - 301,         // Отступ снизу (Высота страницы минус ваш замер сверху)
+            size: fontSizeName,
+            font: customFont,
+            color: blackColor,
+        });
 
         // --- 2. НАЗВАНИЕ КУРСА ---
-        // Позиция: Должно быть ПОД строкой "За успешное прохождение курса..."
-        // Было: -60 (Высоко, налезло на текст)
-        // Стало: -110 (Опускаем значительно ниже)
-        drawCenteredText(courseTitle, height / 2 - 110, fontSizeCourse, darkGrayColor);
+        // Ваши замеры: 234 на 371 пикселей
+        page.drawText(courseTitle, {
+            x: 234,
+            y: height - 371,
+            size: fontSizeCourse,
+            font: customFont,
+            color: darkGrayColor,
+        });
 
         // --- 3. РЕЗУЛЬТАТ (SCORE) ---
-        // Позиция: В зоне "Результаты тестирования"
-        // Было: -260 (Слишком низко, улетело в подвал)
-        // Стало: -200 (Поднимаем выше, в "тело" сертификата)
-        // X: 120 (Отступ слева, подбираем под макет)
+        // Ваши замеры: 563 на 435 пикселей
         page.drawText(`${score}%`, {
-            x: 120,
-            y: height / 2 - 200,
+            x: 563,
+            y: height - 435,
             size: fontSizeScore,
             font: customFont,
             color: blackColor,
         });
 
         // --- 4. ДАТА ---
-        // Позиция: Подвал, справа
-        // Y: 55 (Чуть приподняли от самого края, чтобы было ровно на строке)
+        // Ваши замеры: 134 на 530 пикселей
+        // ВНИМАНИЕ: X=134 — это левая сторона (где "Подпись").
+        // Если дата нужна СЛЕВА, оставьте 134. 
+        // Если дата нужна СПРАВА (как обычно), используйте x: width - 200 (или около 650-700).
         page.drawText(date, {
-            x: width - 250,
-            y: 55,
+            x: 134,                 
+            y: height - 530,
             size: fontSizeDate,
             font: customFont,
             color: blackColor,
