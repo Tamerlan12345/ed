@@ -874,7 +874,6 @@ const generateCertificate = async (req, res) => {
         for (const fontPath of possibleFontPaths) {
             try {
                 if (fs.existsSync(fontPath)) {
-                    console.log(`Loading font from: ${fontPath}`);
                     const fontBytes = fs.readFileSync(fontPath);
                     customFont = await pdfDoc.embedFont(fontBytes);
                     break;
@@ -906,17 +905,19 @@ const generateCertificate = async (req, res) => {
 
         const { width, height } = page.getSize();
 
-        // --- ФИНАЛЬНЫЕ КООРДИНАТЫ ---
+        // --- ФИНАЛЬНЫЕ КООРДИНАТЫ V7 ---
 
         // 1. ИМЯ и КУРС (Оставляем как было, они стоят верно)
         const nameY = 620;
         const courseY = 450;
 
-        // 2. ОЦЕНКА (Подняли к надписи "Результаты тестирования" Y=300)
-        const scoreY = 300;
+        // 2. ОЦЕНКА (%)
+        // Подняли до уровня "Результаты тестирования" (было 300)
+        const scoreY = 390;
 
-        // 3. ДАТА (Поставили на место знака "%" Y=220)
-        const dateY = 220;
+        // 3. ДАТА
+        // Подняли до уровня, где был знак % (было 220, стало 300)
+        const dateY = 300;
 
         // Размеры шрифтов
         const fontSizeName = 55;
@@ -925,11 +926,7 @@ const generateCertificate = async (req, res) => {
         const fontSizeDate = 30;
 
         // Координаты X (Ширина)
-        // Score (Результат) обычно слева или по центру левого блока
         const scoreX = 400;
-
-        // Date (Дата) обычно справа. Если нужно "где стоит %", возможно нужно подвинуть?
-        // Пока оставляем справа (стандарт для даты), но высоту выставили по вашему требованию.
         const dateX = width - 400;
 
         // --- СЕТКА ОТКЛЮЧЕНА ---
