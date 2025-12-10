@@ -862,27 +862,41 @@ const generateCertificate = async (req, res) => {
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
-        // Шрифты
+        // --- ИСПРАВЛЕНИЕ: Логика загрузки шрифта ---
         let customFont;
+        let fontPath = path.resolve(__dirname, '../assets/fonts/Rubik-Regular.ttf');
+
+        console.log('Attempting to load font from:', fontPath);
+
         try {
-            const fontPath = path.join(__dirname, '../assets/fonts/Rubik-Regular.ttf');
             if (fs.existsSync(fontPath)) {
                 const fontBytes = fs.readFileSync(fontPath);
                 customFont = await pdfDoc.embedFont(fontBytes);
+                console.log('Custom font loaded successfully.');
+            } else {
+                console.error('Font file NOT FOUND at:', fontPath);
+                // Попытка найти в альтернативном месте (на случай Docker структуры)
+                const altPath = path.resolve(__dirname, '../../server/assets/fonts/Rubik-Regular.ttf');
+                if (fs.existsSync(altPath)) {
+                    console.log('Found font at alt path:', altPath);
+                    const fontBytes = fs.readFileSync(altPath);
+                    customFont = await pdfDoc.embedFont(fontBytes);
+                }
             }
         } catch (e) {
-            console.warn('Custom font load failed:', e.message);
+            console.error('Custom font load CRASHED:', e.message);
         }
 
         let isFallbackFont = false;
         if (!customFont) {
+            console.warn('Falling back to Helvetica (No Cyrillic support!)');
             customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
             isFallbackFont = true;
         }
 
-        // Загрузка фона
+        // Загрузка фона (шаблона)
         let page;
-        const templatePath = path.join(__dirname, '../../ser.png');
+        const templatePath = path.resolve(__dirname, '../../ser.png');
 
         if (fs.existsSync(templatePath)) {
             const imageBytes = fs.readFileSync(templatePath);
@@ -890,59 +904,64 @@ const generateCertificate = async (req, res) => {
             page = pdfDoc.addPage([pngImage.width, pngImage.height]);
             page.drawImage(pngImage, { x: 0, y: 0, width: pngImage.width, height: pngImage.height });
         } else {
-            page = pdfDoc.addPage([1683, 1246]); // Фолбэк размер
+            console.warn('Template ser.png not found, creating blank page');
+            page = pdfDoc.addPage([1683, 1246]);
         }
 
-        const { width, height } = page.getSize(); // 1683 x 1246
+        const { width, height } = page.getSize();
 
-        // --- НАСТРОЙКИ КООРДИНАТ (V3 - Снижаем высоту) ---
-        // Y=0 это НИЗ страницы. Y=1246 это ВЕРХ.
-        // Чтобы опустить текст, УМЕНЬШАЕМ Y.
+        // --- CALIBRATED COORDINATES ---
+        // Based on analysis of ser.png line positions:
+        // Name Line: ~589 -> Text at 600
+        // Course Line: ~445 -> Text at 460
+        // Date Line (Right): ~296 -> Text at 310
 
-        const nameY = 580;     // Было 720. Опустили ниже середины.
-        const courseY = 430;   // Было 550.
-        const footerY = 220;   // Было 320. Общая высота для низа (дата/результат)
+        const nameY = 600;
+        const courseY = 460;
+        const footerY = 310;
 
-        // Размеры шрифтов
-        const fontSizeName = 60;
-        const fontSizeCourse = 40;
-        const fontSizeScore = 60;
+        const fontSizeName = 55;
+        const fontSizeCourse = 35;
+        const fontSizeScore = 55;
         const fontSizeDate = 30;
 
-        // Координаты по X (ширине)
-        const scoreX = 400;         // Слева
-        const dateX = width - 400;  // Справа
+        const scoreX = 400;
+        const dateX = width - 400;
 
         const blackColor = rgb(0, 0, 0);
         const darkGrayColor = rgb(0.2, 0.2, 0.2);
 
-        // --- РЕЖИМ ОТЛАДКИ (СЕТКА) ---
-        // Поставьте true, чтобы напечатать линейку на сертификате
+        // --- DEBUG GRID DISABLED ---
         const DRAW_DEBUG_GRID = false;
 
         if (DRAW_DEBUG_GRID) {
-            const gridFontSize = 12;
-            // Рисуем линии каждые 50 пикселей
+            const gridFontSize = 20;
+            // Рисуем линии каждые 100 пикселей
             for (let y = 0; y < height; y += 50) {
+                const isMajor = y % 100 === 0;
                 page.drawLine({
                     start: { x: 0, y: y },
-                    end: { x: 100, y: y }, // Короткая черточка слева
-                    thickness: 1,
-                    color: rgb(1, 0, 0), // Красный
+                    end: { x: width, y: y }, // Линия через весь лист
+                    thickness: isMajor ? 2 : 1,
+                    color: isMajor ? rgb(1, 0, 0) : rgb(0.8, 0.8, 0.8), // Красный для основных, серый для промежуточных
+                    opacity: 0.5
                 });
-                page.drawText(`Y=${y}`, {
-                    x: 5,
-                    y: y + 2,
-                    size: gridFontSize,
-                    font: customFont,
-                    color: rgb(1, 0, 0),
-                });
+                if (isMajor) {
+                    page.drawText(`Y=${y}`, {
+                        x: 10,
+                        y: y + 5,
+                        size: gridFontSize,
+                        font: customFont,
+                        color: rgb(1, 0, 0),
+                    });
+                }
             }
         }
 
         // Helpers
         const sanitize = (str) => {
             if (!isFallbackFont) return str;
+            // Расширенная карта транслитерации
             const map = {
                 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
                 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
@@ -955,7 +974,7 @@ const generateCertificate = async (req, res) => {
                 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu',
                 'Я': 'Ya'
             };
-            return str.split('').map(c => map[c] || c).join('').replace(/[^\x00-\x7F]/g, "?");
+            return str.split('').map(c => map[c] !== undefined ? map[c] : c).join('').replace(/[^\x00-\x7F]/g, "?");
         };
 
         const drawCenteredText = (text, y, size, color = rgb(0, 0, 0)) => {
@@ -978,7 +997,7 @@ const generateCertificate = async (req, res) => {
         // 2. Курс
         drawCenteredText(courseTitle, courseY, fontSizeCourse, darkGrayColor);
 
-        // 3. Результат (Score)
+        // 3. Результат
         page.drawText(`${score}%`, {
             x: scoreX,
             y: footerY,
@@ -1003,7 +1022,7 @@ const generateCertificate = async (req, res) => {
 
     } catch (error) {
         console.error('Certificate generation error:', error);
-        res.status(500).send('Error generating certificate');
+        res.status(500).send('Error generating certificate: ' + error.message);
     }
 };
 
