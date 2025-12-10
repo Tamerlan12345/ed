@@ -862,39 +862,36 @@ const generateCertificate = async (req, res) => {
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
-        // --- ИСПРАВЛЕНИЕ: Логика загрузки шрифта ---
+        // --- Загрузка шрифта (Robust) ---
         let customFont;
-        let fontPath = path.resolve(__dirname, '../assets/fonts/Rubik-Regular.ttf');
+        // Проверяем несколько путей, чтобы точно найти шрифт
+        const possibleFontPaths = [
+            path.resolve(__dirname, '../assets/fonts/Rubik-Regular.ttf'),
+            path.resolve(__dirname, '../../server/assets/fonts/Rubik-Regular.ttf'),
+            path.join(process.cwd(), 'server/assets/fonts/Rubik-Regular.ttf')
+        ];
 
-        console.log('Attempting to load font from:', fontPath);
-
-        try {
-            if (fs.existsSync(fontPath)) {
-                const fontBytes = fs.readFileSync(fontPath);
-                customFont = await pdfDoc.embedFont(fontBytes);
-                console.log('Custom font loaded successfully.');
-            } else {
-                console.error('Font file NOT FOUND at:', fontPath);
-                // Попытка найти в альтернативном месте (на случай Docker структуры)
-                const altPath = path.resolve(__dirname, '../../server/assets/fonts/Rubik-Regular.ttf');
-                if (fs.existsSync(altPath)) {
-                    console.log('Found font at alt path:', altPath);
-                    const fontBytes = fs.readFileSync(altPath);
+        for (const fontPath of possibleFontPaths) {
+            try {
+                if (fs.existsSync(fontPath)) {
+                    console.log(`Loading font from: ${fontPath}`);
+                    const fontBytes = fs.readFileSync(fontPath);
                     customFont = await pdfDoc.embedFont(fontBytes);
+                    break;
                 }
+            } catch (e) {
+                console.warn(`Failed to load font from ${fontPath}:`, e.message);
             }
-        } catch (e) {
-            console.error('Custom font load CRASHED:', e.message);
         }
 
         let isFallbackFont = false;
         if (!customFont) {
-            console.warn('Falling back to Helvetica (No Cyrillic support!)');
+            console.error('CRITICAL: Custom font NOT FOUND. Using Helvetica fallback.');
             customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
             isFallbackFont = true;
         }
 
-        // Загрузка фона (шаблона)
+        // Загрузка шаблона
         let page;
         const templatePath = path.resolve(__dirname, '../../ser.png');
 
@@ -904,47 +901,46 @@ const generateCertificate = async (req, res) => {
             page = pdfDoc.addPage([pngImage.width, pngImage.height]);
             page.drawImage(pngImage, { x: 0, y: 0, width: pngImage.width, height: pngImage.height });
         } else {
-            console.warn('Template ser.png not found, creating blank page');
             page = pdfDoc.addPage([1683, 1246]);
         }
 
         const { width, height } = page.getSize();
 
-        // --- CALIBRATED COORDINATES ---
-        // Based on analysis of ser.png line positions:
-        // Name Line: ~589 -> Text at 600
-        // Course Line: ~445 -> Text at 460
-        // Date Line (Right): ~296 -> Text at 310
+        // --- НАСТРОЙКИ КООРДИНАТ (V5 - Fix Footer) ---
 
-        const nameY = 600;
-        const courseY = 460;
-        const footerY = 310;
+        // 1. ИМЯ и КУРС (Оставляем как было - User approved)
+        const nameY = 620;
+        const courseY = 450;
 
+        // 2. ДАТА и ОЦЕНКА (Опускаем значительно ниже)
+        // Было 220 -> Стало 135
+        const footerY = 135;
+
+        // Размеры шрифтов
         const fontSizeName = 55;
         const fontSizeCourse = 35;
         const fontSizeScore = 55;
         const fontSizeDate = 30;
 
-        const scoreX = 400;
-        const dateX = width - 400;
+        // Координаты X
+        const scoreX = 400;          // Слева
+        const dateX = width - 400;   // Справа
 
-        const blackColor = rgb(0, 0, 0);
-        const darkGrayColor = rgb(0.2, 0.2, 0.2);
-
-        // --- DEBUG GRID DISABLED ---
-        const DRAW_DEBUG_GRID = false;
+        // --- СЕТКА ДЛЯ ОТЛАДКИ (ВКЛЮЧЕНА) ---
+        // Посмотрите на PDF. Если линии встали идеально, поставьте false.
+        // Если нет — скажите мне цифру Y, на которой должна быть дата.
+        const DRAW_DEBUG_GRID = true;
 
         if (DRAW_DEBUG_GRID) {
             const gridFontSize = 20;
-            // Рисуем линии каждые 100 пикселей
             for (let y = 0; y < height; y += 50) {
                 const isMajor = y % 100 === 0;
                 page.drawLine({
                     start: { x: 0, y: y },
-                    end: { x: width, y: y }, // Линия через весь лист
+                    end: { x: width, y: y },
                     thickness: isMajor ? 2 : 1,
-                    color: isMajor ? rgb(1, 0, 0) : rgb(0.8, 0.8, 0.8), // Красный для основных, серый для промежуточных
-                    opacity: 0.5
+                    color: isMajor ? rgb(1, 0, 0) : rgb(0.5, 0.5, 0.5),
+                    opacity: 0.6
                 });
                 if (isMajor) {
                     page.drawText(`Y=${y}`, {
@@ -961,7 +957,7 @@ const generateCertificate = async (req, res) => {
         // Helpers
         const sanitize = (str) => {
             if (!isFallbackFont) return str;
-            // Расширенная карта транслитерации
+            // Транслитерация для Helvetica (на случай сбоя шрифта)
             const map = {
                 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
                 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
@@ -989,15 +985,14 @@ const generateCertificate = async (req, res) => {
             });
         };
 
-        // --- ОТРИСОВКА ДАННЫХ ---
+        // --- ОТРИСОВКА ---
+        const blackColor = rgb(0, 0, 0);
+        const darkGrayColor = rgb(0.2, 0.2, 0.2);
 
-        // 1. Имя
         drawCenteredText(userName, nameY, fontSizeName, blackColor);
-
-        // 2. Курс
         drawCenteredText(courseTitle, courseY, fontSizeCourse, darkGrayColor);
 
-        // 3. Результат
+        // Результат
         page.drawText(`${score}%`, {
             x: scoreX,
             y: footerY,
@@ -1006,7 +1001,7 @@ const generateCertificate = async (req, res) => {
             color: blackColor,
         });
 
-        // 4. Дата
+        // Дата
         page.drawText(sanitize(date), {
             x: dateX,
             y: footerY,
